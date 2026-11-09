@@ -1,58 +1,86 @@
-import './style.css';
 import type { Frame, Point, Rect } from './core/types';
 import { buildAnalogCalibration, type AnalogRaw } from './readers/analog';
 import { readChannel, type Calibration, type DigitalCalibration } from './readers';
-import { Session, TIME_KEY } from './session/session';
+import { Session, TIME_KEY, seriesOf, tableOf, type ChannelDef } from './session/session';
 import { toCsv } from './export/csv';
 import { toXlsx } from './export/xlsx';
-import { ResultChart } from './ui/chart';
+import { ResultChart, type ChartSeries } from './ui/chart';
+import { icon, symbol, SYMBOLS } from './ui/icons';
 import { openCamera, openVideoFile } from './source/video';
-import { DemoSource, DEMO } from './source/demo';
+import { DemoSource } from './source/demo';
 import type { FrameSource } from './source/types';
 import { analyzeFile, startLive, type ActiveChannel } from './sampler';
+import { assessRegion } from './quality';
+import { STORAGE_KEY, calibrationFile, parseCalibrationFile, parseState, serialize, type SavedChannel, type SavedState } from './storage';
+
+/* ============================== Zustand ============================== */
+
+type PointKey = 'pivot' | 'p1' | 'p2' | 'roi';
+type Step = 'pivot' | 'ref1' | 'ref2' | 'roi';
 
 interface Chan {
   id: string;
+  /** 0..3 – bestimmt Registerfarbe und Symbol überall. */
+  slot: number;
   type: 'analog' | 'digital';
   name: string;
   unit: string;
-  // analog
   raw: Partial<AnalogRaw>;
   bigArc: boolean;
   pointerDark: boolean;
-  // digital
   roi?: Rect;
   digits: number;
   decimals: string;
   polarity: DigitalCalibration['polarity'];
   cal: Calibration | null;
   live: { value: number | null; confidence: number } | null;
+  issues: string[];
+  hist: string[];
 }
-type Step = 'pivot' | 'ref1' | 'ref2' | 'roi';
 
-const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
+const MAX_CHANNELS = 4;
 const session = new Session();
-const chart = new ResultChart($<HTMLCanvasElement>('chart'));
-const view = $<HTMLCanvasElement>('view');
-const vctx = view.getContext('2d')!;
-
 let source: FrameSource | null = null;
 let chans: Chan[] = [];
+let nextId = 1;
+let currentStep = 1;
 let calib: { id: string; step: Step } | null = null;
-let drag: { start: Point; cur: Point } | null = null;
+let sel: { id: string; key: PointKey } | null = null;
+let dragging: { id: string; key: PointKey; grab: Point; before: string } | null = null;
+let roiDraw: { start: Point; cur: Point } | null = null;
 let stopLive: (() => void) | null = null;
 let abort: AbortController | null = null;
-let lastFrame: Frame | null = null;
-let nextId = 1;
+let beamer = false;
+let recStart = 0;
+let lastKeyHist = 0;
 
-// ---------- Hilfen ----------
+/* ============================== Hilfen ============================== */
+
+const $ = <T extends HTMLElement>(id: string): T => document.getElementById(id) as T;
+const view = $<HTMLCanvasElement>('view');
+const vctx = view.getContext('2d')!;
+const chart = new ResultChart($<HTMLCanvasElement>('chart'));
+const root = document.documentElement;
+
+const de = (v: number | null, max = 4): string => (v === null ? '–' : v.toLocaleString('de-DE', { maximumFractionDigits: max }));
+const chan = (id: string): Chan => chans.find((c) => c.id === id)!;
+const cssVar = (name: string): string => getComputedStyle(root).getPropertyValue(name).trim();
+const chanColor = (slot: number): string => cssVar(`--ch${(slot % 4) + 1}`);
+
+function hydrateIcons(scope: ParentNode = document): void {
+  scope.querySelectorAll<HTMLElement>('[data-icon]').forEach((el) => {
+    el.innerHTML = icon(el.dataset.icon!, Number(el.dataset.size ?? 20));
+    el.removeAttribute('data-icon');
+  });
+}
+
+function setHint(msg: string): void {
+  $('hint').innerHTML = `${icon('info')}<span>${msg}</span>`;
+}
 function showError(msg: string | null): void {
   const el = $('error');
   el.hidden = !msg;
   el.textContent = msg ?? '';
-}
-function setHint(msg: string): void {
-  $('hint').textContent = msg;
 }
 function download(blob: Blob, name: string): void {
   const a = document.createElement('a');
@@ -61,8 +89,8 @@ function download(blob: Blob, name: string): void {
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
-const chan = (id: string): Chan => chans.find((c) => c.id === id)!;
-const fmt = (v: number | null): string => (v === null ? '–' : String(Math.round(v * 1e4) / 1e4));
+const stamp = (): string => new Date().toISOString().slice(0, 10);
+const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]!));
 
 function rebuildCal(c: Chan): void {
   if (c.type === 'analog') {
@@ -78,12 +106,71 @@ function rebuildCal(c: Chan): void {
   }
 }
 
-function pointer(e: PointerEvent): Point {
-  const r = view.getBoundingClientRect();
-  return { x: ((e.clientX - r.left) / r.width) * view.width, y: ((e.clientY - r.top) / r.height) * view.height };
+const active = (): ActiveChannel[] => chans.filter((c) => c.cal).map((c) => ({ id: c.id, cal: c.cal! }));
+
+/* ============================== Thema ============================== */
+
+const themeSel = $<HTMLSelectElement>('theme');
+const dark = matchMedia('(prefers-color-scheme: dark)');
+const contrast = matchMedia('(prefers-contrast: more)');
+function applyTheme(): void {
+  const v = themeSel.value;
+  const resolved = v === 'auto' ? (contrast.matches ? 'contrast' : dark.matches ? 'dark' : 'light') : v;
+  root.dataset.theme = resolved;
+  renderResults();
+}
+themeSel.onchange = () => { applyTheme(); scheduleSave(); };
+dark.addEventListener('change', applyTheme);
+contrast.addEventListener('change', applyTheme);
+
+/* ============================== Schritte ============================== */
+
+const readyForMeasure = (): boolean => !!source && active().length > 0;
+
+function goStep(n: number): void {
+  currentStep = n;
+  applyStep();
+}
+function applyStep(): void {
+  for (let i = 1; i <= 4; i++) {
+    const tab = $(`tab-${i}`);
+    tab.setAttribute('aria-selected', String(i === currentStep));
+    tab.tabIndex = i === currentStep ? 0 : -1;
+    const show = beamer ? i === 3 || i === 4 : i === currentStep;
+    $(`panel-${i}`).hidden = !show;
+  }
+  const hints: Record<number, string> = {
+    1: 'Wähle eine Quelle: Kamera für Live-Messung, Videodatei für Aufgezeichnetes, Demo zum Ausprobieren.',
+    2: chans.length ? 'Kalibriere jedes Gerät im Bild. Die Zahl oben zeigt sofort, ob die Ablesung stimmt.' : 'Lege ein Messgerät an: Zeigerinstrument oder Digitalanzeige.',
+    3: 'Bereit zum Messen. Starte mit der Schaltfläche oder der Leertaste.',
+    4: 'Wähle die Achsen. Mausrad oder Pinch zoomt, Ziehen verschiebt den Graphen.',
+  };
+  if (!calib) setHint(hints[currentStep]);
+  if (currentStep === 4 || beamer) renderResults();
+}
+$('tabs').addEventListener('click', (e) => {
+  const t = (e.target as HTMLElement).closest<HTMLElement>('[role=tab]');
+  if (t) goStep(Number(t.dataset.step));
+});
+$('tabs').addEventListener('keydown', (e) => {
+  const k = (e as KeyboardEvent).key;
+  if (k !== 'ArrowRight' && k !== 'ArrowLeft') return;
+  const n = Math.min(4, Math.max(1, currentStep + (k === 'ArrowRight' ? 1 : -1)));
+  goStep(n);
+  $(`tab-${n}`).focus();
+});
+document.querySelectorAll<HTMLElement>('[data-goto]').forEach((b) => (b.onclick = () => goStep(Number(b.dataset.goto))));
+
+$('btn-beamer').onclick = () => setBeamer(!beamer);
+function setBeamer(on: boolean): void {
+  beamer = on;
+  document.body.classList.toggle('beamer', on);
+  $('btn-beamer').setAttribute('aria-pressed', String(on));
+  applyStep();
 }
 
-// ---------- Quelle ----------
+/* ============================== Quelle ============================== */
+
 function setSource(src: FrameSource): void {
   stopRecording();
   source?.stop();
@@ -100,9 +187,11 @@ function setSource(src: FrameSource): void {
   }
   $('btn-analyze').hidden = !isFile;
   $('btn-live').hidden = src.kind === 'file';
-  setHint('Messgerät kalibrieren: unten „＋ Zeigerinstrument“ oder „＋ Digitalanzeige“ wählen.');
+  document.querySelectorAll('.choice').forEach((c) => c.classList.remove('active'));
+  ({ camera: $('btn-camera'), demo: $('btn-demo'), file: $('file').closest('.choice')! }[src.kind] as HTMLElement).classList.add('active');
   showError(null);
   updateButtons();
+  goStep(2);
 }
 
 async function guarded(fn: () => Promise<FrameSource>): Promise<void> {
@@ -121,95 +210,281 @@ $<HTMLInputElement>('file').onchange = (e) => {
 $<HTMLInputElement>('scrub-range').oninput = async (e) => {
   if (!source?.seek) return;
   const t = Number((e.target as HTMLInputElement).value);
-  $('scrub-time').textContent = `${t.toFixed(1)} s`;
+  $('scrub-time').textContent = `${de(t, 1)} s`;
   await source.seek(t);
 };
 
-// ---------- Kanäle ----------
+/* ============================== Dialoge ============================== */
+
+const valdlg = $<HTMLDialogElement>('valdlg');
+/** Fragt einen Skalenwert ab (statt window.prompt). null = abgebrochen. */
+function askValue(title: string, help: string, unit: string, def: string): Promise<number | null> {
+  return new Promise((resolve) => {
+    $('valdlg-title').textContent = title;
+    $('valdlg-help').textContent = help;
+    $('valdlg-unit').textContent = unit;
+    $('valdlg-err').textContent = '';
+    const input = $<HTMLInputElement>('valdlg-input');
+    input.value = def;
+    const form = $<HTMLFormElement>('valdlg-form');
+    const onSubmit = (ev: SubmitEvent): void => {
+      const choice = (ev.submitter as HTMLButtonElement | null)?.value;
+      if (choice === 'ok') {
+        const v = Number(input.value.trim().replace(',', '.'));
+        if (!Number.isFinite(v) || input.value.trim() === '') {
+          ev.preventDefault();
+          $('valdlg-err').textContent = 'Bitte eine Zahl eingeben, z. B. 2,5';
+          return;
+        }
+        finish(v);
+      } else finish(null);
+    };
+    const onCancel = (): void => finish(null);
+    const finish = (v: number | null): void => {
+      form.removeEventListener('submit', onSubmit);
+      valdlg.removeEventListener('cancel', onCancel);
+      if (valdlg.open) valdlg.close();
+      resolve(v);
+    };
+    form.addEventListener('submit', onSubmit);
+    valdlg.addEventListener('cancel', onCancel);
+    valdlg.showModal();
+    input.select();
+  });
+}
+const helpdlg = $<HTMLDialogElement>('helpdlg');
+$('btn-help').onclick = () => helpdlg.showModal();
+$('helpdlg-close').onclick = () => helpdlg.close();
+
+/* ============================== Kanäle ============================== */
+
 function addChannel(type: 'analog' | 'digital'): void {
+  if (chans.length >= MAX_CHANNELS) return showError('Mehr als vier Messgeräte gleichzeitig werden nicht unterstützt.');
+  const used = new Set(chans.map((c) => c.slot));
+  const slot = [0, 1, 2, 3].find((s) => !used.has(s))!;
   const id = `k${nextId++}`;
-  const n = chans.length + 1;
   chans.push({
-    id, type, name: `Gerät ${n}`, unit: type === 'analog' ? 'V' : 'A', raw: {}, bigArc: type === 'analog',
-    pointerDark: true, digits: 4, decimals: '', polarity: 'auto', cal: null, live: null,
+    id, slot, type, name: `Gerät ${chans.length + 1}`, unit: type === 'analog' ? 'V' : 'A', raw: {}, bigArc: type === 'analog',
+    pointerDark: true, digits: 4, decimals: '', polarity: 'auto', cal: null, live: null, issues: [], hist: [],
   });
   startCalibration(id);
 }
 $('add-analog').onclick = () => addChannel('analog');
 $('add-digital').onclick = () => addChannel('digital');
 
-function startCalibration(id: string): void {
-  const c = chan(id);
-  if (!source) return showError('Bitte zuerst eine Quelle wählen.');
-  calib = { id, step: c.type === 'analog' ? 'pivot' : 'roi' };
-  setHint(c.type === 'analog' ? 'Klicke auf den Drehpunkt des Zeigers.' : 'Ziehe ein Rechteck eng um die Ziffern.');
+function pushHist(c: Chan): void {
+  c.hist.push(JSON.stringify({ raw: c.raw, roi: c.roi }));
+  if (c.hist.length > 40) c.hist.shift();
+}
+function stepFromRaw(c: Chan): Step | null {
+  if (c.type === 'digital') return c.roi ? null : 'roi';
+  if (!c.raw.pivot) return 'pivot';
+  if (!c.raw.p1) return 'ref1';
+  if (!c.raw.p2) return 'ref2';
+  return null;
+}
+function undo(): void {
+  const c = chans.find((x) => x.id === (calib?.id ?? sel?.id)) ?? chans[chans.length - 1];
+  if (!c || !c.hist.length) return setHint('Nichts zum Rückgängigmachen.');
+  const prev = JSON.parse(c.hist.pop()!);
+  c.raw = prev.raw ?? {};
+  c.roi = prev.roi;
+  const st = stepFromRaw(c);
+  calib = st ? { id: c.id, step: st } : null;
+  rebuildCal(c);
+  explain();
   renderChannels();
+  renderLive();
+  updateButtons();
+  scheduleSave();
 }
 
-function onCalibClick(p: Point): void {
+function explain(): void {
   if (!calib) return;
   const c = chan(calib.id);
-  if (calib.step === 'pivot') {
-    c.raw = { pivot: p };
+  setHint(({
+    pivot: `${esc(c.name)}: Klicke auf den Drehpunkt des Zeigers.`,
+    ref1: `${esc(c.name)}: Klicke auf einen Skalenstrich mit bekanntem Wert, z. B. den Anfang der Skala.`,
+    ref2: `${esc(c.name)}: Klicke auf einen zweiten Skalenstrich mit bekanntem Wert, möglichst weit vom ersten entfernt.`,
+    roi: `${esc(c.name)}: Ziehe ein Rechteck eng um die Ziffern der Anzeige.`,
+  } as Record<Step, string>)[calib.step]);
+}
+
+function startCalibration(id: string): void {
+  const c = chan(id);
+  if (!source) {
+    chans = chans.filter((x) => x.id !== id);
+    goStep(1);
+    return showError('Bitte zuerst eine Quelle wählen.');
+  }
+  pushHist(c);
+  c.raw = {};
+  c.roi = undefined;
+  c.cal = null;
+  calib = { id, step: c.type === 'analog' ? 'pivot' : 'roi' };
+  sel = null;
+  explain();
+  renderChannels();
+  renderLive();
+  updateButtons();
+  goStep(2);
+  explain();
+}
+
+function cancelCalibration(): void {
+  if (!calib) return;
+  const c = chan(calib.id);
+  calib = null;
+  rebuildCal(c);
+  if (!c.cal) chans = chans.filter((x) => x.id !== c.id); // halbfertiges Gerät verwerfen
+  renderChannels();
+  renderLive();
+  updateButtons();
+  applyStep();
+}
+
+async function onCalibClick(p: Point): Promise<void> {
+  if (!calib) return;
+  const c = chan(calib.id);
+  const step = calib.step;
+  if (step === 'pivot') {
+    c.raw.pivot = p;
     calib.step = 'ref1';
-    setHint('Klicke auf einen Skalenstrich mit bekanntem Wert (z. B. Anfang der Skala).');
-  } else if (calib.step === 'ref1' || calib.step === 'ref2') {
-    const which = calib.step === 'ref1' ? 1 : 2;
-    const ans = window.prompt(`Welcher Wert steht an diesem Skalenstrich (${c.unit})?`, which === 1 ? '0' : '10');
-    const v = ans === null ? NaN : Number(ans.replace(',', '.'));
-    if (!Number.isFinite(v)) return setHint('Ungültiger Wert – bitte den Skalenstrich erneut anklicken.');
-    if (which === 1) {
-      c.raw.p1 = p; c.raw.v1 = v; calib.step = 'ref2';
-      setHint('Klicke auf einen zweiten Skalenstrich mit bekanntem Wert (möglichst weit entfernt).');
-    } else {
+  } else if (step === 'ref1' || step === 'ref2') {
+    const which = step === 'ref1' ? 1 : 2;
+    const v = await askValue(
+      `Skalenwert ${which} von 2`,
+      'Welcher Wert steht an dem angeklickten Skalenstrich?',
+      c.unit,
+      which === 1 ? '0' : '10',
+    );
+    if (v === null) return setHint('Kein Wert übernommen – klicke den Skalenstrich erneut an.');
+    if (which === 1) { c.raw.p1 = p; c.raw.v1 = v; calib.step = 'ref2'; }
+    else {
+      if (v === c.raw.v1) return setHint('Beide Skalenwerte sind gleich – wähle einen anderen Skalenstrich.');
       c.raw.p2 = p; c.raw.v2 = v; calib = null;
-      setHint('Kalibrierung fertig. Zeigt „Live“ den richtigen Wert? Sonst „Großer Bogen“ umschalten.');
     }
   }
   rebuildCal(c);
+  if (!calib) { sel = { id: c.id, key: 'p2' }; setHint('Kalibrierung fertig. Stimmt die Zahl oben? Sonst Punkte ziehen oder „großer Bogen“ umschalten.'); }
+  else explain();
   renderChannels();
+  renderLive();
   updateButtons();
+  scheduleSave();
 }
 
-function onRoi(r: Rect): void {
+function finishRoi(r: Rect): void {
   if (!calib) return;
   const c = chan(calib.id);
+  if (r.w < 12 || r.h < 12) return setHint('Rechteck zu klein – ziehe es größer um die Ziffern.');
   c.roi = r;
   calib = null;
-  setHint('Prüfe die „Live“-Anzeige. Ziffernanzahl und Dezimalstellen bei Bedarf anpassen.');
+  sel = { id: c.id, key: 'roi' };
   rebuildCal(c);
+  setHint('Prüfe die Zahl oben. Ziffernanzahl und Dezimalstellen bei Bedarf anpassen; das Rechteck lässt sich verschieben.');
   renderChannels();
+  renderLive();
   updateButtons();
+  scheduleSave();
 }
+
+function pointsOf(c: Chan): { key: PointKey; p: Point }[] {
+  if (c.type === 'analog') return (['pivot', 'p1', 'p2'] as const).filter((k) => c.raw[k]).map((k) => ({ key: k, p: c.raw[k]! }));
+  return [];
+}
+
+function hit(p: Point): { id: string; key: PointKey } | null {
+  const r = view.getBoundingClientRect();
+  const tol = 16 * (view.width / r.width);
+  for (const c of chans) {
+    for (const q of pointsOf(c)) if (Math.hypot(q.p.x - p.x, q.p.y - p.y) <= tol) return { id: c.id, key: q.key };
+    if (c.roi && p.x >= c.roi.x && p.x <= c.roi.x + c.roi.w && p.y >= c.roi.y && p.y <= c.roi.y + c.roi.h) return { id: c.id, key: 'roi' };
+  }
+  return null;
+}
+
+function pointer(e: PointerEvent): Point {
+  const r = view.getBoundingClientRect();
+  return { x: ((e.clientX - r.left) / r.width) * view.width, y: ((e.clientY - r.top) / r.height) * view.height };
+}
+
+view.addEventListener('pointerdown', (e) => {
+  const p = pointer(e);
+  if (calib) {
+    if (calib.step === 'roi') {
+      view.setPointerCapture(e.pointerId);
+      roiDraw = { start: p, cur: p };
+    } else void onCalibClick(p);
+    return;
+  }
+  const h = hit(p);
+  if (!h) { sel = null; return; }
+  const c = chan(h.id);
+  sel = h;
+  view.setPointerCapture(e.pointerId);
+  const origin = h.key === 'roi' ? c.roi! : c.raw[h.key]!;
+  dragging = { ...h, grab: { x: p.x - origin.x, y: p.y - origin.y }, before: JSON.stringify({ raw: c.raw, roi: c.roi }) };
+});
+view.addEventListener('pointermove', (e) => {
+  const p = pointer(e);
+  if (roiDraw) { roiDraw.cur = p; return; }
+  if (dragging) {
+    const c = chan(dragging.id);
+    const x = p.x - dragging.grab.x, y = p.y - dragging.grab.y;
+    if (dragging.key === 'roi') c.roi = { ...c.roi!, x, y };
+    else c.raw = { ...c.raw, [dragging.key]: { x, y } };
+    rebuildCal(c);
+    return;
+  }
+  view.classList.toggle('can-drag', !calib && !!hit(p));
+});
+view.addEventListener('pointerup', () => {
+  if (roiDraw) {
+    const { start, cur } = roiDraw;
+    roiDraw = null;
+    finishRoi({ x: Math.min(start.x, cur.x), y: Math.min(start.y, cur.y), w: Math.abs(cur.x - start.x), h: Math.abs(cur.y - start.y) });
+  } else if (dragging) {
+    const c = chan(dragging.id);
+    c.hist.push(dragging.before);
+    dragging = null;
+    scheduleSave();
+  }
+});
+
+/* ---- Kanal-Panel ---- */
 
 function renderChannels(): void {
   const host = $('channels');
   host.innerHTML = chans.map((c) => `
-    <div class="chan ${calib?.id === c.id ? 'active' : ''}" data-id="${c.id}">
-      <header>
-        <strong>${c.type === 'analog' ? '🕘' : '🔢'}</strong>
-        <input type="text" data-f="name" value="${c.name}" aria-label="Name" />
-        <input type="text" data-f="unit" value="${c.unit}" aria-label="Einheit" style="width:4em" />
-        <span class="live" id="live-${c.id}">–</span>
-      </header>
-      <div class="bar">
+    <div class="chan ch-${c.slot + 1} ${calib?.id === c.id ? 'active' : ''}" data-id="${c.id}">
+      <div class="chan-head">
+        ${symbol(c.slot, 18)}
+        <input type="text" data-f="name" value="${esc(c.name)}" aria-label="Name von ${esc(c.name)}" />
+        <input type="text" class="unit" data-f="unit" value="${esc(c.unit)}" aria-label="Einheit" />
+        <span class="status ${c.cal ? 'ok' : 'todo'}">${c.cal ? icon('check', 16) + 'kalibriert' : calib?.id === c.id ? 'wird kalibriert …' : 'nicht kalibriert'}</span>
+      </div>
+      <div class="opts">
         ${c.type === 'analog'
-          ? `<label><input type="checkbox" data-f="bigArc" ${c.bigArc ? 'checked' : ''}/> großer Bogen (&gt;180°)</label>
-             <label><input type="checkbox" data-f="pointerDark" ${c.pointerDark ? 'checked' : ''}/> Zeiger dunkel</label>`
-          : `<label>Ziffern <input type="number" data-f="digits" min="1" max="8" value="${c.digits}" style="width:4em"/></label>
-             <label>Dezimalstellen <input type="number" data-f="decimals" min="0" max="6" value="${c.decimals}" placeholder="auto" style="width:5em"/></label>
-             <label>Anzeige <select data-f="polarity">
+          ? `<label><input type="checkbox" data-f="bigArc" ${c.bigArc ? 'checked' : ''}/> Skala größer als 180°</label>
+             <label><input type="checkbox" data-f="pointerDark" ${c.pointerDark ? 'checked' : ''}/> Zeiger dunkel auf hellem Grund</label>`
+          : `<label class="field">Ziffern <input type="number" data-f="digits" min="1" max="8" value="${c.digits}" style="width:4.5em"/></label>
+             <label class="field">Dezimalstellen <input type="number" data-f="decimals" min="0" max="6" value="${c.decimals}" placeholder="auto" style="width:5.5em"/></label>
+             <label class="field">Anzeige <select data-f="polarity">
                ${(['auto', 'dark-on-light', 'light-on-dark'] as const).map((p) => `<option value="${p}" ${p === c.polarity ? 'selected' : ''}>${{ auto: 'automatisch', 'dark-on-light': 'dunkle Ziffern', 'light-on-dark': 'helle Ziffern' }[p]}</option>`).join('')}
              </select></label>`}
-        <button data-act="calib">${c.cal ? 'Neu kalibrieren' : 'Kalibrieren'}</button>
-        <button data-act="remove">✕</button>
       </div>
-    </div>`).join('');
+      <div class="bar">
+        <button type="button" data-act="calib">${icon(c.type === 'analog' ? 'gauge' : 'digits', 18)}${c.cal ? 'Neu kalibrieren' : 'Kalibrieren'}</button>
+        <button type="button" class="ghost" data-act="undo" ${c.hist.length ? '' : 'disabled'}>${icon('undo', 18)}Rückgängig</button>
+        <button type="button" class="ghost" data-act="remove" aria-label="${esc(c.name)} entfernen">${icon('trash', 18)}Entfernen</button>
+      </div>
+      <ul class="issues" id="issues-${c.id}" aria-live="polite"></ul>
+    </div>`).join('') || '<p class="note">Noch kein Gerät angelegt.</p>';
+  $<HTMLButtonElement>('add-analog').disabled = $<HTMLButtonElement>('add-digital').disabled = chans.length >= MAX_CHANNELS;
   refreshSelects();
 }
 
-$('channels').addEventListener('input', (e) => onFieldChange(e.target as HTMLInputElement));
-$('channels').addEventListener('change', (e) => onFieldChange(e.target as HTMLInputElement));
 function onFieldChange(el: HTMLInputElement | HTMLSelectElement): void {
   const f = el.dataset.f;
   const box = el.closest<HTMLElement>('.chan');
@@ -223,89 +498,186 @@ function onFieldChange(el: HTMLInputElement | HTMLSelectElement): void {
   else if (f === 'digits') c.digits = Math.max(1, parseInt(String(val), 10) || 1);
   else if (f === 'decimals') c.decimals = String(val);
   else if (f === 'polarity') c.polarity = val as Chan['polarity'];
-  const session_c = session.channels.find((s) => s.id === c.id);
-  if (session_c) { session_c.name = c.name; session_c.unit = c.unit; }
+  const sc = session.channels.find((s) => s.id === c.id);
+  if (sc) { sc.name = c.name; sc.unit = c.unit; }
   rebuildCal(c);
-  if (f === 'name' || f === 'unit') refreshSelects(); else updateButtons();
+  if (f === 'name' || f === 'unit') { refreshSelects(); renderLive(); } else updateButtons();
   renderResults();
+  scheduleSave();
 }
+$('channels').addEventListener('input', (e) => { const t = e.target as HTMLInputElement; if (t.type === 'text') onFieldChange(t); });
+$('channels').addEventListener('change', (e) => onFieldChange(e.target as HTMLInputElement));
 $('channels').addEventListener('click', (e) => {
-  const btn = (e.target as HTMLElement).closest<HTMLElement>('[data-act]');
+  const btn = (e.target as HTMLElement).closest<HTMLButtonElement>('[data-act]');
   const box = (e.target as HTMLElement).closest<HTMLElement>('.chan');
   if (!btn || !box) return;
   const id = box.dataset.id!;
   if (btn.dataset.act === 'calib') startCalibration(id);
+  else if (btn.dataset.act === 'undo') { calib = calib ?? null; sel = { id, key: 'p2' }; undo(); }
   else if (btn.dataset.act === 'remove') {
     chans = chans.filter((c) => c.id !== id);
     session.removeChannel(id);
     if (calib?.id === id) calib = null;
+    if (sel?.id === id) sel = null;
     renderChannels();
+    renderLive();
     updateButtons();
     renderResults();
+    scheduleSave();
   }
 });
 
-// ---------- Anzeige-Schleife ----------
-view.addEventListener('pointerdown', (e) => {
-  if (!calib) return;
-  const p = pointer(e);
-  if (calib.step === 'roi') {
-    view.setPointerCapture(e.pointerId);
-    drag = { start: p, cur: p };
-  } else onCalibClick(p);
-});
-view.addEventListener('pointermove', (e) => { if (drag) drag.cur = pointer(e); });
-view.addEventListener('pointerup', () => {
-  if (!drag) return;
-  const { start, cur } = drag;
-  drag = null;
-  onRoi({ x: Math.min(start.x, cur.x), y: Math.min(start.y, cur.y), w: Math.abs(cur.x - start.x), h: Math.abs(cur.y - start.y) });
-});
+/* ---- Kalibrierung sichern / laden ---- */
 
-function drawOverlay(): void {
-  vctx.lineWidth = 2;
-  vctx.font = '14px system-ui';
-  for (const c of chans) {
-    vctx.strokeStyle = vctx.fillStyle = calib?.id === c.id ? '#ff9800' : '#00c853';
-    const r = c.raw;
-    const dot = (p: Point | undefined) => { if (p) { vctx.beginPath(); vctx.arc(p.x, p.y, 4, 0, 7); vctx.fill(); } };
-    if (c.type === 'analog') {
-      dot(r.pivot); dot(r.p1); dot(r.p2);
-      if (r.pivot) for (const p of [r.p1, r.p2]) if (p) { vctx.beginPath(); vctx.moveTo(r.pivot.x, r.pivot.y); vctx.lineTo(p.x, p.y); vctx.stroke(); }
-      if (c.cal?.type === 'analog' && r.pivot) { vctx.beginPath(); vctx.arc(r.pivot.x, r.pivot.y, c.cal.radius, 0, 7); vctx.setLineDash([4, 6]); vctx.stroke(); vctx.setLineDash([]); }
-    } else if (c.roi) {
-      vctx.strokeRect(c.roi.x, c.roi.y, c.roi.w, c.roi.h);
-      if (c.cal) {
-        const cw = c.roi.w / c.digits;
-        for (let i = 1; i < c.digits; i++) { vctx.beginPath(); vctx.moveTo(c.roi.x + i * cw, c.roi.y); vctx.lineTo(c.roi.x + i * cw, c.roi.y + c.roi.h); vctx.globalAlpha = 0.35; vctx.stroke(); vctx.globalAlpha = 1; }
-      }
-    }
-    const pos = c.type === 'analog' ? r.pivot : c.roi;
-    if (pos) vctx.fillText(c.name, pos.x + 8, ('h' in pos ? pos.y - 6 : pos.y - 10));
+function toSaved(c: Chan): SavedChannel {
+  return { id: c.id, type: c.type, name: c.name, unit: c.unit, cal: c.cal, raw: c.raw, bigArc: c.bigArc, pointerDark: c.pointerDark, roi: c.roi, digits: c.digits, decimals: c.decimals, polarity: c.polarity };
+}
+function fromSaved(s: SavedChannel, slot: number): Chan {
+  return { id: s.id, slot, type: s.type, name: s.name, unit: s.unit, raw: (s.raw as Chan['raw']) ?? {}, bigArc: s.bigArc, pointerDark: s.pointerDark, roi: s.roi as Rect | undefined, digits: s.digits, decimals: s.decimals, polarity: s.polarity as Chan['polarity'], cal: s.cal, live: null, issues: [], hist: [] };
+}
+$('cal-save').onclick = () => download(new Blob([calibrationFile(chans.filter((c) => c.cal).map(toSaved))], { type: 'application/json' }), `kalibrierung-${stamp()}.json`);
+$<HTMLInputElement>('cal-load').onchange = async (e) => {
+  const f = (e.target as HTMLInputElement).files?.[0];
+  (e.target as HTMLInputElement).value = '';
+  if (!f) return;
+  const list = parseCalibrationFile(await f.text());
+  if (!list) return showError('Diese Datei ist keine Kalibrierungsdatei dieser App.');
+  const free = MAX_CHANNELS - chans.length;
+  for (const s of list.slice(0, free)) {
+    const used = new Set(chans.map((c) => c.slot));
+    const slot = [0, 1, 2, 3].find((k) => !used.has(k))!;
+    const id = `k${nextId++}`;
+    const c = fromSaved({ ...s, id }, slot);
+    rebuildCal(c);
+    chans.push(c);
   }
-  if (drag) {
-    vctx.strokeStyle = '#ff9800';
-    vctx.strokeRect(Math.min(drag.start.x, drag.cur.x), Math.min(drag.start.y, drag.cur.y), Math.abs(drag.cur.x - drag.start.x), Math.abs(drag.cur.y - drag.start.y));
-  }
+  showError(list.length > free ? `Nur ${free} Gerät(e) übernommen – mehr als vier Kanäle sind nicht möglich.` : null);
+  setHint('Kalibrierung geladen. Sie gilt nur, wenn Kamera und Aufbau wie bei der Aufnahme stehen – prüfe die Zahlen oben.');
+  renderChannels(); renderLive(); updateButtons(); scheduleSave();
+};
+
+/* ============================== Live-Karten ============================== */
+
+function renderLive(): void {
+  $('livecards').innerHTML = chans.filter((c) => c.cal).map((c) => `
+    <div class="live ch-${c.slot + 1}" data-id="${c.id}">
+      <div class="name">${symbol(c.slot)}<span>${esc(c.name)}</span></div>
+      <div class="live-value" id="val-${c.id}">–</div>
+      <div class="conf none" id="conf-${c.id}">${icon('warning', 16)}wartet auf Bild</div>
+    </div>`).join('');
 }
 
-let lastRead = 0;
+function updateLive(c: Chan): void {
+  const val = document.getElementById(`val-${c.id}`), conf = document.getElementById(`conf-${c.id}`);
+  if (!val || !conf || !c.live) return;
+  const { value, confidence } = c.live;
+  val.innerHTML = `${de(value, 3)}<small>${esc(c.unit)}</small>`;
+  const [cls, ic, txt] = value === null ? ['none', 'warning', 'nicht lesbar'] : confidence >= 0.7 ? ['ok', 'check', 'sicher gelesen'] : confidence >= 0.4 ? ['low', 'warning', 'unsicher'] : ['none', 'warning', 'sehr unsicher'];
+  conf.className = `conf ${cls}`;
+  conf.innerHTML = `${icon(ic, 16)}${txt}`;
+}
+
+/* ============================== Anzeige-Schleife ============================== */
+
+function drawSymbol(slot: number, x: number, y: number, r: number): void {
+  vctx.beginPath();
+  const s = SYMBOLS[slot % 4];
+  if (s === 'circle') vctx.arc(x, y, r, 0, Math.PI * 2);
+  else if (s === 'triangle') { vctx.moveTo(x, y - r); vctx.lineTo(x + r, y + r); vctx.lineTo(x - r, y + r); vctx.closePath(); }
+  else if (s === 'rect') vctx.rect(x - r, y - r, 2 * r, 2 * r);
+  else { vctx.moveTo(x, y - r * 1.3); vctx.lineTo(x + r * 1.3, y); vctx.lineTo(x, y + r * 1.3); vctx.lineTo(x - r * 1.3, y); vctx.closePath(); }
+}
+function strokeHalo(draw: () => void, color: string, w = 2): void {
+  vctx.lineWidth = w + 3; vctx.strokeStyle = 'rgb(0 0 0 / .65)'; draw(); vctx.stroke();
+  vctx.lineWidth = w; vctx.strokeStyle = color; draw(); vctx.stroke();
+}
+
+function drawOverlay(): void {
+  vctx.font = '700 15px "Atkinson Hyperlegible", system-ui, sans-serif';
+  const scale = view.width / Math.max(1, view.getBoundingClientRect().width || view.width);
+  vctx.save();
+  for (const c of chans) {
+    const col = chanColor(c.slot);
+    const isCal = calib?.id === c.id;
+    const r = c.raw;
+    const anchor: Point | undefined = c.type === 'analog' ? r.pivot : c.roi ? { x: c.roi.x, y: c.roi.y - 8 } : undefined;
+    if (c.type === 'analog') {
+      if (r.pivot) for (const p of [r.p1, r.p2]) if (p) strokeHalo(() => { vctx.beginPath(); vctx.moveTo(r.pivot!.x, r.pivot!.y); vctx.lineTo(p.x, p.y); }, col);
+      if (c.cal?.type === 'analog' && r.pivot) {
+        const rad = c.cal.radius;
+        strokeHalo(() => { vctx.beginPath(); vctx.arc(r.pivot!.x, r.pivot!.y, rad, 0, 7); vctx.setLineDash([5 * scale, 7 * scale]); }, col, 1.5);
+        vctx.setLineDash([]);
+      }
+      for (const q of pointsOf(c)) {
+        const selected = sel?.id === c.id && sel.key === q.key;
+        strokeHalo(() => drawSymbol(c.slot, q.p.x, q.p.y, 6 * scale), col);
+        vctx.fillStyle = col; vctx.fill();
+        if (selected) strokeHalo(() => { vctx.beginPath(); vctx.arc(q.p.x, q.p.y, 13 * scale, 0, 7); }, '#f2c230', 2);
+      }
+    } else if (c.roi) {
+      strokeHalo(() => { vctx.beginPath(); vctx.rect(c.roi!.x, c.roi!.y, c.roi!.w, c.roi!.h); }, col);
+      if (sel?.id === c.id && sel.key === 'roi') strokeHalo(() => { vctx.beginPath(); vctx.rect(c.roi!.x - 4 * scale, c.roi!.y - 4 * scale, c.roi!.w + 8 * scale, c.roi!.h + 8 * scale); }, '#f2c230', 2);
+      if (c.cal) {
+        const cw = c.roi.w / c.digits;
+        vctx.setLineDash([3 * scale, 5 * scale]);
+        for (let i = 1; i < c.digits; i++) strokeHalo(() => { vctx.beginPath(); vctx.moveTo(c.roi!.x + i * cw, c.roi!.y); vctx.lineTo(c.roi!.x + i * cw, c.roi!.y + c.roi!.h); }, col, 1);
+        vctx.setLineDash([]);
+      }
+    }
+    if (anchor) {
+      const label = c.name + (isCal ? ' …' : '');
+      const w = vctx.measureText(label).width + 28 * scale / 1.4;
+      vctx.fillStyle = 'rgb(0 0 0 / .72)';
+      vctx.fillRect(anchor.x + 10 * scale, anchor.y - 22 * scale, w, 22 * scale);
+      vctx.fillStyle = col; drawSymbol(c.slot, anchor.x + 20 * scale, anchor.y - 11 * scale, 5 * scale); vctx.fill();
+      vctx.fillStyle = '#fff'; vctx.fillText(label, anchor.x + 30 * scale, anchor.y - 5 * scale);
+    }
+  }
+  if (roiDraw) strokeHalo(() => { vctx.beginPath(); vctx.rect(Math.min(roiDraw!.start.x, roiDraw!.cur.x), Math.min(roiDraw!.start.y, roiDraw!.cur.y), Math.abs(roiDraw!.cur.x - roiDraw!.start.x), Math.abs(roiDraw!.cur.y - roiDraw!.start.y)); }, '#f2c230', 2);
+  vctx.restore();
+}
+
+function qualityOf(c: Chan, frame: Frame): string[] {
+  if (!c.cal) return [];
+  if (c.cal.type === 'analog') {
+    const R = c.cal.radius;
+    return assessRegion(frame, { x: c.cal.pivot.x - R, y: c.cal.pivot.y - R, w: 2 * R, h: 2 * R }, { minFeature: R / 2 }).issues;
+  }
+  return assessRegion(frame, c.cal.roi, { minFeature: c.cal.roi.h / 3 }).issues;
+}
+
+let lastRead = 0, lastQuality = 0;
+function drawEmpty(): void {
+  vctx.fillStyle = '#0f1b2d';
+  vctx.fillRect(0, 0, view.width, view.height);
+  vctx.fillStyle = '#c4d0e6';
+  vctx.textAlign = 'center';
+  vctx.font = '700 22px "Atkinson Hyperlegible", system-ui, sans-serif';
+  vctx.fillText('Noch keine Quelle', view.width / 2, view.height / 2 - 6);
+  vctx.font = '400 16px "Atkinson Hyperlegible", system-ui, sans-serif';
+  vctx.fillText('Wähle rechts Kamera, Videodatei oder Demo.', view.width / 2, view.height / 2 + 22);
+  vctx.textAlign = 'start';
+}
+
 function loop(now: number): void {
+  if (!source) drawEmpty();
   if (source) {
     try {
       const frame = source.grab();
-      lastFrame = frame;
       vctx.putImageData(new ImageData(frame.data as Uint8ClampedArray<ArrayBuffer>, frame.width, frame.height), 0, 0);
       drawOverlay();
       if (now - lastRead > 250) {
         lastRead = now;
+        for (const c of chans) if (c.cal) { c.live = readChannel(frame, c.cal); updateLive(c); }
+      }
+      if (now - lastQuality > 1000) {
+        lastQuality = now;
         for (const c of chans) {
-          if (!c.cal) continue;
-          c.live = readChannel(frame, c.cal);
-          const el = document.getElementById(`live-${c.id}`);
-          if (el) {
-            el.textContent = `${fmt(c.live.value)} ${c.unit}`;
-            el.classList.toggle('low', c.live.confidence < 0.4);
+          const issues = qualityOf(c, frame);
+          if (issues.join('|') !== c.issues.join('|')) {
+            c.issues = issues;
+            const ul = document.getElementById(`issues-${c.id}`);
+            if (ul) ul.innerHTML = issues.map((t) => `<li>${icon('warning', 16)}<span>${esc(t)}</span></li>`).join('');
           }
         }
       }
@@ -315,8 +687,7 @@ function loop(now: number): void {
 }
 requestAnimationFrame(loop);
 
-// ---------- Messen ----------
-const active = (): ActiveChannel[] => chans.filter((c) => c.cal).map((c) => ({ id: c.id, cal: c.cal! }));
+/* ============================== Messen ============================== */
 
 function syncSessionChannels(): void {
   for (const c of chans) {
@@ -325,14 +696,35 @@ function syncSessionChannels(): void {
   refreshSelects();
 }
 
+function updateStatus(): void {
+  const n = session.samples.length;
+  const last = n ? session.samples[n - 1].t : 0;
+  const secs = stopLive ? (performance.now() - recStart) / 1000 : last;
+  $('status').textContent = stopLive ? `Aufnahme läuft · ${de(secs, 1)} s · ${n} Messpunkte` : n ? `${n} Messpunkte über ${de(last, 1)} s.` : 'Noch keine Messpunkte.';
+}
+
 function updateButtons(): void {
-  const ready = !!source && active().length > 0;
+  const ready = readyForMeasure();
   const recording = !!stopLive || !!abort;
+  const has = session.samples.length > 0;
   $<HTMLButtonElement>('btn-live').disabled = !ready && !stopLive;
   $<HTMLButtonElement>('btn-analyze').disabled = !ready || recording;
-  $<HTMLButtonElement>('btn-clear').disabled = session.samples.length === 0 || recording;
-  const has = session.samples.length > 0;
-  for (const id of ['dl-csv', 'dl-xlsx', 'dl-png']) $<HTMLButtonElement>(id).disabled = !has;
+  $<HTMLButtonElement>('btn-cancel').hidden = !abort;
+  $<HTMLButtonElement>('btn-archive').disabled = !has || recording;
+  $<HTMLButtonElement>('btn-clear').disabled = !has || recording;
+  $<HTMLButtonElement>('cal-save').disabled = !chans.some((c) => c.cal);
+  $<HTMLButtonElement>('next-1').disabled = !source;
+  $<HTMLButtonElement>('next-2').disabled = !ready;
+  $<HTMLButtonElement>('next-3').disabled = !has && !session.runs.length;
+  const hasAny = has || session.runs.length > 0;
+  for (const id of ['dl-csv', 'dl-xlsx', 'dl-png']) $<HTMLButtonElement>(id).disabled = !hasAny;
+  updateStatus();
+}
+
+const liveBtn = $<HTMLButtonElement>('btn-live');
+function setLiveButton(recording: boolean): void {
+  liveBtn.innerHTML = `${icon(recording ? 'stop' : 'record')}<span id="btn-live-label">${recording ? 'Aufnahme beenden' : 'Aufnahme starten'}</span>`;
+  liveBtn.classList.toggle('recording', recording);
 }
 
 function stopRecording(): void {
@@ -340,23 +732,24 @@ function stopRecording(): void {
   stopLive = null;
   abort?.abort();
   abort = null;
-  $('btn-live').textContent = '● Aufnahme starten';
-  $('btn-live').classList.remove('primary');
+  setLiveButton(false);
   $<HTMLProgressElement>('progress').hidden = true;
   updateButtons();
+  scheduleSave();
 }
 
-$('btn-live').onclick = () => {
+function toggleRecording(): void {
   if (stopLive) return stopRecording();
-  if (!source) return;
+  if (!source || !readyForMeasure()) return;
   if (source instanceof DemoSource) source.live();
   syncSessionChannels();
+  recStart = performance.now();
   const hz = Number($<HTMLSelectElement>('hz').value);
-  stopLive = startLive(source, active(), session, hz, () => { renderResults(); });
-  $('btn-live').textContent = '■ Aufnahme beenden';
-  $('btn-live').classList.add('primary');
+  stopLive = startLive(source, active(), session, hz, () => { updateStatus(); renderResults(); scheduleSave(); });
+  setLiveButton(true);
   updateButtons();
-};
+}
+liveBtn.onclick = toggleRecording;
 
 $('btn-analyze').onclick = async () => {
   if (!source) return;
@@ -365,79 +758,267 @@ $('btn-analyze').onclick = async () => {
   abort = new AbortController();
   const bar = $<HTMLProgressElement>('progress');
   bar.hidden = false;
+  bar.value = 0;
   updateButtons();
   try {
-    await analyzeFile(source, active(), session, hz, (f) => { bar.value = f; }, abort.signal);
+    await analyzeFile(source, active(), session, hz, (f) => { bar.value = f; $('status').textContent = `Auswertung ${Math.round(f * 100)} % · ${session.samples.length} Messpunkte`; }, abort.signal);
   } catch (e) {
     showError((e as Error).message);
   }
+  const aborted = abort?.signal.aborted;
   abort = null;
   bar.hidden = true;
   updateButtons();
   renderResults();
+  scheduleSave();
+  if (!aborted) goStep(4);
 };
+$('btn-cancel').onclick = () => { abort?.abort(); };
 
-$('btn-clear').onclick = () => { session.clear(); updateButtons(); renderResults(); };
-
-// ---------- Auswertung ----------
-function refreshSelects(): void {
-  const xs = $<HTMLSelectElement>('xsel'), ys = $<HTMLSelectElement>('ysel');
-  const px = xs.value, py = ys.value;
-  const ch = session.channels;
-  xs.innerHTML = `<option value="${TIME_KEY}">Zeit</option>` + ch.map((c) => `<option value="${c.id}">${c.name}</option>`).join('');
-  ys.innerHTML = ch.map((c) => `<option value="${c.id}">${c.name}</option>`).join('');
-  if ([...xs.options].some((o) => o.value === px)) xs.value = px;
-  if ([...ys.options].some((o) => o.value === py)) ys.value = py;
-  else if (ch.length) ys.value = ch[0].id;
+$('btn-archive').onclick = () => {
+  session.archive(`Reihe ${session.runs.length + 1}`);
+  updateButtons(); renderResults(); scheduleSave();
+  setHint('Reihe gesichert. Starte jetzt die nächste Messung – beide erscheinen im Graphen.');
+};
+let clearTimer = 0;
+const clearBtn = $<HTMLButtonElement>('btn-clear');
+clearBtn.onclick = () => {
+  if (!clearTimer) {
+    clearBtn.innerHTML = `${icon('warning')}Wirklich verwerfen?`;
+    clearTimer = window.setTimeout(resetClear, 3000);
+    return;
+  }
+  resetClear();
+  session.clear();
+  updateButtons(); renderResults(); scheduleSave();
+};
+function resetClear(): void {
+  clearTimeout(clearTimer);
+  clearTimer = 0;
+  clearBtn.innerHTML = `${icon('trash')}Verwerfen`;
 }
-$('xsel').onchange = $('ysel').onchange = () => renderResults();
+
+/* ============================== Auswertung ============================== */
+
+const xsel = $<HTMLSelectElement>('xsel'), ysel = $<HTMLSelectElement>('ysel'), y2sel = $<HTMLSelectElement>('y2sel');
+
+function allChannelDefs(): ChannelDef[] {
+  const m = new Map<string, ChannelDef>();
+  for (const r of session.runs) for (const c of r.channels) m.set(c.id, c);
+  for (const c of session.channels) m.set(c.id, c);
+  return [...m.values()];
+}
+
+function refreshSelects(): void {
+  const px = xsel.value, py = ysel.value, py2 = y2sel.value;
+  const ch = session.channels;
+  const opts = ch.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  xsel.innerHTML = `<option value="${TIME_KEY}">Zeit</option>${opts}`;
+  ysel.innerHTML = opts;
+  y2sel.innerHTML = `<option value="">– keine –</option>${opts}`;
+  if ([...xsel.options].some((o) => o.value === px)) xsel.value = px;
+  if ([...ysel.options].some((o) => o.value === py)) ysel.value = py; else if (ch.length) ysel.value = ch[0].id;
+  if ([...y2sel.options].some((o) => o.value === py2)) y2sel.value = py2;
+}
+xsel.onchange = ysel.onchange = y2sel.onchange = () => renderResults();
+for (const id of ['xlog', 'ylog', 'showruns']) $(id).onchange = () => renderResults();
 $<HTMLInputElement>('smooth').onchange = (e) => {
   session.smoothing = (e.target as HTMLInputElement).checked ? 3 : 0;
   renderResults();
+  scheduleSave();
 };
+$('zoom-reset').onclick = () => chart.resetZoom();
+
+const LIGHT = { ink: '#0f1b2d', grid: '#d5dce6', ch: ['#2447d6', '#c2410c', '#15803d', '#7e22ce'] };
 
 function label(id: string): string {
   if (id === TIME_KEY) return 'Zeit / s';
-  const c = session.channels.find((s) => s.id === id);
+  const c = allChannelDefs().find((s) => s.id === id);
   return c ? (c.unit ? `${c.name} / ${c.unit}` : c.name) : '';
 }
+const slotOf = (id: string): number => chans.find((c) => c.id === id)?.slot ?? Math.max(0, allChannelDefs().findIndex((c) => c.id === id)) % 4;
 
-function renderResults(): void {
+function renderResults(light = false): void {
   updateButtons();
-  const x = $<HTMLSelectElement>('xsel').value, y = $<HTMLSelectElement>('ysel').value;
-  if (!y || !session.channels.some((c) => c.id === y)) { chart.update({ points: [], xLabel: '', yLabel: '', line: true }); renderTable(); return; }
-  chart.update({ points: session.series(x || TIME_KEY, y), xLabel: label(x || TIME_KEY), yLabel: label(y), line: x === TIME_KEY || x === '' });
+  const x = xsel.value || TIME_KEY;
+  const ys = [...new Set([ysel.value, y2sel.value])].filter((v) => v && session.channels.some((c) => c.id === v));
+  const series: ChartSeries[] = [];
+  const colorFor = (slot: number): string => (light ? LIGHT.ch[slot % 4] : chanColor(slot));
+  const showRuns = $<HTMLInputElement>('showruns').checked;
+  ys.forEach((y, i) => {
+    const axis = i === 0 ? 'y' : 'y2';
+    const name = session.channels.find((c) => c.id === y)!.name;
+    series.push({ label: name, color: colorFor(slotOf(y)), slot: slotOf(y), axis, faded: false, points: session.series(x, y) });
+    if (showRuns) for (const run of session.runs) {
+      if (!run.channels.some((c) => c.id === y) || (x !== TIME_KEY && !run.channels.some((c) => c.id === x))) continue;
+      series.push({ label: `${name} (${run.name})`, color: colorFor(slotOf(y)), slot: slotOf(y), axis, faded: true, points: seriesOf(run.samples, x, y, session.smoothing) });
+    }
+  });
+  chart.update({
+    series, xLabel: label(x), yLabel: ys[0] ? label(ys[0]) : '', y2Label: ys[1] ? label(ys[1]) : '',
+    xLog: $<HTMLInputElement>('xlog').checked, yLog: $<HTMLInputElement>('ylog').checked, line: x === TIME_KEY,
+    ink: light ? LIGHT.ink : cssVar('--ink'), grid: light ? LIGHT.grid : cssVar('--line'),
+  });
+  renderRuns();
   renderTable();
 }
 
+function renderRuns(): void {
+  const host = $('runs');
+  if (!session.runs.length) { host.innerHTML = ''; return; }
+  host.innerHTML = `<h3>Gesicherte Reihen</h3>${session.runs.map((r, i) => `
+    <div class="run"><span><b>${esc(r.name)}</b> · ${r.samples.length} Messpunkte</span>
+    <button type="button" class="ghost" data-del="${i}" aria-label="${esc(r.name)} löschen">${icon('trash', 18)}Löschen</button></div>`).join('')}`;
+}
+$('runs').addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>('[data-del]');
+  if (!b) return;
+  session.runs.splice(Number(b.dataset.del), 1);
+  renderResults(); scheduleSave();
+});
+
 function renderTable(): void {
   const host = $('table');
-  if (!session.samples.length) { host.innerHTML = '<em>Noch keine Messwerte.</em>'; return; }
+  if (!session.samples.length) { host.innerHTML = '<p class="note">Noch keine Messwerte.</p>'; return; }
   const total = session.samples.length;
   const from = Math.max(0, total - 100);
   const t = session.table();
-  let html = `<table><thead><tr><th>#</th>${t.header.map((h) => `<th>${h}</th>`).join('')}</tr></thead><tbody>`;
+  let html = `<table><thead><tr><th>#</th>${t.header.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>`;
   for (let i = from; i < total; i++) {
     const s = session.samples[i];
-    html += `<tr><td>${i + 1}</td><td>${fmt(s.t)}</td>${session.channels.map((c) => {
+    html += `<tr><td>${i + 1}</td><td>${de(s.t, 2)}</td>${session.channels.map((c) => {
       const cell = s.values[c.id];
-      return `<td class="${cell && cell.c < 0.4 ? 'low' : ''}"><input data-i="${i}" data-c="${c.id}" value="${cell?.v ?? ''}" /></td>`;
+      return `<td class="${cell && cell.c < 0.4 ? 'low' : ''}"><input data-i="${i}" data-c="${c.id}" value="${cell?.v === null || cell?.v === undefined ? '' : de(cell.v, 4)}" aria-label="${esc(c.name)} bei Messpunkt ${i + 1}" /></td>`;
     }).join('')}</tr>`;
   }
-  host.innerHTML = html + '</tbody></table>' + (from > 0 ? `<p>… nur die letzten 100 von ${total} Zeilen angezeigt.</p>` : '');
+  host.innerHTML = html + '</tbody></table>' + (from > 0 ? `<p class="note">Nur die letzten 100 von ${total} Zeilen werden angezeigt; der Export enthält alle.</p>` : '');
 }
 $('table').addEventListener('change', (e) => {
   const el = e.target as HTMLInputElement;
   if (el.dataset.i === undefined) return;
-  const v = el.value.trim() === '' ? null : Number(el.value.replace(',', '.'));
+  const raw = el.value.trim().replace(/\./g, '').replace(',', '.');
+  const v = raw === '' ? null : Number(raw);
   session.setValue(Number(el.dataset.i), el.dataset.c!, v !== null && Number.isFinite(v) ? v : null);
-  renderResults();
+  renderResults(); scheduleSave();
 });
 
-$('dl-csv').onclick = () => download(new Blob([toCsv(session.table(), { german: $<HTMLInputElement>('german').checked })], { type: 'text/csv;charset=utf-8' }), 'messwerte.csv');
-$('dl-xlsx').onclick = () => download(new Blob([toXlsx(session.table()) as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), 'messwerte.xlsx');
-$('dl-png').onclick = async () => download(await chart.toPngBlob(), 'graph.png');
+/* ---- Export ---- */
 
+$('dl-csv').onclick = () => {
+  const table = session.samples.length ? session.table() : (() => { const r = session.runs[session.runs.length - 1]; return tableOf(r.channels, r.samples, session.smoothing); })();
+  download(new Blob([toCsv(table, { german: $<HTMLInputElement>('german').checked })], { type: 'text/csv;charset=utf-8' }), `messwerte-${stamp()}.csv`);
+};
+$('dl-xlsx').onclick = () => {
+  const sheets = [
+    ...(session.samples.length ? [{ name: 'Messwerte', table: session.table() }] : []),
+    ...session.runs.map((r) => ({ name: r.name, table: tableOf(r.channels, r.samples, session.smoothing) })),
+  ];
+  download(new Blob([toXlsx(sheets) as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `messwerte-${stamp()}.xlsx`);
+};
+$('dl-png').onclick = async () => {
+  renderResults(true); // für Papier/Heft immer helle Farben
+  const blob = await chart.toPngBlob({
+    title: $<HTMLInputElement>('exp-title').value.trim(),
+    name: $<HTMLInputElement>('exp-name').value.trim(),
+    date: new Date().toLocaleDateString('de-DE'),
+  });
+  renderResults(false);
+  download(blob, `graph-${stamp()}.png`);
+};
+
+/* ============================== Speichern ============================== */
+
+let saveTimer = 0;
+let saveWarned = false;
+function saveNow(): void {
+  clearTimeout(saveTimer);
+  saveTimer = 0;
+  const state: SavedState = {
+    version: 1, channels: chans.map(toSaved), nextId, hz: Number($<HTMLSelectElement>('hz').value), theme: themeSel.value,
+    smoothing: session.smoothing, session: { channels: session.channels, samples: session.samples, runs: session.runs },
+  };
+  try { localStorage.setItem(STORAGE_KEY, serialize(state)); } catch {
+    if (!saveWarned) { saveWarned = true; showError('Automatisches Speichern ist nicht möglich (Speicher voll oder gesperrt). Exportiere deine Daten rechtzeitig.'); }
+  }
+}
+/** Gedrosselt statt entprellt: auch bei minutenlanger Aufnahme wird mindestens jede Sekunde gesichert. */
+function scheduleSave(): void {
+  if (!saveTimer) saveTimer = window.setTimeout(saveNow, 1000);
+}
+addEventListener('pagehide', saveNow);
+document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') saveNow(); });
+
+function restore(): void {
+  let s: SavedState | null = null;
+  try { s = parseState(localStorage.getItem(STORAGE_KEY)); } catch { /* gesperrt */ }
+  if (!s) return;
+  themeSel.value = s.theme ?? 'auto';
+  $<HTMLSelectElement>('hz').value = String(s.hz ?? 2);
+  nextId = s.nextId ?? 1;
+  chans = s.channels.slice(0, MAX_CHANNELS).map((c, i) => fromSaved(c, i));
+  chans.forEach((c, i) => { c.slot = i; rebuildCal(c); });
+  session.channels = s.session.channels ?? [];
+  session.samples = s.session.samples ?? [];
+  session.runs = s.session.runs ?? [];
+  session.smoothing = s.smoothing ?? 0;
+  $<HTMLInputElement>('smooth').checked = session.smoothing >= 3;
+  if (chans.length || session.samples.length || session.runs.length) {
+    const n = $('restore');
+    n.hidden = false;
+    n.innerHTML = `<span>${icon('info')} Letzte Sitzung wiederhergestellt: ${chans.length} Gerät(e), ${session.samples.length} Messpunkte${session.runs.length ? `, ${session.runs.length} gesicherte Reihe(n)` : ''}. Die Kalibrierung gilt nur bei gleichem Kamerabild.</span>
+      <button type="button" id="restore-reset">Neu beginnen</button><button type="button" class="ghost" id="restore-ok">OK</button>`;
+    $('restore-ok').onclick = () => { n.hidden = true; };
+    $('restore-reset').onclick = () => {
+      chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1;
+      n.hidden = true;
+      try { localStorage.removeItem(STORAGE_KEY); } catch { /* egal */ }
+      renderChannels(); renderLive(); updateButtons(); renderResults();
+    };
+  }
+}
+
+/* ============================== Tastatur ============================== */
+
+document.addEventListener('keydown', (e) => {
+  const t = e.target as HTMLElement;
+  const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName) && !(t as HTMLInputElement).type?.match(/checkbox|range|file/);
+  if (valdlg.open || helpdlg.open) return;
+  if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undo(); return; }
+  if (e.ctrlKey || e.metaKey || e.altKey || typing) return;
+  if (e.key === 'Escape') {
+    if (abort) abort.abort(); else if (calib) cancelCalibration();
+    else if (sel) sel = null;
+    return;
+  }
+  if (e.key >= '1' && e.key <= '4') return goStep(Number(e.key));
+  if (e.key.toLowerCase() === 'b') return setBeamer(!beamer);
+  if (e.key === '?') return helpdlg.showModal();
+  if (e.key === ' ' && currentStep === 3 && !['BUTTON', 'SELECT'].includes(t.tagName)) { e.preventDefault(); toggleRecording(); return; }
+  if (e.key.startsWith('Arrow') && sel && !calib) {
+    const c = chan(sel.id);
+    if (!c) return;
+    e.preventDefault();
+    const d = e.shiftKey ? 5 : 1;
+    const dx = e.key === 'ArrowLeft' ? -d : e.key === 'ArrowRight' ? d : 0;
+    const dy = e.key === 'ArrowUp' ? -d : e.key === 'ArrowDown' ? d : 0;
+    if (Date.now() - lastKeyHist > 800) pushHist(c);
+    lastKeyHist = Date.now();
+    if (sel.key === 'roi' && c.roi) c.roi = { ...c.roi, x: c.roi.x + dx, y: c.roi.y + dy };
+    else { const p = c.raw[sel.key as 'pivot' | 'p1' | 'p2']; if (p) c.raw = { ...c.raw, [sel.key]: { x: p.x + dx, y: p.y + dy } }; }
+    rebuildCal(c);
+    scheduleSave();
+  }
+});
+
+/* ============================== Start ============================== */
+
+hydrateIcons();
+restore();
+applyTheme();
+setLiveButton(false);
 renderChannels();
+renderLive();
+refreshSelects();
+updateButtons();
+applyStep();
 renderResults();
-void lastFrame; void DEMO;

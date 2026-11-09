@@ -54,3 +54,67 @@ describe('Export', () => {
     expect(rows[3]).toEqual([1, 4.5, 0.9]);
   });
 });
+
+import { seriesOf, tableOf } from '../src/session/session';
+import { assessRegion } from '../src/quality';
+import { createFrame, drawSevenSegment, fillRect } from '../src/core/synth';
+import { parseState, parseCalibrationFile, calibrationFile } from '../src/storage';
+
+describe('Reihen', () => {
+  it('archive sichert die Reihe und leert die aktuelle', () => {
+    const s = demo();
+    s.archive('Reihe A');
+    expect(s.samples).toHaveLength(0);
+    expect(s.runs[0].name).toBe('Reihe A');
+    expect(seriesOf(s.runs[0].samples, 't', 'u')).toHaveLength(3);
+    expect(tableOf(s.runs[0].channels, s.runs[0].samples).rows).toHaveLength(3);
+  });
+  it('archive ohne Daten tut nichts', () => {
+    const s = new Session();
+    s.archive('leer');
+    expect(s.runs).toHaveLength(0);
+  });
+  it('XLSX mit mehreren Blättern, eindeutige Namen', () => {
+    const t = demo().table();
+    const wb = XLSX.read(toXlsx([{ name: 'Reihe A', table: t }, { name: 'Reihe A', table: t }, { name: 'a/b:c', table: t }]), { type: 'array' });
+    expect(wb.SheetNames).toEqual(['Reihe A', 'Reihe A 2', 'a b c']);
+  });
+});
+
+describe('Bildqualität', () => {
+  const region = { x: 20, y: 20, w: 200, h: 80 };
+  it('sauberes Bild: keine Hinweise', () => {
+    const f = createFrame(260, 140, 128);
+    drawSevenSegment(f, 20, 20, 200, 80, '12.34', 4);
+    expect(assessRegion(f, region, { minFeature: 40 }).issues).toEqual([]);
+  });
+  it('einfarbige Fläche: Kontrast', () => {
+    expect(assessRegion(createFrame(260, 140, 128), region, { minFeature: 40 }).issues[0]).toMatch(/Kontrast/);
+  });
+  it('Überbelichtung', () => {
+    const f = createFrame(260, 140, 128);
+    drawSevenSegment(f, 20, 20, 200, 80, '12.34', 4);
+    fillRect(f, 20, 20, 200, 40, 255);
+    expect(assessRegion(f, region, { minFeature: 40 }).issues.join()).toMatch(/Überbelichtet/);
+  });
+  it('zu klein', () => {
+    const f = createFrame(260, 140, 128);
+    drawSevenSegment(f, 20, 20, 200, 80, '12.34', 4);
+    expect(assessRegion(f, region, { minFeature: 6 }).issues.join()).toMatch(/klein/);
+  });
+  it('außerhalb des Bildes', () => {
+    expect(assessRegion(createFrame(50, 50), { x: 200, y: 200, w: 50, h: 50 }, { minFeature: 40 }).issues[0]).toMatch(/außerhalb/);
+  });
+});
+
+describe('Speicher', () => {
+  it('beschädigte Daten → null', () => {
+    expect(parseState('{kaputt')).toBeNull();
+    expect(parseState(null)).toBeNull();
+    expect(parseState('{"version":2}')).toBeNull();
+  });
+  it('Kalibrierdatei Roundtrip und Fremddatei', () => {
+    expect(parseCalibrationFile(calibrationFile([]))).toEqual([]);
+    expect(parseCalibrationFile('{"kind":"x"}')).toBeNull();
+  });
+});

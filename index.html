@@ -1,63 +1,172 @@
 <!doctype html>
-<html lang="de">
+<html lang="de" data-theme="light">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
   <title>Physik-Messwerterfassung</title>
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
-  <header>
-    <h1>Physik-Messwerterfassung</h1>
-    <p>Messgerät abfilmen → Werte ablesen → CSV/XLSX &amp; Graph. Alles läuft lokal im Browser, das Video wird nicht hochgeladen.</p>
+  <a class="skip" href="#stage">Zum Kamerabild springen</a>
+  <header class="shell">
+    <div class="brand">
+      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
+        <path d="M4 22a12 12 0 1 1 24 0" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
+        <path d="M16 21l6-9" stroke="#f2c230" stroke-width="2.6" stroke-linecap="round"/>
+        <circle cx="16" cy="21" r="2.2" fill="#f2c230"/>
+      </svg>
+      <h1>Physik-Messwerterfassung</h1>
+    </div>
+    <div class="tools">
+      <label class="field-inline">Darstellung
+        <select id="theme">
+          <option value="auto">Automatisch</option>
+          <option value="light">Hell</option>
+          <option value="dark">Dunkel</option>
+          <option value="contrast">Hoher Kontrast</option>
+        </select>
+      </label>
+      <button id="btn-beamer" type="button" class="ghost" aria-pressed="false"><span data-icon="expand"></span>Beamer-Modus</button>
+      <button id="btn-help" type="button" class="ghost"><span data-icon="keyboard"></span>Tastenkürzel</button>
+    </div>
   </header>
+
+  <nav class="register" aria-label="Arbeitsschritte">
+    <div role="tablist" id="tabs">
+      <button role="tab" id="tab-1" aria-controls="panel-1" data-step="1" type="button"><span class="n">1</span>Quelle</button>
+      <button role="tab" id="tab-2" aria-controls="panel-2" data-step="2" type="button"><span class="n">2</span>Geräte</button>
+      <button role="tab" id="tab-3" aria-controls="panel-3" data-step="3" type="button"><span class="n">3</span>Messen</button>
+      <button role="tab" id="tab-4" aria-controls="panel-4" data-step="4" type="button"><span class="n">4</span>Auswertung</button>
+    </div>
+  </nav>
+
+  <div id="restore" class="notice" role="status" hidden></div>
+
   <main>
-    <section id="stage">
-      <h2>1 · Quelle</h2>
-      <div class="bar">
-        <button id="btn-camera">📷 Kamera</button>
-        <label class="btn">🎞️ Videodatei<input id="file" type="file" accept="video/*" hidden /></label>
-        <button id="btn-demo">🧪 Demo</button>
-      </div>
-      <div id="error" role="alert" hidden></div>
-      <div class="viewwrap"><canvas id="view" width="640" height="360"></canvas></div>
-      <div id="hint">Wähle eine Quelle.</div>
+    <section id="stage" aria-label="Kamerabild" tabindex="-1">
+      <div class="viewwrap"><canvas id="view" width="640" height="360" aria-label="Kamerabild mit Messgeräten – Kalibrierpunkte per Klick setzen und ziehen"></canvas></div>
+      <div id="hint" class="hint" role="status"></div>
+      <div id="error" class="error" role="alert" hidden></div>
       <div id="scrub" class="bar" hidden>
+        <label for="scrub-range">Zeit im Video</label>
         <input id="scrub-range" type="range" min="0" max="1" step="0.01" value="0" />
-        <span id="scrub-time">0.0 s</span>
+        <output id="scrub-time">0,0 s</output>
       </div>
     </section>
-    <aside>
-      <h2>2 · Messgeräte kalibrieren</h2>
-      <div class="bar">
-        <button id="add-analog">＋ Zeigerinstrument</button>
-        <button id="add-digital">＋ Digitalanzeige</button>
-      </div>
-      <div id="channels"></div>
-      <h2>3 · Messen</h2>
-      <div class="bar">
-        <label>Rate <select id="hz"><option>1</option><option selected>2</option><option>5</option><option>10</option></select> Hz</label>
-        <button id="btn-live" disabled>● Aufnahme starten</button>
-        <button id="btn-analyze" disabled hidden>▶ Video auswerten</button>
-        <button id="btn-clear" disabled>Verwerfen</button>
-      </div>
-      <progress id="progress" max="1" value="0" hidden></progress>
-      <h2>4 · Auswertung</h2>
-      <div class="bar">
-        <label>x <select id="xsel"></select></label>
-        <label>y <select id="ysel"></select></label>
-        <label><input id="smooth" type="checkbox" /> Glätten (Median 3)</label>
-      </div>
-      <div class="chartwrap"><canvas id="chart"></canvas></div>
-      <div class="bar">
-        <button id="dl-csv" disabled>CSV</button>
-        <label><input id="german" type="checkbox" checked /> deutsch (; und ,)</label>
-        <button id="dl-xlsx" disabled>XLSX</button>
-        <button id="dl-png" disabled>Graph (PNG)</button>
-      </div>
-      <details><summary>Wertetabelle (korrigierbar)</summary><div id="table"></div></details>
-    </aside>
+
+    <div id="side">
+      <div id="livecards" class="livecards" aria-live="off"></div>
+
+      <section class="panel" id="panel-1" role="tabpanel" aria-labelledby="tab-1">
+        <h2>Quelle wählen</h2>
+        <div class="choices">
+          <button id="btn-camera" type="button" class="choice"><span data-icon="camera" data-size="28"></span><b>Kamera</b><small>Live-Aufnahme, Handy oder Webcam</small></button>
+          <label class="choice"><span data-icon="film" data-size="28"></span><b>Videodatei</b><small>Vorher gefilmt, Frame-genau</small><input id="file" type="file" accept="video/*" hidden /></label>
+          <button id="btn-demo" type="button" class="choice"><span data-icon="flask" data-size="28"></span><b>Demo</b><small>Ausprobieren ohne Gerät</small></button>
+        </div>
+        <details open class="tips">
+          <summary>So gelingt die Aufnahme</summary>
+          <ul>
+            <li>Kamera auf Stativ oder fest aufstützen – ein ruhiges Bild ist wichtiger als Auflösung.</li>
+            <li>Gerät frontal filmen, ohne Spiegelung vom Fenster oder Deckenlicht.</li>
+            <li>Skala oder Ziffern sollen mindestens ein Drittel der Bildhöhe füllen.</li>
+          </ul>
+        </details>
+        <div class="nextbar"><button type="button" class="primary" data-goto="2" id="next-1" disabled>Weiter: Geräte<span data-icon="arrow"></span></button></div>
+      </section>
+
+      <section class="panel" id="panel-2" role="tabpanel" aria-labelledby="tab-2" hidden>
+        <h2>Messgeräte festlegen</h2>
+        <div class="bar">
+          <button id="add-analog" type="button"><span data-icon="gauge"></span>Zeigerinstrument</button>
+          <button id="add-digital" type="button"><span data-icon="digits"></span>Digitalanzeige</button>
+        </div>
+        <div id="channels"></div>
+        <div class="bar secondary">
+          <button id="cal-save" type="button" class="ghost" disabled><span data-icon="download"></span>Kalibrierung speichern</button>
+          <label class="btn ghost"><span data-icon="upload"></span>Kalibrierung laden<input id="cal-load" type="file" accept="application/json,.json" hidden /></label>
+        </div>
+        <div class="nextbar"><button type="button" class="primary" data-goto="3" id="next-2" disabled>Weiter: Messen<span data-icon="arrow"></span></button></div>
+      </section>
+
+      <section class="panel" id="panel-3" role="tabpanel" aria-labelledby="tab-3" hidden>
+        <h2>Messreihe aufnehmen</h2>
+        <div class="bar">
+          <label class="field-inline">Messrate
+            <select id="hz"><option value="1">1 pro Sekunde</option><option value="2" selected>2 pro Sekunde</option><option value="5">5 pro Sekunde</option><option value="10">10 pro Sekunde</option></select>
+          </label>
+        </div>
+        <div class="bar">
+          <button id="btn-live" type="button" class="primary big" disabled><span data-icon="record"></span><span id="btn-live-label">Aufnahme starten</span></button>
+          <button id="btn-analyze" type="button" class="primary big" disabled hidden><span data-icon="play"></span>Video auswerten</button>
+          <button id="btn-cancel" type="button" hidden><span data-icon="x"></span>Abbrechen</button>
+        </div>
+        <progress id="progress" max="1" value="0" hidden aria-label="Fortschritt der Auswertung"></progress>
+        <p id="status" class="status" role="status" aria-live="polite">Noch keine Messpunkte.</p>
+        <div class="bar secondary">
+          <button id="btn-archive" type="button" disabled><span data-icon="layers"></span>Reihe sichern</button>
+          <button id="btn-clear" type="button" disabled><span data-icon="trash"></span>Verwerfen</button>
+        </div>
+        <p class="note">„Reihe sichern“ legt die aktuelle Messung beiseite, damit du eine zweite aufnehmen und im Graphen vergleichen kannst.</p>
+        <div class="nextbar"><button type="button" class="primary" data-goto="4" id="next-3" disabled>Weiter: Auswertung<span data-icon="arrow"></span></button></div>
+      </section>
+
+      <section class="panel" id="panel-4" role="tabpanel" aria-labelledby="tab-4" hidden>
+        <h2>Graph und Export</h2>
+        <div class="grid-controls">
+          <label class="field">x-Achse <select id="xsel"></select></label>
+          <label class="field">y-Achse <select id="ysel"></select></label>
+          <label class="field">zweite y-Achse <select id="y2sel"></select></label>
+        </div>
+        <div class="bar checks">
+          <label><input id="smooth" type="checkbox" /> Glätten (Median 3)</label>
+          <label><input id="xlog" type="checkbox" /> x logarithmisch</label>
+          <label><input id="ylog" type="checkbox" /> y logarithmisch</label>
+          <label><input id="showruns" type="checkbox" checked /> gesicherte Reihen zeigen</label>
+        </div>
+        <div class="chartwrap"><canvas id="chart" aria-label="Messgraph"></canvas></div>
+        <div class="bar"><button id="zoom-reset" type="button" class="ghost"><span data-icon="reset"></span>Zoom zurücksetzen</button><span class="note">Mausrad oder Pinch zoomt, Ziehen verschiebt.</span></div>
+        <fieldset class="export">
+          <legend>Beschriftung für den Graphen (PNG)</legend>
+          <label class="field">Versuchstitel <input id="exp-title" type="text" placeholder="z. B. Entladung eines Kondensators" /></label>
+          <label class="field">Name(n) <input id="exp-name" type="text" placeholder="Gruppe / Klasse" /></label>
+        </fieldset>
+        <div class="bar">
+          <button id="dl-csv" type="button" class="primary" disabled><span data-icon="download"></span>CSV</button>
+          <button id="dl-xlsx" type="button" class="primary" disabled><span data-icon="download"></span>XLSX</button>
+          <button id="dl-png" type="button" class="primary" disabled><span data-icon="download"></span>Graph (PNG)</button>
+          <label class="check"><input id="german" type="checkbox" checked /> deutsches Excel (; und Komma)</label>
+        </div>
+        <div id="runs"></div>
+        <details><summary>Wertetabelle (Werte korrigierbar)</summary><div id="table"></div></details>
+      </section>
+    </div>
   </main>
+
+  <dialog id="valdlg" aria-labelledby="valdlg-title">
+    <form method="dialog" id="valdlg-form">
+      <h3 id="valdlg-title">Skalenwert</h3>
+      <p id="valdlg-help" class="note"></p>
+      <label class="field">Wert <span class="inputunit"><input id="valdlg-input" inputmode="decimal" autocomplete="off" required /><span id="valdlg-unit"></span></span></label>
+      <p id="valdlg-err" class="error-inline" role="alert"></p>
+      <div class="bar end"><button value="cancel" formnovalidate type="submit">Abbrechen</button><button value="ok" type="submit" class="primary">Übernehmen</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="helpdlg" aria-labelledby="helpdlg-title">
+    <h3 id="helpdlg-title">Tastenkürzel</h3>
+    <dl class="keys">
+      <dt><kbd>1</kbd>–<kbd>4</kbd></dt><dd>Schritt wechseln</dd>
+      <dt><kbd>Leertaste</kbd></dt><dd>Aufnahme starten/beenden (Schritt 3)</dd>
+      <dt><kbd>Esc</kbd></dt><dd>Kalibrierung oder Auswertung abbrechen</dd>
+      <dt><kbd>←</kbd><kbd>↑</kbd><kbd>→</kbd><kbd>↓</kbd></dt><dd>Gewählten Kalibrierpunkt 1 px verschieben (<kbd>Umschalt</kbd> = 5 px)</dd>
+      <dt><kbd>Strg</kbd>+<kbd>Z</kbd></dt><dd>Letzte Kalibrieränderung rückgängig</dd>
+      <dt><kbd>B</kbd></dt><dd>Beamer-Modus an/aus</dd>
+      <dt><kbd>?</kbd></dt><dd>Diese Hilfe</dd>
+    </dl>
+    <div class="bar end"><button type="button" id="helpdlg-close" class="primary">Schließen</button></div>
+  </dialog>
   <script type="module" src="/src/main.ts"></script>
 </body>
 </html>
