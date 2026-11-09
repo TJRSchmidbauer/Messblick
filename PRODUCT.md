@@ -27,10 +27,11 @@ Physiksaal, Unterrichtsstunde mit knapper Zeit; wechselnde Bediener; teils unzuv
 - Noch nicht an echten Geräten getestet.
 
 ## Brand Commitments
-Keine festgelegt. Name: „Physik-Messwerterfassung“.
+Name: „Physik-Messwerterfassung“. Visuelle Marke: schmidbauer.io (Corporate Design): Apricot #F6B48F, Ziegelrot #E8836B, Kohle #2E2A28, Creme #FBF4EC, Link #A0502C; Schriften Space Grotesk (Überschriften), Atkinson Hyperlegible (Text), JetBrains Mono (Zahlen); Wortmarke „ts.“; flächig und ruhig, keine Verläufe, keine Schatten. Claim: „Verstehen. Bauen. Teilen.“
+Keine Verweise auf fremde Webseiten und keine fremd geladenen Ressourcen (Schriften, Skripte, Bilder): alles wird mitausgeliefert.
 
 ## Evidence on Hand
-Demo-Quelle und synthetische Testbilder; keine realen Fotos oder Videos von PHYWE-Geräten oder Multimetern vorhanden. Lehrplanbezug: LehrplanPLUS Physik 12/13 eA (lehrplanplus.bayern.de).
+Demo-Quelle und synthetische Testbilder; keine realen Fotos oder Videos von PHYWE-Geräten oder Multimetern vorhanden. Lehrplanbezug: LehrplanPLUS Physik 12/13 eA.
 
 ## Product Principles
 1. Im Unterricht zählt jede Minute: der Weg vom Aufbau zur ersten Messkurve muss kurz und geführt sein.

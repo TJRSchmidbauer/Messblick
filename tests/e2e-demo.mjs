@@ -12,6 +12,11 @@ const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => { errors.push(e.message); console.error('PAGEERROR', e.message); });
 page.on('console', (m) => { if (m.type() === 'error') { errors.push(m.text()); console.error('CONSOLE', m.text()); } });
+const external = [];
+page.on('request', (r) => {
+  const u = r.url();
+  if (!u.startsWith(url) && !/^(data|blob|about):/.test(u)) external.push(u);
+});
 await page.goto(url);
 await page.evaluate(() => localStorage.clear());
 await page.reload();
@@ -108,6 +113,7 @@ await page.setViewportSize({ width: 390, height: 844 });
 await page.keyboard.press('2'); await page.waitForTimeout(300);
 await page.screenshot({ path: `${shots}/10-handy.png`, fullPage: true });
 
+if (external.length) throw new Error('Externe Anfragen: ' + external.join(', '));
 if (errors.length) throw new Error('Konsolenfehler: ' + errors.join(' | '));
 await browser.close();
 console.log('E2E OK');

@@ -613,11 +613,11 @@ function drawOverlay(): void {
         const selected = sel?.id === c.id && sel.key === q.key;
         strokeHalo(() => drawSymbol(c.slot, q.p.x, q.p.y, 6 * scale), col);
         vctx.fillStyle = col; vctx.fill();
-        if (selected) strokeHalo(() => { vctx.beginPath(); vctx.arc(q.p.x, q.p.y, 13 * scale, 0, 7); }, '#f2c230', 2);
+        if (selected) strokeHalo(() => { vctx.beginPath(); vctx.arc(q.p.x, q.p.y, 13 * scale, 0, 7); }, '#F6B48F', 2);
       }
     } else if (c.roi) {
       strokeHalo(() => { vctx.beginPath(); vctx.rect(c.roi!.x, c.roi!.y, c.roi!.w, c.roi!.h); }, col);
-      if (sel?.id === c.id && sel.key === 'roi') strokeHalo(() => { vctx.beginPath(); vctx.rect(c.roi!.x - 4 * scale, c.roi!.y - 4 * scale, c.roi!.w + 8 * scale, c.roi!.h + 8 * scale); }, '#f2c230', 2);
+      if (sel?.id === c.id && sel.key === 'roi') strokeHalo(() => { vctx.beginPath(); vctx.rect(c.roi!.x - 4 * scale, c.roi!.y - 4 * scale, c.roi!.w + 8 * scale, c.roi!.h + 8 * scale); }, '#F6B48F', 2);
       if (c.cal) {
         const cw = c.roi.w / c.digits;
         vctx.setLineDash([3 * scale, 5 * scale]);
@@ -634,7 +634,7 @@ function drawOverlay(): void {
       vctx.fillStyle = '#fff'; vctx.fillText(label, anchor.x + 30 * scale, anchor.y - 5 * scale);
     }
   }
-  if (roiDraw) strokeHalo(() => { vctx.beginPath(); vctx.rect(Math.min(roiDraw!.start.x, roiDraw!.cur.x), Math.min(roiDraw!.start.y, roiDraw!.cur.y), Math.abs(roiDraw!.cur.x - roiDraw!.start.x), Math.abs(roiDraw!.cur.y - roiDraw!.start.y)); }, '#f2c230', 2);
+  if (roiDraw) strokeHalo(() => { vctx.beginPath(); vctx.rect(Math.min(roiDraw!.start.x, roiDraw!.cur.x), Math.min(roiDraw!.start.y, roiDraw!.cur.y), Math.abs(roiDraw!.cur.x - roiDraw!.start.x), Math.abs(roiDraw!.cur.y - roiDraw!.start.y)); }, '#F6B48F', 2);
   vctx.restore();
 }
 
@@ -649,11 +649,11 @@ function qualityOf(c: Chan, frame: Frame): string[] {
 
 let lastRead = 0, lastQuality = 0;
 function drawEmpty(): void {
-  vctx.fillStyle = '#0f1b2d';
+  vctx.fillStyle = '#2e2a28';
   vctx.fillRect(0, 0, view.width, view.height);
-  vctx.fillStyle = '#c4d0e6';
+  vctx.fillStyle = '#f6b48f';
   vctx.textAlign = 'center';
-  vctx.font = '700 22px "Atkinson Hyperlegible", system-ui, sans-serif';
+  vctx.font = '700 22px "Space Grotesk", system-ui, sans-serif';
   vctx.fillText('Noch keine Quelle', view.width / 2, view.height / 2 - 6);
   vctx.font = '400 16px "Atkinson Hyperlegible", system-ui, sans-serif';
   vctx.fillText('Wähle rechts Kamera, Videodatei oder Demo.', view.width / 2, view.height / 2 + 22);
@@ -830,7 +830,7 @@ $<HTMLInputElement>('smooth').onchange = (e) => {
 };
 $('zoom-reset').onclick = () => chart.resetZoom();
 
-const LIGHT = { ink: '#0f1b2d', grid: '#d5dce6', ch: ['#2447d6', '#c2410c', '#15803d', '#7e22ce'] };
+const LIGHT = { ink: '#2e2a28', grid: '#e0d2c4', warn: '#b3341f', ch: ['#c4472d', '#2e6f8e', '#5b7f2b', '#8a4f9e'] };
 
 function label(id: string): string {
   if (id === TIME_KEY) return 'Zeit / s';
@@ -860,6 +860,7 @@ function renderResults(light = false): void {
     xLog: $<HTMLInputElement>('xlog').checked, yLog: $<HTMLInputElement>('ylog').checked, line: x === TIME_KEY,
     ink: light ? LIGHT.ink : cssVar('--ink'), grid: light ? LIGHT.grid : cssVar('--line'),
     font: light ? 14 : beamer ? 18 : 14,
+    danger: light ? LIGHT.warn : cssVar('--danger'),
   });
   renderRuns();
   renderTable();

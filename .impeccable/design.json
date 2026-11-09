@@ -4,36 +4,33 @@
   "title": "Design System: Physik-Messwerterfassung",
   "extensions": {
     "colorMeta": {
-      "ink-navy": { "role": "primary", "displayName": "Ink Navy", "canonical": "#12233f", "tonalRamp": ["#050b15", "#0a1426", "#12233f", "#2a3f63", "#4a6188", "#7788a8", "#a9b5ca", "#dde3ec"] },
-      "register-yellow": { "role": "secondary", "displayName": "Register Yellow", "canonical": "#f2c230", "tonalRamp": ["#3d2f00", "#6b5200", "#9a7a06", "#c99d12", "#f2c230", "#f6d462", "#fae6a0", "#fdf5d8"] },
-      "paper": { "role": "neutral", "displayName": "Cool Paper", "canonical": "#eef1f5", "tonalRamp": ["#1a2230", "#3a4a63", "#5b6b84", "#8d9bb0", "#c5cfdc", "#dde3ec", "#eef1f5", "#f8f9fb"] },
-      "channel-1-ultramarine": { "role": "tertiary", "displayName": "Ultramarine (circle)", "canonical": "#2447d6", "tonalRamp": ["#0b1648", "#142a8a", "#1c3bb8", "#2447d6", "#5171e6", "#86a0ff", "#bccaff", "#e6ecff"] },
-      "channel-2-orange": { "role": "tertiary", "displayName": "Orange (triangle)", "canonical": "#c2410c", "tonalRamp": ["#3e1303", "#6e2406", "#9a3409", "#c2410c", "#e8671f", "#ff9a5c", "#ffc9a3", "#ffe9d9"] },
-      "channel-3-green": { "role": "tertiary", "displayName": "Green (square)", "canonical": "#15803d", "tonalRamp": ["#052e16", "#0b5026", "#106a31", "#15803d", "#25a655", "#4ade80", "#9aefb9", "#dcfbe7"] },
-      "channel-4-violet": { "role": "tertiary", "displayName": "Violet (diamond)", "canonical": "#7e22ce", "tonalRamp": ["#2a0a47", "#4c1485", "#651bb0", "#7e22ce", "#a257e3", "#cf9bff", "#e5c8ff", "#f6ebff"] },
-      "danger": { "role": "state", "displayName": "Cinnabar", "canonical": "#b42318", "tonalRamp": ["#3b0a06", "#6a140d", "#8f1c12", "#b42318", "#d8473b", "#ff8a80", "#ffbdb7", "#ffe6e3"] }
+      "kohle": { "role": "primary", "displayName": "Kohle", "canonical": "#2e2a28", "tonalRamp": ["#0e0c0b", "#1a1716", "#2e2a28", "#4a4542", "#6b6561", "#8f8985", "#bcb6b2", "#e7e3e0"] },
+      "apricot": { "role": "secondary", "displayName": "Apricot", "canonical": "#f6b48f", "tonalRamp": ["#4a2410", "#7a3d1c", "#b0592a", "#d98456", "#f6b48f", "#f9c9ac", "#fbdcc9", "#fdeee4"] },
+      "ziegelrot": { "role": "secondary", "displayName": "Ziegelrot (wordmark dot only)", "canonical": "#e8836b", "tonalRamp": ["#4a1d12", "#7a3020", "#a84a35", "#cc654d", "#e8836b", "#f0a392", "#f6c3b8", "#fbe3dd"] },
+      "creme": { "role": "neutral", "displayName": "Creme", "canonical": "#fbf4ec", "tonalRamp": ["#2e2a28", "#5a5350", "#8a7f78", "#b8ab9f", "#e0d2c4", "#f1e1cf", "#fbf4ec", "#fffcf8"] },
+      "pfirsich": { "role": "neutral", "displayName": "Pfirsich", "canonical": "#fde3d0", "tonalRamp": ["#5a3a24", "#8a5c3c", "#b88460", "#d9ac88", "#efc9aa", "#fde3d0", "#fef0e5", "#fff8f2"] },
+      "link-sienna": { "role": "neutral", "displayName": "Link Sienna", "canonical": "#a0502c", "tonalRamp": ["#2e170b", "#512a16", "#753c20", "#a0502c", "#c27350", "#d99a7c", "#ebc4b0", "#f7e6dd"] },
+      "channel-1-brick": { "role": "tertiary", "displayName": "Brick (circle)", "canonical": "#c4472d", "tonalRamp": ["#3e130a", "#6e2415", "#9a341f", "#c4472d", "#d96d55", "#e8967f", "#f2bfb0", "#fae3dc"] },
+      "channel-2-teal": { "role": "tertiary", "displayName": "Teal (triangle)", "canonical": "#2e6f8e", "tonalRamp": ["#0b222d", "#16404f", "#215a74", "#2e6f8e", "#528fad", "#7cb0c8", "#b0d1e0", "#e0eef4"] },
+      "channel-3-olive": { "role": "tertiary", "displayName": "Olive (square)", "canonical": "#5b7f2b", "tonalRamp": ["#17220a", "#2c4015", "#44601f", "#5b7f2b", "#7ba047", "#a0c06f", "#c8dca5", "#e9f1d9"] },
+      "channel-4-plum": { "role": "tertiary", "displayName": "Plum (diamond)", "canonical": "#8a4f9e", "tonalRamp": ["#2a1530", "#472752", "#683a78", "#8a4f9e", "#a673b8", "#c19ad0", "#dcc3e6", "#f1e6f6"] }
     },
     "typographyMeta": {
+      "wordmark": { "displayName": "Wordmark", "purpose": "The ts. brand mark in the shell; Ziegelrot dot." },
       "title": { "displayName": "Title", "purpose": "App name in the shell only." },
-      "headline": { "displayName": "Headline", "purpose": "Step panel headings." },
-      "body": { "displayName": "Body", "purpose": "Running text and notes." },
+      "headline": { "displayName": "Headline", "purpose": "Panel step headings." },
+      "body": { "displayName": "Body", "purpose": "Running text and notes, max 68ch." },
       "label": { "displayName": "Label", "purpose": "Field labels above controls." },
-      "live-value": { "displayName": "Live value", "purpose": "Large mono reading in each live card; scales up in Beamer mode." },
+      "live-value": { "displayName": "Live value", "purpose": "Large tabular reading in each live card." },
       "data": { "displayName": "Data", "purpose": "Table cells, step numerals, key caps." }
     },
-    "shadows": [
-      { "name": "panel-light", "value": "0 1px 2px rgb(0 0 0 / .10), 0 6px 18px -6px rgb(0 0 0 / .20)", "purpose": "Panels, live cards, stage, dialogs in light theme." },
-      { "name": "panel-dark", "value": "0 1px 2px rgb(0 0 0 / .4), 0 8px 22px -8px rgb(0 0 0 / .6)", "purpose": "Same roles in dark theme." },
-      { "name": "panel-contrast", "value": "none", "purpose": "High contrast relies on white outlines." },
-      { "name": "focus-ring", "value": "outline: 3px solid #1c4fd8; outline-offset: 2px", "purpose": "Keyboard focus on every control." },
-      { "name": "active-channel", "value": "0 0 0 2px #1c4fd8", "purpose": "Channel card currently being calibrated." }
-    ],
+    "shadows": [],
     "motion": [
-      { "name": "tab-rise", "value": "padding .18s cubic-bezier(.16, 1, .3, 1), background-color .18s, color .18s", "purpose": "Active register tab rising into the panel." },
-      { "name": "control-state", "value": "background-color .12s, transform .12s", "purpose": "Button hover and 1px press. All transitions removed under prefers-reduced-motion." }
+      { "name": "tab-rise", "value": "padding .18s cubic-bezier(.16, 1, .3, 1), background-color .18s, color .18s", "purpose": "Active register tab rising into the panel; disabled under reduced motion." },
+      { "name": "control-state", "value": "background-color .12s, transform .12s", "purpose": "Button hover tone shift and 1px press." }
     ],
     "breakpoints": [
-      { "name": "tablet-phone", "value": "900px" },
+      { "name": "mobile", "value": "900px" },
       { "name": "wide-notice", "value": "1550px" }
     ]
   },
@@ -42,89 +39,92 @@
       "name": "Primary Button",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "The single main action of a step panel.",
-      "html": "<button class=\"ds-btn-primary\">Messung starten</button>",
-      "css": ".ds-btn-primary { font: inherit; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: .45rem 1.5rem; font-size: 1.05rem; border-radius: 8px; border: 1.5px solid var(--accent, #12233f); background: var(--accent, #12233f); color: var(--on-accent, #fff); cursor: pointer; transition: background-color .12s, transform .12s; } .ds-btn-primary:hover { filter: brightness(1.12); } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 3px solid var(--focus, #1c4fd8); outline-offset: 2px; }"
+      "description": "One per step panel; Kohle pill with Creme label.",
+      "html": "<button class=\"ds-btn-primary\">Weiter: Geräte</button>",
+      "css": ".ds-btn-primary { font: inherit; font-weight: 700; min-height: 44px; padding: .45rem 1.5rem; border-radius: 999px; border: 1.5px solid #2e2a28; background: #2e2a28; color: #fbf4ec; cursor: pointer; transition: background-color .12s, transform .12s; } .ds-btn-primary:hover { filter: brightness(1.12); } .ds-btn-primary:active { transform: translateY(1px); } .ds-btn-primary:focus-visible { outline: 3px solid #a0502c; outline-offset: 2px; }"
     },
     {
       "name": "Default Button",
       "kind": "button",
       "refersTo": "button-default",
-      "description": "Secondary actions: white fill, ink border.",
-      "html": "<button class=\"ds-btn\">Zurücksetzen</button>",
-      "css": ".ds-btn { font: inherit; font-weight: 700; min-height: 44px; padding: .45rem 1rem; border-radius: 8px; border: 1.5px solid var(--ink, #0f1b2d); background: var(--surface, #fff); color: var(--ink, #0f1b2d); cursor: pointer; transition: background-color .12s, transform .12s; } .ds-btn:hover { background: var(--surface-2, #f5f7fa); } .ds-btn:active { transform: translateY(1px); } .ds-btn:focus-visible { outline: 3px solid var(--focus, #1c4fd8); outline-offset: 2px; }"
+      "description": "Secondary action: white pill, Kohle border, Pfirsich hover.",
+      "html": "<button class=\"ds-btn\">Verwerfen</button>",
+      "css": ".ds-btn { font: inherit; font-weight: 700; min-height: 44px; padding: .45rem 1.1rem; border-radius: 999px; border: 1.5px solid #2e2a28; background: #fff; color: #2e2a28; cursor: pointer; transition: background-color .12s, transform .12s; } .ds-btn:hover { background: #fde3d0; } .ds-btn:active { transform: translateY(1px); } .ds-btn:focus-visible { outline: 3px solid #a0502c; outline-offset: 2px; }"
     },
     {
       "name": "Register Tabs",
       "kind": "nav",
       "refersTo": "tab-register",
-      "description": "Four step tabs on the navy shell; the active one is yellow and rises.",
-      "html": "<div class=\"ds-register\"><button class=\"ds-tab\"><span class=\"ds-n\">1</span>Quelle</button><button class=\"ds-tab ds-on\"><span class=\"ds-n\">2</span>Geräte</button><button class=\"ds-tab\"><span class=\"ds-n\">3</span>Messen</button><button class=\"ds-tab\"><span class=\"ds-n\">4</span>Auswertung</button></div>",
-      "css": ".ds-register { display: flex; gap: .35rem; align-items: flex-end; background: #12233f; padding: 0 1.25rem; } .ds-tab { font: inherit; font-weight: 700; color: #c4d0e6; background: rgb(255 255 255 / .06); border: 0; border-radius: 10px 10px 0 0; padding: .45rem 1.1rem; margin-top: .4rem; min-height: 44px; display: inline-flex; align-items: center; gap: .55rem; cursor: pointer; transition: padding .18s cubic-bezier(.16,1,.3,1), background-color .18s, color .18s; } .ds-tab:hover { background: rgb(255 255 255 / .14); color: #fff; } .ds-tab:focus-visible { outline: 3px solid #f2c230; outline-offset: 2px; } .ds-n { font-family: 'JetBrains Mono Variable', monospace; font-size: .85rem; opacity: .8; } .ds-on { background: #f2c230; color: #12233f; padding-top: .75rem; margin-top: 0; } .ds-on .ds-n { opacity: 1; }"
+      "description": "Four step tabs on the Apricot shell; the active one is Kohle and taller.",
+      "html": "<div class=\"ds-shell\"><button class=\"ds-tab\"><span class=\"ds-n\">1</span>Quelle</button><button class=\"ds-tab ds-active\"><span class=\"ds-n\">2</span>Geräte</button><button class=\"ds-tab\"><span class=\"ds-n\">3</span>Messen</button></div>",
+      "css": ".ds-shell { background: #f6b48f; display: flex; gap: .35rem; align-items: flex-end; padding: 0 1.25rem; border-top: 1.5px solid #2e2a28; } .ds-tab { font: inherit; font-weight: 700; color: #2e2a28; background: #fad2b8; border: 0; border-radius: 12px 12px 0 0; padding: .45rem 1.1rem; margin-top: .4rem; min-height: 44px; display: inline-flex; align-items: center; gap: .55rem; cursor: pointer; transition: padding .18s cubic-bezier(.16,1,.3,1), background-color .18s, color .18s; } .ds-tab:hover { background: #fbf4ec; } .ds-n { font-family: 'JetBrains Mono Variable', monospace; font-size: .85rem; opacity: .8; } .ds-tab.ds-active { background: #2e2a28; color: #fbf4ec; padding-top: .75rem; margin-top: 0; } .ds-tab.ds-active .ds-n { opacity: 1; } .ds-tab:focus-visible { outline: 3px solid #2e2a28; outline-offset: 2px; }"
     },
     {
       "name": "Live Card",
       "kind": "card",
       "refersTo": "live-card",
-      "description": "Per-channel large reading, tinted with the device colour, with symbol and confidence line.",
-      "html": "<div class=\"ds-live\"><div class=\"ds-name\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" fill=\"currentColor\"><circle cx=\"8\" cy=\"8\" r=\"6\"/></svg>Spannung</div><div class=\"ds-value\">12,43<small>V</small></div><div class=\"ds-conf\">Ablesung sicher</div></div>",
-      "css": ".ds-live { --c: #2447d6; padding: .8rem 1rem .7rem; border-radius: 8px; width: 220px; box-shadow: 0 1px 2px rgb(0 0 0 / .10), 0 6px 18px -6px rgb(0 0 0 / .20); background: color-mix(in srgb, var(--c) 9%, #fff); border: 1.5px solid color-mix(in srgb, var(--c) 55%, #fff); color: #0f1b2d; } .ds-name { display: flex; align-items: center; gap: .45rem; font-weight: 700; color: var(--c); } .ds-value { font-family: 'JetBrains Mono Variable', ui-monospace, monospace; font-weight: 600; font-size: 3rem; line-height: 1.15; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; } .ds-value small { font-size: 1rem; font-weight: 400; color: #3a4a63; margin-left: .3rem; letter-spacing: 0; } .ds-conf { font-size: .9rem; color: #17703a; }"
+      "description": "Per-channel readout tinted with the channel colour; symbol, name, large mono value, confidence.",
+      "html": "<div class=\"ds-live\"><div class=\"ds-name\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" aria-hidden=\"true\"><circle cx=\"8\" cy=\"8\" r=\"7\" fill=\"currentColor\"/></svg>Spannung</div><div class=\"ds-value\">3,42<small>V</small></div><div class=\"ds-conf\">Ablesung sicher</div></div>",
+      "css": ".ds-live { --c: #c4472d; padding: .8rem 1rem .7rem; border-radius: 16px; background: color-mix(in srgb, var(--c) 9%, #fff); border: 1.5px solid color-mix(in srgb, var(--c) 55%, #fff); color: #2e2a28; max-width: 220px; } .ds-name { display: flex; align-items: center; gap: .45rem; font-family: 'Space Grotesk', sans-serif; font-weight: 700; color: var(--c); } .ds-value { font-family: 'JetBrains Mono Variable', ui-monospace, monospace; font-weight: 600; font-size: 2.8rem; line-height: 1.15; letter-spacing: -.02em; font-variant-numeric: tabular-nums; white-space: nowrap; } .ds-value small { font-size: 1rem; font-weight: 400; color: #5a5350; margin-left: .3rem; letter-spacing: 0; } .ds-conf { font-size: .9rem; color: #2f6b3c; }"
     },
     {
-      "name": "Channel Card",
+      "name": "Panel",
       "kind": "card",
       "refersTo": "panel",
-      "description": "Step 2 device configuration card with a channel-tinted header band.",
-      "html": "<div class=\"ds-chan\"><div class=\"ds-head\"><svg width=\"14\" height=\"14\" viewBox=\"0 0 16 16\" fill=\"currentColor\"><path d=\"M8 1.5L15 14H1z\"/></svg><input type=\"text\" value=\"Strom\" /><span class=\"ds-status\">fertig</span></div></div>",
-      "css": ".ds-chan { --c: #c2410c; border: 1px solid #c5cfdc; border-radius: 8px; padding: .75rem .85rem; background: #f5f7fa; color: #0f1b2d; } .ds-chan.ds-active { border-color: #1c4fd8; box-shadow: 0 0 0 2px #1c4fd8; } .ds-head { display: flex; gap: .5rem; align-items: center; padding: .35rem .5rem; border-radius: 6px; background: color-mix(in srgb, var(--c) 10%, transparent); color: var(--c); } .ds-head input { font: inherit; color: #0f1b2d; background: #fff; border: 1.5px solid #8d9bb0; border-radius: 6px; padding: .4rem .55rem; min-height: 40px; width: 9em; } .ds-status { margin-left: auto; font-size: .9rem; color: #17703a; }"
+      "description": "White 16px work surface with a 1.5px Line border and Space Grotesk heading; flat.",
+      "html": "<section class=\"ds-panel\"><h2>Quelle wählen</h2><p>Kamera, Videodatei oder Demo.</p></section>",
+      "css": ".ds-panel { background: #fff; border: 1.5px solid #e0d2c4; border-radius: 16px; padding: 1.25rem 1.4rem; color: #2e2a28; font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; } .ds-panel h2 { font-family: 'Space Grotesk', sans-serif; font-size: 1.4rem; font-weight: 700; line-height: 1.2; letter-spacing: -.01em; margin: 0 0 .75rem; }"
     },
     {
-      "name": "Text Input",
+      "name": "Text Field",
       "kind": "input",
       "refersTo": "input-field",
-      "description": "Labelled field; numbers in mono.",
-      "html": "<label class=\"ds-field\">Einheit<input type=\"text\" value=\"V\" /></label>",
-      "css": ".ds-field { display: flex; flex-direction: column; gap: .25rem; font-weight: 700; font-size: .9rem; color: #0f1b2d; width: 160px; } .ds-field input { font: inherit; font-weight: 400; color: #0f1b2d; background: #fff; border: 1.5px solid #8d9bb0; border-radius: 6px; padding: .4rem .55rem; min-height: 40px; } .ds-field input:focus-visible { outline: 3px solid #1c4fd8; outline-offset: 2px; }"
+      "description": "White field with 1.5px Line Strong border, 10px radius, bold label above.",
+      "html": "<label class=\"ds-field\">Versuchstitel<input class=\"ds-input\" type=\"text\" placeholder=\"z. B. Entladung eines Kondensators\"></label>",
+      "css": ".ds-field { display: flex; flex-direction: column; gap: .25rem; font-weight: 700; font-size: .9rem; color: #2e2a28; } .ds-input { font: inherit; font-weight: 400; color: #2e2a28; background: #fff; border: 1.5px solid #8a7f78; border-radius: 10px; padding: .4rem .6rem; min-height: 40px; } .ds-input:focus-visible { outline: 3px solid #a0502c; outline-offset: 2px; }"
     },
     {
-      "name": "Source Choice Tile",
-      "kind": "chip",
+      "name": "Choice Tile",
+      "kind": "custom",
       "refersTo": "button-default",
-      "description": "Step 1 source tiles; the selected one gets an inset ink ring.",
-      "html": "<button class=\"ds-choice ds-sel\"><b>Kamera</b><small>Live-Bild</small></button>",
-      "css": ".ds-choice { font: inherit; display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: .25rem; min-height: 120px; width: 150px; padding: .85rem; border: 1.5px solid #8d9bb0; border-radius: 8px; background: #fff; color: #0f1b2d; cursor: pointer; } .ds-choice b { font-size: 1.05rem; margin-top: .25rem; } .ds-choice small { color: #3a4a63; } .ds-choice:hover { background: #f5f7fa; } .ds-sel { border-color: #0f1b2d; box-shadow: inset 0 0 0 1.5px #0f1b2d; } .ds-choice:focus-visible { outline: 3px solid #1c4fd8; outline-offset: 2px; }"
+      "description": "Source selection tile: icon, bold title, small description; Pfirsich on hover.",
+      "html": "<button class=\"ds-choice\"><b>Kamera</b><small>Live-Aufnahme, Handy oder Webcam</small></button>",
+      "css": ".ds-choice { font: inherit; display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: .25rem; padding: .85rem; min-height: 120px; width: 170px; background: #fff; color: #2e2a28; border: 1.5px solid #8a7f78; border-radius: 8px; cursor: pointer; } .ds-choice b { font-size: 1.05rem; margin-top: .25rem; } .ds-choice small { color: #5a5350; } .ds-choice:hover { background: #fde3d0; } .ds-choice:focus-visible { outline: 3px solid #a0502c; outline-offset: 2px; }"
     }
   ],
   "narrative": {
     "northStar": "Das Tafelwerk",
-    "overview": "A formula handbook with coloured register tabs, rebuilt as a measuring tool. Ink-navy carries the header and the primary action, cool paper-grey is the ground, white is the work surface. Every measuring device owns one register colour plus one symbol, and that pair follows the device through overlay, live card, chart line, table column and export. Dense, hairline-ruled, small radii, real blurred shadows.",
+    "overview": "A formula handbook with register tabs, rebuilt as a measuring tool and dressed in the owner's schmidbauer.io brand. Apricot carries the shell and the tab strip, Kohle carries ink, the primary action and the active tab, Creme is the ground, white the work surface. Every measuring device owns one channel colour plus one symbol, and that pair follows the device through overlay, live card, chart line, table column and export. Flat, calm, pill-shaped controls, 16px panels.\n\nThe register tabs are the navigation: four steps (1 Quelle, 2 Geräte, 3 Messen, 4 Auswertung) hang off the Apricot shell; the active one turns Kohle and rises into the work surface. The tool is read from the back row of a classroom (Beamer mode) and used by thumb on a phone, so legibility outranks ornament everywhere.",
     "keyCharacteristics": [
+      "Flat: borders and tone do all the work; no shadows, no gradients.",
       "Colour never carries meaning alone; each channel pairs colour with a shape (circle, triangle, square, diamond).",
-      "Three themes (light, dark, high contrast) share one token set; all components read tokens, never literals.",
+      "Three themes (light, dark, high contrast) share one token set; components read tokens, not literals.",
       "One primary action per step panel.",
-      "Measurement numbers are monospaced with tabular figures.",
-      "Flat panels with a hairline border and one blurred shadow; no decorative gradients."
+      "Space Grotesk for headings, Atkinson Hyperlegible for text, JetBrains Mono for measured numbers; all self-hosted via @fontsource, no external requests."
     ],
     "rules": [
-      { "name": "The Register Rule", "body": "Register Yellow appears only on the active step tab (and its focus ring and the brand pointer). Never use it for buttons, highlights, warnings or chart series.", "section": "colors" },
-      { "name": "The Device Colour Rule", "body": "A channel hue identifies one device and nothing else. It tints that device's live card, channel header, overlay, chart line and table column. It is never used for status or decoration.", "section": "colors" },
-      { "name": "The Cinnabar Rule", "body": "Danger red marks recording and errors only.", "section": "colors" },
-      { "name": "The Tabular Rule", "body": "Any number that can change or be compared uses tabular figures.", "section": "typography" },
-      { "name": "The One Shadow Rule", "body": "Components share the single theme shadow; do not invent per-component elevations.", "section": "elevation" }
+      { "name": "The Brand Rule", "body": "The surface is flat and calm: no shadows, no gradients, anywhere, in any theme. Hierarchy comes from tone, 1.5px borders and shape. Apricot, Kohle and Creme are the owner's brand values; do not substitute or tint them.", "section": "colors" },
+      { "name": "The Ziegel Rule", "body": "Ziegelrot appears only on the wordmark dot and slogan dots. Never use it for buttons, warnings or series.", "section": "colors" },
+      { "name": "The Device Colour Rule", "body": "A channel hue identifies one device and nothing else. It tints that device's live card (9% mix), channel header, overlay, chart line and table column. It is never used for status or decoration.", "section": "colors" },
+      { "name": "The Danger Rule", "body": "Danger red marks recording and errors only.", "section": "colors" },
+      { "name": "The Tabular Rule", "body": "Any number that can change or be compared (live values, table cells, output, timestamps) is set in JetBrains Mono with tabular figures.", "section": "typography" },
+      { "name": "The Flat Rule", "body": "See The Brand Rule: shadows and gradients are never introduced; use a border or a tone step instead.", "section": "elevation" }
     ],
     "dos": [
+      "Do keep every surface flat; separate with a 1.5px border or a tone step (Creme, white, Pfirsich).",
       "Do pair every channel colour with its symbol wherever a device is identified (card, chart marker, table head, run list).",
-      "Do use tokens (--ink, --surface, --line, --ch1..4) so all three themes keep working.",
-      "Do keep one primary button per step panel and give it 44px or more touch height.",
-      "Do set measured numbers in JetBrains Mono with tabular figures.",
+      "Do use tokens (`--ink`, `--surface`, `--line`, `--accent`, `--shell`, `--ch1..4`) so all three themes keep working.",
+      "Do keep one primary button per step panel and give it 44px or more touch height; use pill shape for all buttons.",
+      "Do set headings in Space Grotesk, text in Atkinson Hyperlegible and measured numbers in JetBrains Mono with tabular figures; keep fonts self-hosted.",
       "Do keep content legible in Beamer mode: large live values, minimal chrome."
     ],
     "donts": [
-      "Don't use Register Yellow for anything but the active step tab.",
+      "Don't add box-shadows, text-shadows, glows or gradients.",
+      "Don't use Ziegelrot beyond the wordmark dot and slogan dots.",
       "Don't use channel hues or Danger red for decoration or generic status.",
       "Don't signal state by colour alone; always add an icon, shape or word.",
-      "Don't add per-component shadows or hard offset shadows; use the one theme shadow.",
-      "Don't introduce glyph or emoji icons; extend the custom SVG set at 1.75 stroke.",
+      "Don't introduce glyph or emoji icons; extend the custom SVG set.",
+      "Don't load fonts or assets from external hosts.",
       "Don't put everything on screen at once; steps are shown one at a time."
     ]
   }

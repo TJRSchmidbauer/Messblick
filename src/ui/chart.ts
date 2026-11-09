@@ -28,6 +28,8 @@ export interface ChartInput {
   grid: string;
   /** Schriftgröße der Achsen in px (Beamer größer). */
   font: number;
+  /** Farbe für unsichere Punkte (Themenfarbe). */
+  danger: string;
 }
 
 const DASHES = [[], [6, 3], [2, 3], [10, 3, 2, 3]];
@@ -67,7 +69,7 @@ export class ResultChart {
         borderDash: s.faded ? [3, 4] : DASHES[s.slot % 4],
         pointStyle: SYMBOLS[s.slot % SYMBOLS.length],
         pointRadius: s.points.map((p) => (low(p) ? 6 : s.points.length > 60 ? 2 : s.faded ? 3 : 4)),
-        pointBorderColor: s.points.map((p) => (low(p) ? '#c92a2a' : s.color)),
+        pointBorderColor: s.points.map((p) => (low(p) ? d.danger : s.color)),
         pointBorderWidth: s.points.map((p) => (low(p) ? 2 : 1)),
         pointBackgroundColor: s.faded ? s.color + '66' : s.color,
       } as any;
@@ -101,8 +103,8 @@ export class ResultChart {
     ctx.fillStyle = '#fff';
     ctx.fillRect(0, 0, out.width, out.height);
     if (head) {
-      ctx.fillStyle = '#0f1b2d';
-      ctx.font = '600 22px "Atkinson Hyperlegible", system-ui, sans-serif';
+      ctx.fillStyle = '#2e2a28';
+      ctx.font = '700 22px "Space Grotesk", "Atkinson Hyperlegible", system-ui, sans-serif';
       ctx.fillText(meta.title || 'Messung', pad, 30);
       ctx.font = '400 15px "Atkinson Hyperlegible", system-ui, sans-serif';
       ctx.fillText([meta.name, meta.date].filter(Boolean).join(' · '), pad, 50);

@@ -5,17 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="color-scheme" content="light dark" />
   <title>Physik-Messwerterfassung</title>
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <meta name="description" content="Messgeräte im Physikunterricht abfilmen, Werte ablesen, CSV, XLSX und Graphen erzeugen – komplett im Browser, ohne Konto." />
   <link rel="stylesheet" href="/src/style.css" />
 </head>
 <body>
   <a class="skip" href="#stage">Zum Kamerabild springen</a>
   <header class="shell">
     <div class="brand">
-      <svg width="30" height="30" viewBox="0 0 32 32" aria-hidden="true">
-        <path d="M4 22a12 12 0 1 1 24 0" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round"/>
-        <path d="M16 21l6-9" stroke="#f2c230" stroke-width="2.6" stroke-linecap="round"/>
-        <circle cx="16" cy="21" r="2.2" fill="#f2c230"/>
-      </svg>
+      <span class="wortmarke" aria-hidden="true">ts<i>.</i></span>
       <h1>Physik-Messwerterfassung</h1>
     </div>
     <div class="tools">
@@ -143,6 +141,11 @@
       </section>
     </div>
   </main>
+
+  <footer class="site-foot">
+    <b>Verstehen<span class="dot">.</span> Bauen<span class="dot">.</span> Teilen<span class="dot">.</span></b>
+    <span>Läuft lokal in deinem Browser: kein Konto, keine Übertragung von Video oder Messwerten.</span>
+  </footer>
 
   <dialog id="valdlg" aria-labelledby="valdlg-title">
     <form method="dialog" id="valdlg-form">

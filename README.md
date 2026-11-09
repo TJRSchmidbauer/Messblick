@@ -1,37 +1,62 @@
 # Physik-Messwerterfassung
 
-Webanwendung für den Physikunterricht: Ein analoges oder digitales Messgerät (z. B. PHYWE-Demo-Zeigerinstrument, Multimeter) wird per Kamera oder Videodatei abgefilmt. Die App liest die Werte ab und erzeugt eine **CSV-/XLSX-Datei** sowie **Graphen** (Wert über Zeit oder über einem zweiten Messgerät).
+**Messgeräte im Physikunterricht abfilmen, Werte ablesen, Graph und Tabelle erhalten.**
+Eine Webanwendung für Lehrkräfte und Schüler: Ein analoges Zeigerinstrument (z. B. PHYWE-Demogerät) oder eine Digitalanzeige (z. B. Multimeter) wird per Kamera oder Videodatei abgefilmt. Die App liest die Werte ab und erzeugt eine **CSV-/XLSX-Datei** sowie **Graphen** (Wert über Zeit oder über einem zweiten Messgerät).
 
-Alles läuft **lokal im Browser** – das Video verlässt das Gerät nie. Es ist kein Server nötig (statische Seite, GitHub Pages).
+Alles läuft **lokal im Browser**: kein Server, kein Konto, keine Übertragung von Video oder Messwerten, keine Schriften oder Skripte von fremden Servern.
+
+![Quelle wählen](docs/screenshots/01-quelle.png)
+
+## Funktionen
+- **Quellen:** Kamera (live), Videodatei (Frame-genau, schneller als Echtzeit auswertbar) oder Demo zum Ausprobieren.
+- **Zwei Gerätetypen, bis zu vier gleichzeitig:** Zeigerinstrument (Zeigerwinkel auf Skala abgebildet) und Digitalanzeige (7-Segment-Ziffern). Jedes Gerät hat eine feste Farbe und ein Symbol, in Bild, Live-Zahl, Graph und Tabelle.
+- **Geführte Kalibrierung:** Drehpunkt und zwei Skalenstriche anklicken bzw. Rechteck um die Ziffern ziehen. Punkte lassen sich ziehen oder mit Pfeiltasten verschieben, `Strg+Z` nimmt zurück. Die große Live-Zahl zeigt sofort, ob die Ablesung stimmt, Hinweise warnen bei Unschärfe, Spiegelung oder zu kleinem Gerät.
+- **Messen:** Live aufnehmen (Leertaste) oder Video auswerten (abbrechbar). „Reihe sichern“ legt eine Messung beiseite, damit mehrere Reihen im Graphen verglichen werden können.
+- **Auswertung:** Graph mit x = Zeit oder anderem Messgerät, zweite y-Achse, logarithmische Achsen, Zoom, Glättung, korrigierbare Wertetabelle.
+- **Export:** CSV (deutsch mit `;` und Dezimalkomma oder international), XLSX (eine Tabelle pro Reihe), PNG-Graph mit Titel, Name und Datum.
+- **Unterricht:** Beamer-Modus (`B`), Darstellung Hell, Dunkel oder Hoher Kontrast, Handy-Layout mit Schritten in Daumenreichweite, Tastenkürzel (`?`), automatisches Speichern der Sitzung, Kalibrierung als Datei speichern und laden.
+
+| Geräte kalibrieren | Auswertung mit zwei y-Achsen |
+|---|---|
+| ![Geräte kalibrieren](docs/screenshots/02-geraete.png) | ![Graph über der Zeit](docs/screenshots/04-auswertung-zeit-zwei-achsen.png) |
+
+| Kanal über Kanal (z. B. U über I) | Beamer-Modus |
+|---|---|
+| ![Kanal über Kanal](docs/screenshots/03-auswertung-kanal-ueber-kanal.png) | ![Beamer-Modus](docs/screenshots/05-beamer-modus.png) |
+
+| Dunkle Darstellung | Auf dem Handy |
+|---|---|
+| ![Dunkle Darstellung](docs/screenshots/06-dunkel.png) | ![Handy-Ansicht](docs/screenshots/07-handy.png) |
+
+Alle Bilder stammen aus der laufenden App mit der eingebauten Demo-Quelle (synthetisches Zeigerinstrument und Digitalanzeige).
 
 ## Benutzung
 Vier Schritte, oben als Register: **1 Quelle → 2 Geräte → 3 Messen → 4 Auswertung**.
 
-1. **Quelle**: Kamera, Videodatei oder Demo.
-2. **Geräte** (bis zu vier gleichzeitig, jedes mit eigener Farbe und eigenem Symbol):
-   - *Zeigerinstrument*: Drehpunkt klicken, dann zwei Skalenstriche anklicken und den Wert im Dialog eingeben. „Skala größer als 180°“ umschalten, falls nötig.
-   - *Digitalanzeige* (7-Segment): Rechteck eng um die Ziffern ziehen, Ziffernanzahl und ggf. Dezimalstellen einstellen.
-   - Punkte lassen sich ziehen oder mit den Pfeiltasten verschieben, `Strg+Z` nimmt zurück. Die Zahl oben zeigt sofort, ob die Ablesung stimmt; Hinweise warnen bei Unschärfe, Spiegelung oder zu kleinem Bild.
-   - Kalibrierung lässt sich als Datei speichern und laden.
-3. **Messen**: Live aufnehmen (Leertaste) oder die Videodatei Frame-genau auswerten (abbrechbar). „Reihe sichern“ legt eine Messung beiseite, damit eine zweite im Graphen verglichen werden kann.
-4. **Auswertung**: Graph mit x = Zeit oder anderem Gerät, zweite y-Achse, logarithmische Achsen, Zoom, Glättung, korrigierbare Wertetabelle. Export als CSV (deutsch: `;` und Komma), XLSX (eine Tabelle pro Reihe) und PNG mit Titel, Name und Datum.
+1. **Quelle:** Kamera, Videodatei oder Demo wählen.
+2. **Geräte:** Zeigerinstrument oder Digitalanzeige anlegen und kalibrieren. Beim Zeigerinstrument: Drehpunkt klicken, dann zwei Skalenstriche anklicken und den jeweiligen Wert im Dialog eingeben („Skala größer als 180°“ umschalten, falls nötig). Bei der Digitalanzeige: Rechteck eng um die Ziffern ziehen, Ziffernanzahl und ggf. Dezimalstellen einstellen.
+3. **Messen:** Aufnahme starten oder Video auswerten.
+4. **Auswertung:** Achsen wählen, Graph prüfen, exportieren.
 
-Weitere Funktionen: **Beamer-Modus** (`B`), Darstellung Hell/Dunkel/Hoher Kontrast, automatisches Speichern im Browser (Sitzung wird nach dem Neuladen wiederhergestellt), Tastenkürzel (`?`).
+## Auf GitHub Pages veröffentlichen
+Der Workflow `.github/workflows/pages.yml` baut die Seite bei jedem Push auf `main` und veröffentlicht sie.
+Einmalig im Repository: **Settings → Pages → Build and deployment → Source: „GitHub Actions“** wählen. Danach ist die App unter `https://<benutzer>.github.io/<repository>/` erreichbar. Die Kamera funktioniert dort, weil GitHub Pages HTTPS verwendet.
 
 ## Entwicklung
 ```bash
 npm install
-npm run dev        # Entwicklungsserver
-npm test           # Unit-Tests (Reader, Session, Export)
-npm run build      # Produktionsbuild nach dist/
-node tests/e2e-demo.mjs   # E2E mit Demo-Quelle (Dev-Server auf :5173 nötig, playwright installiert)
+npm run dev               # Entwicklungsserver
+npm test                  # Unit-Tests (Reader, Session, Export, Bildhinweise, Speicherung)
+npm run build             # Produktionsbuild nach dist/
+node tests/e2e-demo.mjs   # E2E mit Demo-Quelle (Dev-Server auf :5173 nötig, Playwright installiert); prüft u. a., dass keine externe Anfrage stattfindet
+node tests/screenshots.mjs  # erzeugt die Bilder in docs/screenshots
 ```
 
-Struktur: `src/readers` (Analog/Digital), `src/source` (Kamera/Datei/Demo), `src/session` (Daten), `src/export`, `src/ui` (Icons, Graph), `src/quality.ts` (Bildhinweise), `src/storage.ts` (Autosave), `src/sampler.ts`. Gestaltung: `PRODUCT.md`, `DESIGN.md`.
+Struktur: `src/readers` (Analog/Digital), `src/source` (Kamera/Datei/Demo), `src/session` (Daten), `src/export`, `src/ui` (Icons, Graph), `src/quality.ts` (Bildhinweise), `src/storage.ts` (Speichern), `src/sampler.ts`. Gestaltung: `PRODUCT.md`, `DESIGN.md`. Geplante Erweiterungen (Fit-Werkzeuge, Messunsicherheit): `docs/superpowers/specs/`.
 
-## Grenzen / Ausblick
-- Digital: 7-Segment-Anzeigen werden per Segment-Abtastung gelesen; Punktmatrix-/LCD-Schriften erfordern einen OCR-Fallback (z. B. Tesseract.js, noch nicht enthalten).
-- Kamera sollte frontal und ruhig stehen (Stativ); die Kalibrierung gilt für einen festen Bildausschnitt.
-- Multimeter-Bereichswechsel: Einheit bzw. Dezimalstellen am Kanal manuell anpassen.
-- Offline-Nutzung (PWA) ist noch nicht umgesetzt.
-- Noch nicht an echten Geräten (PHYWE, Multimeter) getestet – bisher synthetische Bilder und Demo.
+## Grenzen
+- Digital: 7-Segment-Anzeigen werden per Segment-Abtastung gelesen; LCD- und Punktmatrix-Schriften brauchen einen OCR-Fallback (noch nicht enthalten).
+- Die Kamera sollte ruhig stehen (Stativ); die Kalibrierung gilt für einen festen Bildausschnitt.
+- Beim Multimeter-Bereichswechsel müssen Einheit und Dezimalstellen am Gerät von Hand angepasst werden.
+- Offline-Nutzung als installierbare App (PWA) ist noch nicht umgesetzt.
+- Bisher mit synthetischen Bildern und der Demo getestet, noch nicht an echten PHYWE-Geräten oder Multimetern.
