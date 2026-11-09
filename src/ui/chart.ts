@@ -175,6 +175,18 @@ export class ResultChart {
     return typeof v === 'number' && Number.isFinite(v) ? v : null;
   }
 
+  /** Graph als PNG-data:-URL auf weißem Grund (für das Protokoll). */
+  toDataUrl(): string {
+    const out = document.createElement('canvas');
+    out.width = this.canvas.width;
+    out.height = this.canvas.height;
+    const ctx = out.getContext('2d')!;
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, out.width, out.height);
+    ctx.drawImage(this.canvas, 0, 0);
+    return out.toDataURL('image/png');
+  }
+
   /** PNG mit Kopfzeile (Titel, Name, Datum) auf weißem Grund – direkt ins Heft/Protokoll. */
   toPngBlob(meta: { title: string; name: string; date: string; lines?: string[] }): Promise<Blob> {
     const lines = meta.lines ?? [];

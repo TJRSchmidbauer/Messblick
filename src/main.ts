@@ -5,6 +5,7 @@ import { learnGlyphs } from './readers/glyph';
 import { Session, TIME_KEY, seriesOf, tableOf, type ChannelDef } from './session/session';
 import { toCsv } from './export/csv';
 import { toXlsx } from './export/xlsx';
+import { buildProtocolHtml, type ProtocolData } from './export/protocol';
 import { ResidualChart, ResultChart, type ChartSeries } from './ui/chart';
 import { MODELS, fitModel, type FitSuccess } from './analysis/fit/fit';
 import { modelById } from './analysis/fit/models';
@@ -865,7 +866,7 @@ function updateButtons(): void {
   $<HTMLButtonElement>('next-2').disabled = !ready;
   $<HTMLButtonElement>('next-3').disabled = !has && !session.runs.length;
   const hasAny = has || session.runs.length > 0;
-  for (const id of ['dl-csv', 'dl-xlsx', 'dl-png']) $<HTMLButtonElement>(id).disabled = !hasAny;
+  for (const id of ['dl-csv', 'dl-xlsx', 'dl-png', 'dl-protocol', 'print-protocol']) $<HTMLButtonElement>(id).disabled = !hasAny;
   updateStatus();
 }
 
@@ -1028,6 +1029,8 @@ const residChart = new ResidualChart($<HTMLCanvasElement>('resid'));
 $<HTMLSelectElement>('fit-model').innerHTML = `<option value="">– kein Fit –</option>${MODELS.map((m) => `<option value="${m.id}">${esc(m.name)}: ${esc(m.formula)}</option>`).join('')}`;
 
 /** Wert ± Unsicherheit: Unsicherheit auf 2 gültige Stellen, Wert auf dieselbe Stelle gerundet. */
+/** R² mit vier Nachkommastellen; „–“, wenn nicht definiert (z. B. konstante Messwerte). */
+const fmtR2 = (r2: number): string => (Number.isFinite(r2) ? r2.toFixed(4).replace('.', ',') : '–');
 function withError(v: number, s: number): string {
   const exp = (n: number, d: number): string => n.toExponential(d).replace('.', ',').replace('e+', 'e');
   if (!Number.isFinite(v)) return '–';
@@ -1041,7 +1044,7 @@ function withError(v: number, s: number): string {
 }
 const fitLines = (f: FitSuccess): string[] => [
   `Fit: ${f.model.name}  y = ${f.model.formula}`,
-  f.params.map((p) => `${p.name} = ${withError(p.value, p.sigma)}`).join(',  ') + `   (R² = ${f.r2.toFixed(4).replace('.', ',')}, n = ${f.n})`,
+  f.params.map((p) => `${p.name} = ${withError(p.value, p.sigma)}`).join(',  ') + `   (R² = ${fmtR2(f.r2)}, n = ${f.n})`,
 ];
 
 function renderFit(xKey: string, yId: string | undefined, series: ChartSeries[], light: boolean): void {
@@ -1065,7 +1068,7 @@ function renderFit(xKey: string, yId: string | undefined, series: ChartSeries[],
   box.innerHTML = `
     <p class="formula"><b>${esc(model.name)}</b>: y = ${esc(model.formula)}${res.reliable ? '' : ` <b>(nicht belastbar)</b>`}</p>
     <dl>${res.params.map((p) => `<dt>${esc(p.name)}</dt><dd>${withError(p.value, p.sigma)}</dd>`).join('')}</dl>
-    <p class="stats">R² = ${res.r2.toFixed(4).replace('.', ',')} · n = ${res.n}${res.chi2red !== null ? ` · χ²<sub>red</sub> = ${res.chi2red.toFixed(2).replace('.', ',')}` : ''}${fitRange ? ' · Fitbereich gewählt' : ''}</p>
+    <p class="stats">R² = ${fmtR2(res.r2)} · n = ${res.n}${res.chi2red !== null ? ` · χ²<sub>red</sub> = ${res.chi2red.toFixed(2).replace('.', ',')}` : ''}${fitRange ? ' · Fitbereich gewählt' : ''}</p>
     ${res.warnings.length ? `<ul>${res.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}`;
   wrap.hidden = false;
   residChart.update({
@@ -1281,7 +1284,7 @@ function renderVariation(light = false): void {
     box.className = `fit-result${res.reliable ? '' : ' unreliable'}`;
     box.innerHTML = `<p class="formula"><b>${esc(res.model.name)}</b>: y = ${esc(res.model.formula)}${res.reliable ? '' : ' <b>(nicht belastbar)</b>'}</p>
       <dl>${res.params.map((p) => `<dt>${esc(p.name)}</dt><dd>${withError(p.value, p.sigma)}</dd>`).join('')}</dl>
-      <p class="stats">R² = ${res.r2.toFixed(4).replace('.', ',')} · n = ${res.n}${res.chi2red !== null ? ` · χ²<sub>red</sub> = ${res.chi2red.toFixed(2).replace('.', ',')}` : ''}</p>
+      <p class="stats">R² = ${fmtR2(res.r2)} · n = ${res.n}${res.chi2red !== null ? ` · χ²<sub>red</sub> = ${res.chi2red.toFixed(2).replace('.', ',')}` : ''}</p>
       ${res.warnings.length ? `<ul>${res.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}`;
   }
   varChart ??= new ResultChart($<HTMLCanvasElement>('var-chart'));
@@ -1616,6 +1619,53 @@ function renderPredictionOnChart(x: string, yId: string | undefined, series: Cha
     fb.innerHTML = `${icon('info', 16)} ${esc(f.text)}`;
   }
 }
+
+/* ---- Protokoll ---- */
+
+/** Sammelt alles, was im Protokoll stehen soll. Graphen werden in hellen Farben erzeugt (Papier). */
+function protocolData(): ProtocolData {
+  renderResults(true);
+  const graphImage = session.samples.length || session.runs.length ? chart.toDataUrl() : undefined;
+  const seriesImage = varChart && variation.rows.length >= 2 ? varChart.toDataUrl() : undefined;
+  renderResults(false);
+  const t = templateById(tplId);
+  let setupImage: string | undefined;
+  try { if (source) setupImage = view.toDataURL('image/jpeg', 0.8); } catch { /* Bild nicht verfügbar */ }
+  const tbl = session.samples.length ? session.table() : null;
+  const devices = session.channels.filter((c) => !c.derived).map((c) => ({ name: c.name, unit: c.unit, uncertainty: describeUncertainty(c.uncertainty, c.unit) }));
+  const fit = t?.mode === 'series' ? lastVarFit : lastFit;
+  const results = tplLines.filter((l) => l.value !== null).map((l) => ({
+    label: l.label,
+    value: `${withError(l.value!, l.sigma ?? NaN)}${l.unit ? ` ${l.unit}` : ''}`,
+    lit: l.lit ? `${l.lit.label}: ${withError(l.lit.value, l.lit.sigma ?? NaN)}${l.unit ? ` ${l.unit}` : ''}. ${l.lit.comparison.text}` : undefined,
+    budget: l.budget ? `${l.budget.map((b) => `${b.name} ${b.share.toFixed(0)} %`).join(', ')}` : undefined,
+  }));
+  const notes: string[] = [];
+  if (lastRescale) notes.push(`Werte nach einem Bereichswechsel am Gerät wurden umgerechnet (${factorLabel(lastRescale.factor)}).`);
+  if (prediction) notes.push('Zu dieser Messung gab es vorab eine Vorhersage.');
+  return {
+    title: $<HTMLInputElement>('exp-title').value.trim() || t?.title || '',
+    names: $<HTMLInputElement>('exp-name').value.trim(),
+    date: new Date().toLocaleDateString('de-DE'),
+    setupImage, graphImage, seriesImage,
+    template: t ? { title: t.title, topic: t.topic, steps: t.steps } : undefined,
+    devices,
+    table: tbl ? { header: tbl.header, rows: tbl.rows, total: tbl.rows.length } : undefined,
+    fit: fit ? { model: fit.model.name, formula: fit.model.formula, params: fit.params.map((p) => `${p.name} = ${withError(p.value, p.sigma)}`), stats: `R² = ${fmtR2(fit.r2)} · n = ${fit.n}${fit.chi2red !== null ? ` · χ²red = ${fit.chi2red.toFixed(2).replace('.', ',')}` : ''}`, warnings: fit.warnings } : undefined,
+    results, notes,
+  };
+}
+$('dl-protocol').onclick = () => {
+  download(new Blob([buildProtocolHtml(protocolData())], { type: 'text/html;charset=utf-8' }), `protokoll-${stamp()}.html`);
+};
+$('print-protocol').onclick = () => {
+  const frame = document.createElement('iframe');
+  frame.setAttribute('aria-hidden', 'true');
+  frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;';
+  frame.srcdoc = buildProtocolHtml(protocolData());
+  frame.onload = () => { frame.contentWindow?.focus(); frame.contentWindow?.print(); setTimeout(() => frame.remove(), 60000); };
+  document.body.appendChild(frame);
+};
 
 function renderRuns(): void {
   const host = $('runs');

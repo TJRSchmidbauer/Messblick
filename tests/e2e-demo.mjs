@@ -214,6 +214,15 @@ if (!/Planck-Konstante/.test(tpl3) || !/Literaturwert/.test(tpl3)) throw new Err
 const [tx] = await Promise.all([page.waitForEvent('download'), page.click('#var-xlsx')]);
 if (!XLSX.read(fs.readFileSync(await tx.path())).SheetNames.includes('Ergebnis')) throw new Error('Blatt Ergebnis fehlt');
 await page.screenshot({ path: `${shots}/03d-vorlage.png`, fullPage: true });
+// Protokoll: Download, Gliederung, Ergebnis aus der Vorlage, Bilder eingebettet, nichts Externes
+await page.fill('#exp-title', 'Planck mit dem Fotoeffekt'); await page.fill('#exp-name', 'Gruppe B');
+const [proto] = await Promise.all([page.waitForEvent('download'), page.click('#dl-protocol')]);
+const html = fs.readFileSync(await proto.path(), 'utf8');
+for (const h of ['1. Fragestellung', '2. Aufbau', '3. Durchführung', '4. Messwerte', '5. Auswertung', '6. Fehlerbetrachtung', '7. Fazit']) if (!html.includes(h)) throw new Error('Protokoll: Abschnitt fehlt: ' + h);
+if (!/Planck-Konstante/.test(html) || !/Gruppe B/.test(html)) throw new Error('Protokoll: Ergebnis oder Name fehlt');
+if (!/<img src="data:image\/png;base64,/.test(html)) throw new Error('Protokoll: Graph nicht eingebettet');
+if (/https?:\/\/|<script/i.test(html)) throw new Error('Protokoll lädt etwas nach oder enthält Skripte');
+console.log('Protokoll:', Math.round(html.length / 1024), 'KB'); fs.writeFileSync(`${shots}/protokoll.html`, html);
 await page.click('#tpl-end');
 if (await page.locator('#tpl-card').isVisible()) throw new Error('Vorlage lässt sich nicht beenden');
 await page.click('#var-clear');
