@@ -32,6 +32,8 @@ export interface SavedState {
   hz: number;
   theme: string;
   smoothing: number;
+  /** Parameterreihe (siehe main.ts); fehlt in älteren Sitzungen. */
+  variation?: unknown;
   session: { channels: ChannelDef[]; samples: Sample[]; runs: Run[] };
 }
 

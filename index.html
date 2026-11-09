@@ -143,6 +143,42 @@
           <div class="chartwrap resid" id="resid-wrap" hidden><canvas id="resid" aria-label="Residuen des Fits"></canvas></div>
           <ul id="derived-list" class="derived"></ul>
         </fieldset>
+        <fieldset class="varbar">
+          <legend>Parameterreihe: eine Größe variieren</legend>
+          <p class="note">Mehrere Durchgänge mit je einem anderen Parameter (z. B. Masse, Spannung, Länge). Pro Durchgang Wert eintippen und den Messwert übernehmen. Die App schlägt Auftragungen vor, in denen der Zusammenhang zur Geraden wird.</p>
+          <div class="grid-controls">
+            <label class="field">Parameter <input id="var-pname" autocomplete="off" placeholder="z. B. Masse" /></label>
+            <label class="field">Einheit <input id="var-punit" autocomplete="off" placeholder="g" style="width:6em" /></label>
+            <label class="field">Messgröße <input id="var-vname" autocomplete="off" placeholder="z. B. Periodendauer T" /></label>
+            <label class="field">Einheit <input id="var-vunit" autocomplete="off" placeholder="s" style="width:6em" /></label>
+          </div>
+          <div class="bar">
+            <label class="field">Wert des Parameters <input id="var-p" inputmode="decimal" autocomplete="off" placeholder="z. B. 100" style="width:8em" /></label>
+            <label class="field">aus Gerät <select id="var-src"></select></label>
+            <button id="var-take" type="button" class="primary"><span data-icon="plus"></span>Messwert übernehmen</button>
+          </div>
+          <div class="bar" id="var-fit-row" hidden>
+            <label class="field">oder Fitparameter <select id="var-fitparam"></select></label>
+            <button id="var-take-fit" type="button"><span data-icon="plus"></span>Fitparameter übernehmen</button>
+          </div>
+          <p id="var-msg" class="error-inline" role="alert"></p>
+          <div id="var-table"></div>
+          <div id="var-plot" hidden>
+            <div class="grid-controls">
+              <label class="field">x-Achse <select id="var-tx"></select></label>
+              <label class="field">y-Achse <select id="var-ty"></select></label>
+              <label class="field">Modell <select id="var-model"></select></label>
+            </div>
+            <div class="bar" id="var-suggest" aria-label="Vorgeschlagene Auftragungen"></div>
+            <div class="chartwrap"><canvas id="var-chart" aria-label="Auftragung der Parameterreihe"></canvas></div>
+            <div id="var-result" aria-live="polite"></div>
+            <div class="bar">
+              <button id="var-csv" type="button"><span data-icon="download"></span>CSV</button>
+              <button id="var-xlsx" type="button"><span data-icon="download"></span>XLSX</button>
+              <button id="var-clear" type="button" class="ghost"><span data-icon="trash"></span>Reihe leeren</button>
+            </div>
+          </div>
+        </fieldset>
         <fieldset class="export">
           <legend>Beschriftung für den Graphen (PNG)</legend>
           <label class="field">Versuchstitel <input id="exp-title" type="text" placeholder="z. B. Entladung eines Kondensators" /></label>

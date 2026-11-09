@@ -120,6 +120,32 @@ if (!wbFit.SheetNames.includes('Fit')) throw new Error('Blatt "Fit" fehlt im XLS
 const fitRows = XLSX.utils.sheet_to_json(wbFit.Sheets['Fit'], { header: 1 });
 if (!fitRows.some((r) => r[0] === 'ω' && Number.isFinite(r[2]))) throw new Error('ω mit Unsicherheit fehlt im Blatt Fit');
 if (!XLSX.utils.sheet_to_json(wbFit.Sheets['Messwerte'], { header: 1 })[0].includes('Leistung / W')) throw new Error('Abgeleitete Größe fehlt in den Messwerten');
+
+// Parameterreihe: drei Durchgänge aus der Live-Ablesung, dazu ein Fitparameter; Auftragungsvorschläge, Export
+await page.fill('#var-pname', 'Masse'); await page.fill('#var-punit', 'g');
+for (const p of ['100', '200', '300']) {
+  await page.fill('#var-p', p);
+  await page.waitForTimeout(900); // genug sichere Ablesungen im Puffer
+  await page.click('#var-take');
+  const m = await page.locator('#var-msg').textContent();
+  if (m) throw new Error('Messwert übernehmen: ' + m);
+}
+await page.selectOption('#var-fitparam', 'ω');
+await page.fill('#var-p', '400');
+await page.click('#var-take-fit');
+const varRows = await page.locator('#var-table tbody tr').count();
+if (varRows !== 4) throw new Error('Parameterreihe: erwartet 4 Zeilen, ist ' + varRows);
+if (!(await page.locator('#var-plot').isVisible())) throw new Error('Auftragung fehlt');
+if ((await page.locator('#var-suggest button').count()) < 1) throw new Error('Keine Auftragungsvorschläge');
+if (!/R²/.test(await page.locator('#var-result').innerText())) throw new Error('Kein Fit der Parameterreihe');
+await page.click('#var-suggest button >> nth=0');
+const [vx] = await Promise.all([page.waitForEvent('download'), page.click('#var-xlsx')]);
+const wbVar = XLSX.read(fs.readFileSync(await vx.path()));
+if (!wbVar.SheetNames.includes('Parameterreihe')) throw new Error('Blatt Parameterreihe fehlt');
+const varSheet = XLSX.utils.sheet_to_json(wbVar.Sheets['Parameterreihe'], { header: 1 });
+console.log('Parameterreihe:', JSON.stringify(varSheet.slice(0, 3)));
+await page.screenshot({ path: `${shots}/03c-parameterreihe.png`, fullPage: true });
+await page.click('#var-clear');
 await page.selectOption('#fit-model', '');
 
 // Reihe sichern + zweite Aufnahme (live) + Vergleich

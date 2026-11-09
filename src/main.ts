@@ -9,6 +9,8 @@ import { ResidualChart, ResultChart, type ChartSeries } from './ui/chart';
 import { MODELS, fitModel, type FitSuccess } from './analysis/fit/fit';
 import { modelById } from './analysis/fit/models';
 import { parseExpression } from './analysis/derive';
+import { TRANSFORMS, averageReadings, suggestPlots, toPoints, transformLabel, type Transform, type VarRow } from './analysis/variation';
+import { sigmaOf } from './analysis/uncertainty';
 import { describeUncertainty, type UncertaintyConfig } from './analysis/uncertainty';
 import { icon, symbol, SYMBOLS } from './ui/icons';
 import { openCamera, openVideoFile } from './source/video';
@@ -63,6 +65,13 @@ let fitRange: [number, number] | null = null;
 let selecting: { from: number } | null = null;
 let selectMode = false;
 let lastFit: FitSuccess | null = null;
+/** Parameterreihe: Zeilen (Parameter p, Messwert v ± σ), Beschriftungen und gewählte Auftragung. */
+interface VarState { pname: string; punit: string; vname: string; vunit: string; src: string; rows: VarRow[]; tx: Transform; ty: Transform; model: string }
+const freshVariation = (): VarState => ({ pname: '', punit: '', vname: '', vunit: '', src: '', rows: [], tx: 'id', ty: 'id', model: 'line' });
+let variation: VarState = freshVariation();
+/** Letzte Ablesungen je Gerät (für den Mittelwert beim Übernehmen). */
+const liveBuf = new Map<string, number[]>();
+let lastVarFit: FitSuccess | null = null;
 let stopLive: (() => void) | null = null;
 let abort: AbortController | null = null;
 let beamer = false;
@@ -778,7 +787,14 @@ function loop(now: number): void {
       drawOverlay();
       if (now - lastRead > 250) {
         lastRead = now;
-        for (const c of chans) if (c.cal) { c.live = readChannel(frame, c.cal); updateLive(c); }
+        for (const c of chans) if (c.cal) {
+          c.live = readChannel(frame, c.cal);
+          updateLive(c);
+          const buf = liveBuf.get(c.id) ?? [];
+          if (c.live.value !== null && c.live.confidence >= 0.4) buf.push(c.live.value); else buf.length = 0;
+          if (buf.length > 8) buf.shift();
+          liveBuf.set(c.id, buf);
+        }
       }
       if (now - lastQuality > 1000) {
         lastQuality = now;
@@ -976,6 +992,7 @@ function renderResults(light = false): void {
   });
   renderRuns();
   renderTable();
+  renderVariation(light);
 }
 
 /* ---- Fit ---- */
@@ -1139,6 +1156,153 @@ $('derivedlg-form').addEventListener('submit', (ev) => {
   scheduleSave();
 });
 
+/* ---- Parameterreihe ---- */
+
+const VAR_MODELS = ['line', 'prop', 'power', 'decay', 'saturation'];
+let varChart: ResultChart | null = null;
+const pLabel = (): string => (variation.pname || 'Parameter') + (variation.punit ? ` / ${variation.punit}` : '');
+const vLabel = (): string => (variation.vname || 'Messwert') + (variation.vunit ? ` / ${variation.vunit}` : '');
+const axisLabel = (t: Transform, name: string, unit: string): string => transformLabel(t, name) + (t === 'id' && unit ? ` / ${unit}` : '');
+const fmtNum = (v: number): string => String(Number(v.toPrecision(6))).replace('.', ',');
+const parseNum = (t: string): number => Number(t.trim().replace(',', '.'));
+const varMsg = (m: string): void => { $('var-msg').textContent = m; };
+
+function varChanged(): void { renderResults(); scheduleSave(); }
+
+function takeLive(): void {
+  varMsg('');
+  const p = parseNum($<HTMLInputElement>('var-p').value);
+  if (!Number.isFinite(p) || $<HTMLInputElement>('var-p').value.trim() === '') return varMsg('Bitte zuerst den Wert des Parameters eintippen, z. B. 100.');
+  const c = chans.find((x) => x.id === $<HTMLSelectElement>('var-src').value);
+  if (!c || !c.cal) return varMsg('Bitte ein kalibriertes Gerät wählen.');
+  const buf = liveBuf.get(c.id) ?? [];
+  if (buf.length < 3) return varMsg('Noch zu wenige sichere Ablesungen. Kamera oder Demo muss laufen und die Anzeige sicher gelesen werden.');
+  const dev = sigmaOf(uncOf(c), buf[buf.length - 1]);
+  const r = averageReadings(buf, dev)!;
+  if (!variation.vname) { variation.vname = c.name; variation.vunit = c.unit; }
+  variation.src = c.id;
+  variation.rows.push({ p, v: r.v, s: r.s });
+  $<HTMLInputElement>('var-p').value = '';
+  $<HTMLInputElement>('var-p').focus();
+  varChanged();
+}
+
+function takeFitParam(): void {
+  varMsg('');
+  const p = parseNum($<HTMLInputElement>('var-p').value);
+  if (!Number.isFinite(p) || $<HTMLInputElement>('var-p').value.trim() === '') return varMsg('Bitte zuerst den Wert des Parameters eintippen, z. B. 100.');
+  if (!lastFit) return varMsg('Es gibt kein Fitergebnis. Oben ein Modell wählen.');
+  const prm = lastFit.params.find((x) => x.name === $<HTMLSelectElement>('var-fitparam').value);
+  if (!prm) return;
+  if (!variation.vname) variation.vname = prm.name;
+  variation.rows.push({ p, v: prm.value, s: Number.isFinite(prm.sigma) ? prm.sigma : null });
+  $<HTMLInputElement>('var-p').value = '';
+  varChanged();
+}
+
+function renderVariation(light = false): void {
+  const plot = $('var-plot');
+  // Eingabefelder nur anfassen, wenn nicht gerade getippt wird
+  const set = (id: string, v: string): void => { const el = $<HTMLInputElement>(id); if (document.activeElement !== el) el.value = v; };
+  set('var-pname', variation.pname); set('var-punit', variation.punit); set('var-vname', variation.vname); set('var-vunit', variation.vunit);
+  const devs = chans.filter((c) => c.cal);
+  const srcSel = $<HTMLSelectElement>('var-src');
+  srcSel.innerHTML = devs.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('') || '<option value="">– kein Gerät –</option>';
+  if (devs.some((c) => c.id === variation.src)) srcSel.value = variation.src;
+  $('var-fit-row').hidden = !lastFit;
+  if (lastFit) {
+    const fp = $<HTMLSelectElement>('var-fitparam'), keep = fp.value;
+    fp.innerHTML = lastFit.params.map((p) => `<option value="${esc(p.name)}">${esc(p.name)}</option>`).join('');
+    if (lastFit.params.some((p) => p.name === keep)) fp.value = keep;
+  }
+  const rows = variation.rows;
+  $('var-table').innerHTML = rows.length ? `<table><thead><tr><th>#</th><th>${esc(pLabel())}</th><th>${esc(vLabel())}</th><th>± σ</th><th></th></tr></thead><tbody>${rows.map((r, i) => `
+    <tr><td>${i + 1}</td><td class="num">${fmtNum(r.p)}</td><td class="num">${fmtNum(r.v)}</td><td class="num">${r.s ? fmtNum(r.s) : '–'}</td>
+    <td><button type="button" class="ghost" data-var-del="${i}" aria-label="Zeile ${i + 1} löschen">${icon('trash', 18)}</button></td></tr>`).join('')}</tbody></table>` : '<p class="note">Noch keine Zeilen. Parameter eintippen und „Messwert übernehmen“ wählen.</p>';
+  plot.hidden = rows.length < 2;
+  lastVarFit = null;
+  if (rows.length < 2) return;
+
+  const opt = (t: Transform, name: string, unit: string): string => `<option value="${t}">${esc(axisLabel(t, name, unit))}</option>`;
+  $<HTMLSelectElement>('var-tx').innerHTML = TRANSFORMS.map((t) => opt(t, variation.pname || 'x', variation.punit)).join('');
+  $<HTMLSelectElement>('var-ty').innerHTML = TRANSFORMS.map((t) => opt(t, variation.vname || 'y', variation.vunit)).join('');
+  $<HTMLSelectElement>('var-tx').value = variation.tx;
+  $<HTMLSelectElement>('var-ty').value = variation.ty;
+  $<HTMLSelectElement>('var-model').innerHTML = VAR_MODELS.map((id) => `<option value="${id}">${esc(modelById(id)!.name)}: ${esc(modelById(id)!.formula)}</option>`).join('');
+  $<HTMLSelectElement>('var-model').value = variation.model;
+
+  const sugg = suggestPlots(rows);
+  $('var-suggest').innerHTML = sugg.length ? `<span class="note">Vorschläge:</span> ${sugg.map((s, i) => `<button type="button" data-sugg="${i}" aria-pressed="${s.tx === variation.tx && s.ty === variation.ty}">
+    ${esc(transformLabel(s.ty, variation.vname || 'y'))} über ${esc(transformLabel(s.tx, variation.pname || 'x'))} <span class="r2">R² ${s.r2.toFixed(4).replace('.', ',')}</span>${s.throughOrigin ? ' · Ursprung' : ''}</button>`).join(' ')}` : '';
+  varSuggestions = sugg;
+
+  const pts = toPoints(rows, variation.tx, variation.ty);
+  const xl = axisLabel(variation.tx, variation.pname || 'x', variation.punit), yl = axisLabel(variation.ty, variation.vname || 'y', variation.vunit);
+  const series: ChartSeries[] = [{ label: yl, color: colorOfSlot(0, light), slot: 0, axis: 'y', faded: false, points: pts.map((p) => ({ x: p.x, y: p.y, c: 1, sy: p.sy })) }];
+  const box = $('var-result');
+  const res = fitModel(modelById(variation.model)!, pts);
+  if (!res.ok) { box.className = 'fit-result unreliable'; box.innerHTML = `<p>${icon('warning', 16)} ${esc(res.error)}</p>`; }
+  else {
+    lastVarFit = res;
+    const [lo, hi] = res.range, n = 100, start = res.model.positive && lo <= 0 ? hi / n : lo;
+    series.push({ label: `Fit: ${res.model.name}`, color: light ? LIGHT.ink : cssVar('--ink'), slot: 0, axis: 'y', faded: false, fit: true,
+      points: Array.from({ length: n + 1 }, (_, i) => { const xv = start + ((hi - start) * i) / n; return { x: xv, y: res.curve(xv), c: 1 }; }) });
+    box.className = `fit-result${res.reliable ? '' : ' unreliable'}`;
+    box.innerHTML = `<p class="formula"><b>${esc(res.model.name)}</b>: y = ${esc(res.model.formula)}${res.reliable ? '' : ' <b>(nicht belastbar)</b>'}</p>
+      <dl>${res.params.map((p) => `<dt>${esc(p.name)}</dt><dd>${withError(p.value, p.sigma)}</dd>`).join('')}</dl>
+      <p class="stats">R² = ${res.r2.toFixed(4).replace('.', ',')} · n = ${res.n}${res.chi2red !== null ? ` · χ²<sub>red</sub> = ${res.chi2red.toFixed(2).replace('.', ',')}` : ''}</p>
+      ${res.warnings.length ? `<ul>${res.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}`;
+  }
+  varChart ??= new ResultChart($<HTMLCanvasElement>('var-chart'));
+  varChart.update({
+    series, xLabel: xl, yLabel: yl, y2Label: '', xLog: false, yLog: false, line: false, band: null,
+    ink: light ? LIGHT.ink : cssVar('--ink'), grid: light ? LIGHT.grid : cssVar('--line'), font: beamer ? 18 : 14, danger: light ? LIGHT.warn : cssVar('--danger'),
+  });
+}
+let varSuggestions: ReturnType<typeof suggestPlots> = [];
+
+for (const [id, key] of [['var-pname', 'pname'], ['var-punit', 'punit'], ['var-vname', 'vname'], ['var-vunit', 'vunit']] as const) {
+  $<HTMLInputElement>(id).addEventListener('input', (e) => { variation[key] = (e.target as HTMLInputElement).value; varChanged(); });
+}
+$('var-src').addEventListener('change', (e) => { variation.src = (e.target as HTMLSelectElement).value; scheduleSave(); });
+$('var-take').onclick = takeLive;
+$('var-take-fit').onclick = takeFitParam;
+$('var-p').addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Enter') { e.preventDefault(); takeLive(); } });
+$('var-table').addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>('[data-var-del]');
+  if (!b) return;
+  variation.rows.splice(Number(b.dataset.varDel), 1);
+  varChanged();
+});
+$('var-tx').addEventListener('change', (e) => { variation.tx = (e.target as HTMLSelectElement).value as Transform; varChanged(); });
+$('var-ty').addEventListener('change', (e) => { variation.ty = (e.target as HTMLSelectElement).value as Transform; varChanged(); });
+$('var-model').addEventListener('change', (e) => { variation.model = (e.target as HTMLSelectElement).value; varChanged(); });
+$('var-suggest').addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>('[data-sugg]');
+  const sg = b ? varSuggestions[Number(b.dataset.sugg)] : undefined;
+  if (!sg) return;
+  variation.tx = sg.tx; variation.ty = sg.ty; variation.model = sg.throughOrigin && sg.tx === 'id' && sg.ty === 'id' ? 'prop' : 'line';
+  varChanged();
+});
+$('var-clear').onclick = () => { variation.rows = []; varMsg(''); varChanged(); };
+const varTable = (): { header: string[]; rows: (number | null)[][] } => ({
+  header: [pLabel(), vLabel(), `σ (${variation.vunit || 'Einheit der Messgröße'})`],
+  rows: variation.rows.map((r) => [r.p, r.v, r.s ?? null]),
+});
+$('var-csv').onclick = () => download(new Blob([toCsv(varTable(), { german: $<HTMLInputElement>('german').checked })], { type: 'text/csv;charset=utf-8' }), `parameterreihe-${stamp()}.csv`);
+$('var-xlsx').onclick = () => {
+  const sheets: { name: string; table: { header: string[]; rows: (number | string | null)[][] } }[] = [{ name: 'Parameterreihe', table: varTable() }];
+  if (lastVarFit) {
+    const f = lastVarFit;
+    sheets.push({ name: 'Fit', table: { header: ['Größe', 'Wert', 'Unsicherheit'], rows: [
+      ['Auftragung x', axisLabel(variation.tx, variation.pname || 'x', variation.punit), null], ['Auftragung y', axisLabel(variation.ty, variation.vname || 'y', variation.vunit), null],
+      ['Modell', f.model.name, null], ['Formel', f.model.formula, null], ['Punkte n', f.n, null], ['R²', f.r2, null],
+      ...f.params.map((p) => [p.name, p.value, Number.isFinite(p.sigma) ? p.sigma : null]),
+    ] } });
+  }
+  download(new Blob([toXlsx(sheets) as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `parameterreihe-${stamp()}.xlsx`);
+};
+
 function renderRuns(): void {
   const host = $('runs');
   if (!session.runs.length) { host.innerHTML = ''; return; }
@@ -1229,7 +1393,7 @@ function saveNow(): void {
   saveTimer = 0;
   const state: SavedState = {
     version: 1, channels: chans.map(toSaved), nextId, hz: Number($<HTMLSelectElement>('hz').value), theme: themeSel.value,
-    smoothing: session.smoothing, session: { channels: session.channels, samples: session.samples, runs: session.runs },
+    smoothing: session.smoothing, variation, session: { channels: session.channels, samples: session.samples, runs: session.runs },
   };
   try { localStorage.setItem(STORAGE_KEY, serialize(state)); } catch {
     if (!saveWarned) { saveWarned = true; showError('Automatisches Speichern ist nicht möglich (Speicher voll oder gesperrt). Exportiere deine Daten rechtzeitig.'); }
@@ -1255,15 +1419,16 @@ function restore(): void {
   session.samples = s.session.samples ?? [];
   session.runs = s.session.runs ?? [];
   session.smoothing = s.smoothing ?? 0;
+  if (s.variation && typeof s.variation === 'object') variation = { ...freshVariation(), ...(s.variation as Partial<VarState>) };
   $<HTMLInputElement>('smooth').checked = session.smoothing >= 3;
-  if (chans.length || session.samples.length || session.runs.length) {
+  if (chans.length || session.samples.length || session.runs.length || variation.rows.length) {
     const n = $('restore');
     n.hidden = false;
     n.innerHTML = `<span>${icon('info')} Letzte Sitzung wiederhergestellt: ${chans.length} Gerät(e), ${session.samples.length} Messpunkte${session.runs.length ? `, ${session.runs.length} gesicherte Reihe(n)` : ''}. Die Kalibrierung gilt nur bei gleichem Kamerabild.</span>
       <button type="button" id="restore-reset">Neu beginnen</button><button type="button" class="ghost" id="restore-ok">OK</button>`;
     $('restore-ok').onclick = () => { n.hidden = true; };
     $('restore-reset').onclick = () => {
-      chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1;
+      chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1; variation = freshVariation();
       n.hidden = true;
       try { localStorage.removeItem(STORAGE_KEY); } catch { /* egal */ }
       renderChannels(); renderLive(); updateButtons(); renderResults();

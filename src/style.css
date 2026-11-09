@@ -276,3 +276,16 @@ th .sym { color: var(--c); margin-right: .3rem; }
 .unc { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: end; }
 
 .site-foot .offline { color: var(--ok); font-weight: 700; }
+
+/* Parameterreihe */
+.varbar { margin-top: 1rem; border: 1.5px solid var(--line); border-radius: 12px; padding: .75rem 1rem 1rem; }
+.varbar legend { font-weight: 700; padding: 0 .4rem; }
+#var-table table { width: 100%; border-collapse: collapse; margin: .5rem 0; }
+#var-table th, #var-table td { text-align: left; padding: .3rem .5rem; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+#var-table td.num { font-family: "JetBrains Mono Variable", "JetBrains Mono", monospace; }
+#var-suggest button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+#var-suggest .r2 { font-family: "JetBrains Mono Variable", "JetBrains Mono", monospace; opacity: .8; }
+#var-table th { position: static; }
+.varbar .grid-controls { grid-template-columns: 1fr 6rem 1fr 6rem; }
+.varbar .grid-controls input { width: 100%; }
+@media (max-width: 640px) { .varbar .grid-controls { grid-template-columns: 1fr 6rem; } }
