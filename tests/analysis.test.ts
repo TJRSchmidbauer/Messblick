@@ -103,9 +103,10 @@ describe('Fit mit Levenberg–Marquardt', () => {
     const f = fitModel(model('sine'), pts);
     expect(f.ok).toBe(true);
     if (!f.ok) return;
-    const [A, w, , C] = f.params.map((p) => p.value);
-    expect(Math.abs(A)).toBeCloseTo(4, 3);
-    expect(Math.abs(w)).toBeCloseTo(1 / 3, 4);
+    const [A, w, phi, C] = f.params.map((p) => p.value);
+    expect(A).toBeCloseTo(4, 3);
+    expect(w).toBeCloseTo(1 / 3, 4);
+    expect(Math.abs(phi)).toBeLessThan(0.01); // eindeutige Form: Phase um 0, nicht um 2π
     expect(C).toBeCloseTo(5, 3);
   });
 
@@ -116,7 +117,8 @@ describe('Fit mit Levenberg–Marquardt', () => {
     expect(f.ok).toBe(true);
     if (!f.ok) return;
     expect(f.params[1].value).toBeCloseTo(0.15, 1);
-    expect(Math.abs(f.params[2].value)).toBeCloseTo(2, 1);
+    expect(f.params[2].value).toBeCloseTo(2, 1);
+    expect(f.params[3].value).toBeCloseTo(0.5, 1);
   });
 
   it('Bereich: nur Punkte im gewählten Fitbereich zählen', () => {

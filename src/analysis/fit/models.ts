@@ -12,6 +12,8 @@ export interface Model {
   linear?: 'line' | 'prop';
   /** Verlangt x > 0 und y > 0 (Potenz). */
   positive?: boolean;
+  /** Bringt Parameter in eine eindeutige Form (z. B. Phase in (−π, π]). */
+  normalize?: (p: number[]) => number[];
   /** Startwerte; mehrere Startwerte werden alle versucht, der beste Fit gewinnt. */
   starts: (pts: Pt[]) => number[][];
 }
@@ -41,6 +43,14 @@ function sineStarts(pts: Pt[], damped: boolean): number[][] {
     out.push(damped ? [A, 1 / L, omega, phase, C] : [A, omega, phase, C]);
   }
   return out;
+}
+
+/** Eindeutige Form von A·sin(ω·x + φ): A > 0, ω > 0, φ in [−π, π). Gleichwertige Lösungen sehen sonst verwirrend verschieden aus. */
+function canonicalWave(A: number, w: number, phi: number): { A: number; w: number; phi: number } {
+  if (w < 0) { w = -w; A = -A; phi = -phi; }
+  if (A < 0) { A = -A; phi += Math.PI; }
+  phi = ((((phi + Math.PI) % (2 * Math.PI)) + 2 * Math.PI) % (2 * Math.PI)) - Math.PI;
+  return { A, w, phi };
 }
 
 export const MODELS: Model[] = [
@@ -85,11 +95,13 @@ export const MODELS: Model[] = [
     id: 'sine', name: 'Sinus mit Offset', formula: 'A·sin(ω·x + φ) + C', params: ['A', 'ω', 'φ', 'C'],
     f: (x, [A, w, phi, C]) => A * Math.sin(w * x + phi) + C,
     starts: (pts) => sineStarts(pts, false),
+    normalize: ([A, w, phi, C]) => { const c = canonicalWave(A, w, phi); return [c.A, c.w, c.phi, C]; },
   },
   {
     id: 'dampedsine', name: 'Gedämpfter Sinus', formula: 'A·e^(−δ·x)·sin(ω·x + φ) + C', params: ['A', 'δ', 'ω', 'φ', 'C'],
     f: (x, [A, d, w, phi, C]) => A * Math.exp(-d * x) * Math.sin(w * x + phi) + C,
     starts: (pts) => sineStarts(pts, true),
+    normalize: ([A, d, w, phi, C]) => { const c = canonicalWave(A, w, phi); return [c.A, d, c.w, c.phi, C]; },
   },
 ];
 

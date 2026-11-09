@@ -75,6 +75,53 @@ await page.selectOption('#ysel', { index: 1 });
 await page.waitForTimeout(300);
 await page.screenshot({ path: `${shots}/03-auswertung.png`, fullPage: true });
 
+// Teilprojekt 1: Messunsicherheit (Güteklasse), Fit (Sinus, ω ≈ 1/3 der Demo), Fitbereich, Neue Größe, Export
+await page.click('#tab-2');
+await page.selectOption('.chan:nth-child(1) select[data-f=umode]', 'class');
+await page.fill('.chan:nth-child(1) input[data-f=ua]', '1,5');
+await page.fill('.chan:nth-child(1) input[data-f=ub]', '10');
+await page.click('#tab-4');
+await page.selectOption('#xsel', { value: 't' });
+await page.selectOption('#ysel', { index: 0 });
+await page.selectOption('#fit-model', 'sine');
+await page.waitForTimeout(300);
+const fitText = await page.locator('#fit-result').innerText();
+console.log('Fit:', fitText.replace(/\n+/g, ' | '));
+if (!/ω/.test(fitText) || !/0,33/.test(fitText)) throw new Error('Fit-Ergebnis fehlt: ' + fitText);
+if (/Keine Messunsicherheit/.test(fitText)) throw new Error('Messunsicherheit wurde nicht berücksichtigt');
+if (!(await page.locator('#resid-wrap').isVisible())) throw new Error('Residuen-Graph fehlt');
+// Fitbereich per Ziehen im Graphen
+await page.click('#fit-range');
+const cb = await page.locator('#chart').boundingBox();
+await page.mouse.move(cb.x + cb.width * 0.3, cb.y + cb.height * 0.5); await page.mouse.down();
+await page.mouse.move(cb.x + cb.width * 0.7, cb.y + cb.height * 0.5, { steps: 6 }); await page.mouse.up();
+await page.waitForTimeout(300);
+if (!/Fitbereich gewählt/.test(await page.locator('#fit-result').innerText())) throw new Error('Fitbereich wurde nicht übernommen');
+await page.click('#fit-range-clear');
+// Neue Größe: Formel U·I
+await page.click('#derive-new');
+await page.fill('#derivedlg-expr', 'Gerät_1*Gerät_2');
+await page.fill('#derivedlg-name', 'Leistung'); await page.fill('#derivedlg-unit', 'W');
+await page.click('#derivedlg button[value=ok]');
+await page.waitForTimeout(300);
+if (!(await page.locator('#derived-list').innerText()).includes('Leistung')) throw new Error('Abgeleitete Größe fehlt');
+await page.click('#derive-new');
+await page.fill('#derivedlg-expr', '2*(');
+await page.fill('#derivedlg-name', 'Kaputt');
+await page.click('#derivedlg button[value=ok]');
+if (!/endet zu früh/.test(await page.locator('#derivedlg-err').innerText())) throw new Error('Formelfehler wird nicht gemeldet');
+await page.click('#derivedlg button[value=cancel]');
+await page.selectOption('#ysel', { index: 0 });
+await page.screenshot({ path: `${shots}/03b-fit.png`, fullPage: true });
+const [xlFit] = await Promise.all([page.waitForEvent('download'), page.click('#dl-xlsx')]);
+const wbFit = XLSX.read(fs.readFileSync(await xlFit.path()));
+console.log('XLSX mit Fit:', wbFit.SheetNames);
+if (!wbFit.SheetNames.includes('Fit')) throw new Error('Blatt "Fit" fehlt im XLSX');
+const fitRows = XLSX.utils.sheet_to_json(wbFit.Sheets['Fit'], { header: 1 });
+if (!fitRows.some((r) => r[0] === 'ω' && Number.isFinite(r[2]))) throw new Error('ω mit Unsicherheit fehlt im Blatt Fit');
+if (!XLSX.utils.sheet_to_json(wbFit.Sheets['Messwerte'], { header: 1 })[0].includes('Leistung / W')) throw new Error('Abgeleitete Größe fehlt in den Messwerten');
+await page.selectOption('#fit-model', '');
+
 // Reihe sichern + zweite Aufnahme (live) + Vergleich
 await page.keyboard.press('3');
 await page.click('#btn-archive');

@@ -21,6 +21,8 @@ export interface SavedChannel {
   style?: string;
   /** Angelernte Zeichen (Digitalanzeige). */
   learned?: { ch: string; grid: string }[];
+  /** Messunsicherheit (Modus und Eingaben als Text). */
+  unc?: unknown;
 }
 
 export interface SavedState {

@@ -70,7 +70,8 @@ export function fitModel(model: Model, points: Pt[], opts: FitOptions = {}): Fit
       if (better) best = r;
     }
     if (!best) return { ok: false, error: 'Der Fit konnte nicht gestartet werden. Anderes Modell oder anderen Bereich wählen.' };
-    params = best.p; sigmas = best.sp; chi2 = best.chi2; reliable = best.converged;
+    params = model.normalize ? model.normalize(best.p) : best.p;
+    sigmas = best.sp; chi2 = best.chi2; reliable = best.converged;
     if (!reliable) warnings.push('Nicht belastbar: Der Fit hat nicht sauber konvergiert. Anderes Modell oder anderen Bereich wählen.');
   }
 

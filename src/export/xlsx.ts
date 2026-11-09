@@ -1,6 +1,6 @@
 import * as XLSX from 'xlsx';
 
-type Table = { header: string[]; rows: (number | null)[][] };
+type Table = { header: string[]; rows: (number | string | null)[][] };
 
 /** Blattnamen: max. 31 Zeichen, ohne \ / ? * [ ] : und eindeutig. */
 function sheetName(raw: string, used: Set<string>): string {

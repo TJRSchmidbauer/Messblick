@@ -5,7 +5,11 @@ import { learnGlyphs } from './readers/glyph';
 import { Session, TIME_KEY, seriesOf, tableOf, type ChannelDef } from './session/session';
 import { toCsv } from './export/csv';
 import { toXlsx } from './export/xlsx';
-import { ResultChart, type ChartSeries } from './ui/chart';
+import { ResidualChart, ResultChart, type ChartSeries } from './ui/chart';
+import { MODELS, fitModel, type FitSuccess } from './analysis/fit/fit';
+import { modelById } from './analysis/fit/models';
+import { parseExpression } from './analysis/derive';
+import { describeUncertainty, type UncertaintyConfig } from './analysis/uncertainty';
 import { icon, symbol, SYMBOLS } from './ui/icons';
 import { openCamera, openVideoFile } from './source/video';
 import { DemoSource } from './source/demo';
@@ -35,6 +39,8 @@ interface Chan {
   polarity: DigitalCalibration['polarity'];
   style: NonNullable<DigitalCalibration['style']>;
   learned: LearnedGlyph[];
+  /** Messunsicherheit: Modus und Eingaben als Text (Bedeutung je Modus, siehe uncOf). */
+  unc: { mode: UncertaintyConfig['mode']; a: string; b: string; c: string };
   cal: Calibration | null;
   live: { value: number | null; confidence: number } | null;
   issues: string[];
@@ -51,6 +57,12 @@ let calib: { id: string; step: Step } | null = null;
 let sel: { id: string; key: PointKey } | null = null;
 let dragging: { id: string; key: PointKey; grab: Point; before: string } | null = null;
 let roiDraw: { start: Point; cur: Point } | null = null;
+/** Fit: gewähltes Modell ('' = keiner), gewählter Bereich, laufende Bereichswahl, letztes Ergebnis. */
+let fitModelId = '';
+let fitRange: [number, number] | null = null;
+let selecting: { from: number } | null = null;
+let selectMode = false;
+let lastFit: FitSuccess | null = null;
 let stopLive: (() => void) | null = null;
 let abort: AbortController | null = null;
 let beamer = false;
@@ -107,6 +119,18 @@ function rebuildCal(c: Chan): void {
       ? { type: 'digital', roi: c.roi, digits: c.digits, decimals: dec, polarity: c.polarity, style: c.style, learned: c.learned }
       : null;
   }
+}
+
+const num = (t: string): number => Number(t.trim().replace(',', '.'));
+/** Messunsicherheit aus den Eingabefeldern; unvollständige oder ungültige Eingaben ergeben „unbekannt“. */
+function uncOf(c: Chan): UncertaintyConfig {
+  const { mode, a, b, c: cc } = c.unc;
+  const ok = (t: string): boolean => t.trim() !== '' && Number.isFinite(num(t));
+  if (mode === 'class' && ok(a) && ok(b) && num(a) > 0 && num(b) > 0) return { mode, cls: num(a), range: num(b), ...(ok(cc) && num(cc) > 0 ? { read: num(cc) } : {}) };
+  if (mode === 'digits' && ok(a) && num(a) > 0) return { mode, steps: num(a), decimals: ok(b) ? Math.max(0, Math.round(num(b))) : parseInt(c.decimals, 10) || 0 };
+  if (mode === 'abs' && ok(a) && num(a) > 0) return { mode, value: num(a) };
+  if (mode === 'poisson') return { mode };
+  return { mode: 'none' };
 }
 
 const active = (): ActiveChannel[] => chans.filter((c) => c.cal).map((c) => ({ id: c.id, cal: c.cal! }));
@@ -314,13 +338,13 @@ $('helpdlg-close').onclick = () => helpdlg.close();
 /* ============================== Kanäle ============================== */
 
 function addChannel(type: 'analog' | 'digital'): void {
-  if (chans.length >= MAX_CHANNELS) return showError('Mehr als vier Messgeräte gleichzeitig werden nicht unterstützt.');
+  if (chans.length + session.channels.filter((c) => c.derived).length >= MAX_CHANNELS) return showError('Mehr als vier Größen gleichzeitig (Messgeräte und abgeleitete Größen zusammen) werden nicht unterstützt.');
   const used = new Set(chans.map((c) => c.slot));
   const slot = [0, 1, 2, 3].find((s) => !used.has(s))!;
   const id = `k${nextId++}`;
   chans.push({
     id, slot, type, name: `Gerät ${chans.length + 1}`, unit: type === 'analog' ? 'V' : 'A', raw: {}, bigArc: type === 'analog',
-    pointerDark: true, digits: 4, decimals: '', polarity: 'auto', style: 'auto', learned: [], cal: null, live: null, issues: [], hist: [],
+    pointerDark: true, digits: 4, decimals: '', polarity: 'auto', style: 'auto', learned: [], unc: { mode: 'none', a: '', b: '', c: '' }, cal: null, live: null, issues: [], hist: [],
   });
   startCalibration(id);
 }
@@ -533,6 +557,17 @@ function renderChannels(): void {
                ${(['auto', 'segment', 'glyph'] as const).map((p) => `<option value="${p}" ${p === c.style ? 'selected' : ''}>${{ auto: 'automatisch', segment: '7-Segment', glyph: 'LCD / Punktmatrix' }[p]}</option>`).join('')}
              </select></label>`}
       </div>
+      <div class="opts unc">
+        <label class="field">Messunsicherheit <select data-f="umode">
+          ${(['none', 'class', 'digits', 'abs', 'poisson'] as const).map((m) => `<option value="${m}" ${m === c.unc.mode ? 'selected' : ''}>${{ none: 'unbekannt', class: 'Güteklasse', digits: 'Ziffernschritte', abs: 'fester Wert', poisson: 'Zählrate (√N)' }[m]}</option>`).join('')}
+        </select></label>
+        ${c.unc.mode === 'class' ? `<label class="field">Klasse <input type="text" inputmode="decimal" data-f="ua" value="${esc(c.unc.a)}" placeholder="1,5" style="width:4.5em"/></label>
+          <label class="field">Messbereich (Endwert) <input type="text" inputmode="decimal" data-f="ub" value="${esc(c.unc.b)}" placeholder="10" style="width:5.5em"/></label>
+          <label class="field">Ablesefehler (optional) <input type="text" inputmode="decimal" data-f="uc" value="${esc(c.unc.c)}" placeholder="0,1" style="width:5.5em"/></label>` : ''}
+        ${c.unc.mode === 'digits' ? `<label class="field">Schritte <input type="text" inputmode="decimal" data-f="ua" value="${esc(c.unc.a)}" placeholder="1" style="width:4.5em"/></label>
+          <label class="field">Dezimalstellen der letzten Ziffer <input type="text" inputmode="numeric" data-f="ub" value="${esc(c.unc.b)}" placeholder="${esc(c.decimals || '2')}" style="width:4.5em"/></label>` : ''}
+        ${c.unc.mode === 'abs' ? `<label class="field">± Wert <input type="text" inputmode="decimal" data-f="ua" value="${esc(c.unc.a)}" placeholder="0,05" style="width:5.5em"/></label>` : ''}
+      </div>
       <div class="bar">
         <button type="button" data-act="calib">${icon(c.type === 'analog' ? 'gauge' : 'digits', 18)}${c.cal ? 'Neu kalibrieren' : 'Kalibrieren'}</button>
         ${c.type === 'digital' ? `<button type="button" data-act="learn" ${c.cal ? '' : 'disabled'} title="Das Gerät zeigt gerade Ziffern an: eintippen, damit die App sie wiedererkennt">${icon('digits', 18)}Ziffern anlernen${c.learned.length ? ` (${c.learned.length})` : ''}</button>
@@ -560,8 +595,13 @@ function onFieldChange(el: HTMLInputElement | HTMLSelectElement): void {
   else if (f === 'decimals') c.decimals = String(val);
   else if (f === 'polarity') c.polarity = val as Chan['polarity'];
   else if (f === 'style') c.style = val as Chan['style'];
+  else if (f === 'umode') c.unc = { mode: val as Chan['unc']['mode'], a: '', b: '', c: '' };
+  else if (f === 'ua') c.unc.a = String(val);
+  else if (f === 'ub') c.unc.b = String(val);
+  else if (f === 'uc') c.unc.c = String(val);
   const sc = session.channels.find((s) => s.id === c.id);
-  if (sc) { sc.name = c.name; sc.unit = c.unit; }
+  if (sc) { sc.name = c.name; sc.unit = c.unit; sc.uncertainty = uncOf(c); }
+  if (f === 'umode') renderChannels();
   rebuildCal(c);
   if (f === 'name' || f === 'unit') { refreshSelects(); renderLive(); } else updateButtons();
   renderResults();
@@ -600,10 +640,10 @@ $('channels').addEventListener('click', (e) => {
 /* ---- Kalibrierung sichern / laden ---- */
 
 function toSaved(c: Chan): SavedChannel {
-  return { id: c.id, type: c.type, name: c.name, unit: c.unit, cal: c.cal, raw: c.raw, bigArc: c.bigArc, pointerDark: c.pointerDark, roi: c.roi, digits: c.digits, decimals: c.decimals, polarity: c.polarity, style: c.style, learned: c.learned };
+  return { id: c.id, type: c.type, name: c.name, unit: c.unit, cal: c.cal, raw: c.raw, bigArc: c.bigArc, pointerDark: c.pointerDark, roi: c.roi, digits: c.digits, decimals: c.decimals, polarity: c.polarity, style: c.style, learned: c.learned, unc: c.unc };
 }
 function fromSaved(s: SavedChannel, slot: number): Chan {
-  return { id: s.id, slot, type: s.type, name: s.name, unit: s.unit, raw: (s.raw as Chan['raw']) ?? {}, bigArc: s.bigArc, pointerDark: s.pointerDark, roi: s.roi as Rect | undefined, digits: s.digits, decimals: s.decimals, polarity: s.polarity as Chan['polarity'], style: (s.style as Chan['style']) ?? 'segment', learned: s.learned ?? [], cal: s.cal, live: null, issues: [], hist: [] };
+  return { id: s.id, slot, type: s.type, name: s.name, unit: s.unit, raw: (s.raw as Chan['raw']) ?? {}, bigArc: s.bigArc, pointerDark: s.pointerDark, roi: s.roi as Rect | undefined, digits: s.digits, decimals: s.decimals, polarity: s.polarity as Chan['polarity'], style: (s.style as Chan['style']) ?? 'segment', learned: s.learned ?? [], unc: (s.unc as Chan['unc'] | undefined) ?? { mode: 'none', a: '', b: '', c: '' }, cal: s.cal, live: null, issues: [], hist: [] };
 }
 $('cal-save').onclick = () => download(new Blob([calibrationFile(chans.filter((c) => c.cal).map(toSaved))], { type: 'application/json' }), `kalibrierung-${stamp()}.json`);
 $<HTMLInputElement>('cal-load').onchange = async (e) => {
@@ -761,7 +801,7 @@ requestAnimationFrame(loop);
 
 function syncSessionChannels(): void {
   for (const c of chans) {
-    if (c.cal && !session.channels.some((s) => s.id === c.id)) session.addChannel({ id: c.id, name: c.name, unit: c.unit });
+    if (c.cal && !session.channels.some((s) => s.id === c.id)) session.addChannel({ id: c.id, name: c.name, unit: c.unit, uncertainty: uncOf(c) });
   }
   refreshSelects();
 }
@@ -910,6 +950,8 @@ const slotOf = (id: string): number => chans.find((c) => c.id === id)?.slot ?? M
 
 function renderResults(light = false): void {
   updateButtons();
+  const problems = session.recompute();
+  renderDerivedList(problems);
   const x = xsel.value || TIME_KEY;
   const ys = [...new Set([ysel.value, y2sel.value])].filter((v) => v && session.channels.some((c) => c.id === v));
   const series: ChartSeries[] = [];
@@ -924,8 +966,9 @@ function renderResults(light = false): void {
       series.push({ label: `${name} (${run.name})`, color: colorFor(slotOf(y)), slot: slotOf(y), axis, faded: true, points: seriesOf(run.samples, x, y, session.smoothing) });
     }
   });
+  renderFit(x, ys[0], series, light);
   chart.update({
-    series, xLabel: label(x), yLabel: ys[0] ? label(ys[0]) : '', y2Label: ys[1] ? label(ys[1]) : '',
+    band: fitRange, series, xLabel: label(x), yLabel: ys[0] ? label(ys[0]) : '', y2Label: ys[1] ? label(ys[1]) : '',
     xLog: $<HTMLInputElement>('xlog').checked, yLog: $<HTMLInputElement>('ylog').checked, line: x === TIME_KEY,
     ink: light ? LIGHT.ink : cssVar('--ink'), grid: light ? LIGHT.grid : cssVar('--line'),
     font: light ? 14 : beamer ? 18 : 14,
@@ -934,6 +977,167 @@ function renderResults(light = false): void {
   renderRuns();
   renderTable();
 }
+
+/* ---- Fit ---- */
+
+const residChart = new ResidualChart($<HTMLCanvasElement>('resid'));
+$<HTMLSelectElement>('fit-model').innerHTML = `<option value="">– kein Fit –</option>${MODELS.map((m) => `<option value="${m.id}">${esc(m.name)}: ${esc(m.formula)}</option>`).join('')}`;
+
+/** Wert ± Unsicherheit: Unsicherheit auf 2 gültige Stellen, Wert auf dieselbe Stelle gerundet. */
+function withError(v: number, s: number): string {
+  const fix = (n: number, dec: number): string => n.toFixed(Math.max(0, dec)).replace('.', ',');
+  if (!Number.isFinite(s) || s <= 0) return fix(Number(v.toPrecision(4)), 6 - Math.max(0, Math.floor(Math.log10(Math.abs(v) || 1))));
+  const p = Math.pow(10, Math.floor(Math.log10(s)) - 1);
+  const dec = -Math.floor(Math.log10(p));
+  return `${fix(Math.round(v / p) * p, dec)} ± ${fix(Math.round(s / p) * p, dec)}`;
+}
+const fitLines = (f: FitSuccess): string[] => [
+  `Fit: ${f.model.name}  y = ${f.model.formula}`,
+  f.params.map((p) => `${p.name} = ${withError(p.value, p.sigma)}`).join(',  ') + `   (R² = ${f.r2.toFixed(4).replace('.', ',')}, n = ${f.n})`,
+];
+
+function renderFit(xKey: string, yId: string | undefined, series: ChartSeries[], light: boolean): void {
+  const box = $('fit-result'), wrap = $('resid-wrap');
+  lastFit = null;
+  const model = modelById(fitModelId);
+  $<HTMLSelectElement>('fit-model').value = fitModelId;
+  $('fit-range-clear').hidden = !fitRange;
+  if (!model || !yId) { box.innerHTML = ''; box.className = ''; wrap.hidden = true; return; }
+  const pts = session.series(xKey, yId);
+  const res = fitModel(model, pts.map((p) => ({ x: p.x, y: p.y, sy: p.sy })), { range: fitRange ?? undefined });
+  if (!res.ok) { box.className = 'fit-result unreliable'; box.innerHTML = `<p>${icon('warning', 16)} ${esc(res.error)}</p>`; wrap.hidden = true; return; }
+  lastFit = res;
+  const [lo, hi] = res.range;
+  const n = 200, start = model.positive && lo <= 0 ? hi / n : lo;
+  series.push({
+    label: `Fit: ${model.name}`, color: light ? LIGHT.ink : cssVar('--ink'), slot: 0, axis: 'y', faded: false, fit: true,
+    points: Array.from({ length: n + 1 }, (_, i) => { const xv = start + ((hi - start) * i) / n; return { x: xv, y: res.curve(xv), c: 1 }; }),
+  });
+  box.className = `fit-result${res.reliable ? '' : ' unreliable'}`;
+  box.innerHTML = `
+    <p class="formula"><b>${esc(model.name)}</b>: y = ${esc(model.formula)}${res.reliable ? '' : ` <b>(nicht belastbar)</b>`}</p>
+    <dl>${res.params.map((p) => `<dt>${esc(p.name)}</dt><dd>${withError(p.value, p.sigma)}</dd>`).join('')}</dl>
+    <p class="stats">R² = ${res.r2.toFixed(4).replace('.', ',')} · n = ${res.n}${res.chi2red !== null ? ` · χ²<sub>red</sub> = ${res.chi2red.toFixed(2).replace('.', ',')}` : ''}${fitRange ? ' · Fitbereich gewählt' : ''}</p>
+    ${res.warnings.length ? `<ul>${res.warnings.map((w) => `<li>${esc(w)}</li>`).join('')}</ul>` : ''}`;
+  wrap.hidden = false;
+  residChart.update({
+    points: res.residuals, xLabel: label(xKey), yLabel: 'Abweichung', color: colorOfSlot(slotOf(yId), light),
+    ink: light ? LIGHT.ink : cssVar('--ink'), grid: light ? LIGHT.grid : cssVar('--line'), font: 12,
+  });
+}
+const colorOfSlot = (slot: number, light: boolean): string => (light ? LIGHT.ch[slot % 4] : chanColor(slot));
+
+$<HTMLSelectElement>('fit-model').onchange = (e) => { fitModelId = (e.target as HTMLSelectElement).value; renderResults(); };
+$('fit-range-clear').onclick = () => { fitRange = null; renderResults(); };
+$('fit-range').onclick = () => setSelectMode(!selectMode);
+function setSelectMode(on: boolean): void {
+  selectMode = on;
+  selecting = null;
+  $('fit-range').setAttribute('aria-pressed', String(on));
+  $('fit-hint').hidden = !on;
+  chart.setSelecting(on);
+}
+const chartCanvas = $<HTMLCanvasElement>('chart');
+chartCanvas.addEventListener('pointerdown', (e) => {
+  if (!selectMode) return;
+  const x = chart.xAt(e.clientX);
+  if (x === null) return;
+  selecting = { from: x };
+  chartCanvas.setPointerCapture(e.pointerId);
+  fitRange = [x, x];
+});
+chartCanvas.addEventListener('pointermove', (e) => {
+  if (!selecting) return;
+  const x = chart.xAt(e.clientX);
+  if (x === null) return;
+  fitRange = [Math.min(selecting.from, x), Math.max(selecting.from, x)];
+  renderResults();
+});
+chartCanvas.addEventListener('pointerup', () => {
+  if (!selecting) return;
+  if (!fitRange || fitRange[1] - fitRange[0] <= 0) fitRange = null;
+  setSelectMode(false);
+  renderResults();
+});
+
+/* ---- Abgeleitete Größen ---- */
+
+const derivedlg = $<HTMLDialogElement>('derivedlg');
+let nextDerived = 1;
+
+function renderDerivedList(problems: Record<string, string>): void {
+  const list = session.channels.filter((c) => c.derived);
+  $('derived-list').innerHTML = list.map((c) => {
+    const d = c.derived!;
+    const what = d.kind === 'formula' ? `= ${esc(d.expr ?? '')}` : `${d.kind === 'derivative' ? 'Ableitung' : 'Integral'} von ${esc(session.channels.find((x) => x.id === d.of)?.name ?? '?')}`;
+    return `<li><span><b>${esc(c.name)}</b>${c.unit ? ` / ${esc(c.unit)}` : ''} ${what}</span>
+      <button type="button" class="ghost" data-del-derived="${c.id}" aria-label="${esc(c.name)} entfernen">${icon('trash', 18)}Entfernen</button>
+      ${problems[c.id] ? `<span class="problem">${icon('warning', 16)} ${esc(problems[c.id])}</span>` : ''}</li>`;
+  }).join('');
+}
+$('derived-list').addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>('[data-del-derived]');
+  if (!b) return;
+  session.removeChannel(b.dataset.delDerived!);
+  refreshSelects();
+  renderResults();
+  scheduleSave();
+});
+
+function syncDerivedDialog(): void {
+  const kind = $<HTMLSelectElement>('derivedlg-kind').value;
+  $('derivedlg-src-row').hidden = kind === 'formula';
+  $('derivedlg-expr-row').hidden = kind !== 'formula';
+}
+$('derivedlg-kind').addEventListener('change', syncDerivedDialog);
+$('derive-new').onclick = () => {
+  if (session.channels.length < 1) return showError('Zuerst ein Messgerät anlegen und messen.');
+  if (chans.length + session.channels.filter((c) => c.derived).length >= MAX_CHANNELS) return showError('Mehr als vier Größen gleichzeitig (Messgeräte und abgeleitete Größen zusammen) werden nicht unterstützt.');
+  const real = session.channels.filter((c) => !c.derived || true);
+  $('derivedlg-src').innerHTML = real.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
+  $('derivedlg-vars').innerHTML = real.map((c) => `<button type="button" class="ghost" data-ins="${esc(Session.identOf(c.name))}">${esc(Session.identOf(c.name))}</button>`).join(' ');
+  $<HTMLInputElement>('derivedlg-expr').value = '';
+  $<HTMLInputElement>('derivedlg-name').value = '';
+  $<HTMLInputElement>('derivedlg-unit').value = '';
+  $('derivedlg-err').textContent = '';
+  syncDerivedDialog();
+  derivedlg.showModal();
+};
+$('derivedlg-vars').addEventListener('click', (e) => {
+  const b = (e.target as HTMLElement).closest<HTMLElement>('[data-ins]');
+  if (!b) return;
+  const input = $<HTMLInputElement>('derivedlg-expr');
+  input.value += b.dataset.ins!;
+  input.focus();
+});
+$('derivedlg-form').addEventListener('submit', (ev) => {
+  const choice = ((ev as SubmitEvent).submitter as HTMLButtonElement | null)?.value;
+  if (choice !== 'ok') return;
+  const err = (msg: string): void => { ev.preventDefault(); $('derivedlg-err').textContent = msg; };
+  const kind = $<HTMLSelectElement>('derivedlg-kind').value as 'formula' | 'derivative' | 'integral';
+  const name = $<HTMLInputElement>('derivedlg-name').value.trim();
+  if (!name) return err('Bitte einen Namen angeben, z. B. Leistung.');
+  if (session.channels.some((c) => c.name === name)) return err('Diesen Namen gibt es schon. Bitte einen anderen wählen.');
+  const unit = $<HTMLInputElement>('derivedlg-unit').value.trim();
+  let derived: NonNullable<ChannelDef['derived']>;
+  if (kind === 'formula') {
+    const expr = $<HTMLInputElement>('derivedlg-expr').value.trim();
+    try {
+      const parsed = parseExpression(expr);
+      const idents = new Set(session.channels.map((c) => Session.identOf(c.name)));
+      const unknown = parsed.vars.filter((v) => !idents.has(v));
+      if (unknown.length) return err(`Unbekannte Größe: ${unknown.join(', ')}. Zum Einfügen die Schaltflächen nutzen.`);
+    } catch (e) { return err((e as Error).message); }
+    derived = { kind, expr };
+  } else {
+    derived = { kind, of: $<HTMLSelectElement>('derivedlg-src').value };
+  }
+  session.addChannel({ id: `d${nextDerived++}`, name, unit, derived });
+  refreshSelects();
+  $<HTMLSelectElement>('ysel').value = session.channels[session.channels.length - 1].id;
+  renderResults();
+  scheduleSave();
+});
 
 function renderRuns(): void {
   const host = $('runs');
@@ -981,10 +1185,27 @@ $('dl-csv').onclick = () => {
   download(new Blob([toCsv(table, { german: $<HTMLInputElement>('german').checked })], { type: 'text/csv;charset=utf-8' }), `messwerte-${stamp()}.csv`);
 };
 $('dl-xlsx').onclick = () => {
-  const sheets = [
+  const sheets: { name: string; table: { header: string[]; rows: (number | string | null)[][] } }[] = [
     ...(session.samples.length ? [{ name: 'Messwerte', table: session.table() }] : []),
     ...session.runs.map((r) => ({ name: r.name, table: tableOf(r.channels, r.samples, session.smoothing) })),
   ];
+  if (lastFit) {
+    const f = lastFit;
+    sheets.push({
+      name: 'Fit',
+      table: {
+        header: ['Größe', 'Wert', 'Unsicherheit'],
+        rows: [
+          ['Modell', f.model.name, null], ['Formel', f.model.formula, null],
+          ['Datenreihe (y)', label(ysel.value), null], ['x-Achse', label(xsel.value || TIME_KEY), null],
+          ['Fitbereich von', f.range[0], null], ['Fitbereich bis', f.range[1], null],
+          ['Punkte n', f.n, null], ['R²', f.r2, null], ['χ² je Freiheitsgrad', f.chi2red, null],
+          ...f.params.map((p) => [p.name, p.value, Number.isFinite(p.sigma) ? p.sigma : null]),
+          ['Messunsicherheit der Reihe', describeUncertainty(session.channels.find((c) => c.id === ysel.value)?.uncertainty, session.channels.find((c) => c.id === ysel.value)?.unit ?? ''), null],
+        ],
+      },
+    });
+  }
   download(new Blob([toXlsx(sheets) as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `messwerte-${stamp()}.xlsx`);
 };
 $('dl-png').onclick = async () => {
@@ -993,6 +1214,7 @@ $('dl-png').onclick = async () => {
     title: $<HTMLInputElement>('exp-title').value.trim(),
     name: $<HTMLInputElement>('exp-name').value.trim(),
     date: new Date().toLocaleDateString('de-DE'),
+    lines: lastFit ? fitLines(lastFit) : [],
   });
   renderResults(false);
   download(blob, `graph-${stamp()}.png`);

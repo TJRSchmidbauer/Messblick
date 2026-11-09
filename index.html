@@ -125,6 +125,21 @@
         </div>
         <div class="chartwrap"><canvas id="chart" aria-label="Messgraph"></canvas></div>
         <div class="bar"><button id="zoom-reset" type="button" class="ghost"><span data-icon="reset"></span>Zoom zurücksetzen</button><span class="note">Mausrad oder Pinch zoomt, Ziehen verschiebt.</span></div>
+        <fieldset class="fitbar">
+          <legend>Fit und Größen</legend>
+          <div class="grid-controls">
+            <label class="field">Modell <select id="fit-model"></select></label>
+          </div>
+          <div class="bar">
+            <button id="fit-range" type="button" aria-pressed="false"><span data-icon="expand"></span>Fitbereich wählen</button>
+            <button id="fit-range-clear" type="button" class="ghost" hidden><span data-icon="reset"></span>Ganzen Bereich nutzen</button>
+            <button id="derive-new" type="button"><span data-icon="plus"></span>Neue Größe</button>
+          </div>
+          <p id="fit-hint" class="note" hidden>Im Graphen mit gedrückter Maustaste (oder Finger) über den Bereich ziehen, der gefittet werden soll.</p>
+          <div id="fit-result" aria-live="polite"></div>
+          <div class="chartwrap resid" id="resid-wrap" hidden><canvas id="resid" aria-label="Residuen des Fits"></canvas></div>
+          <ul id="derived-list" class="derived"></ul>
+        </fieldset>
         <fieldset class="export">
           <legend>Beschriftung für den Graphen (PNG)</legend>
           <label class="field">Versuchstitel <input id="exp-title" type="text" placeholder="z. B. Entladung eines Kondensators" /></label>
@@ -154,6 +169,29 @@
       <label class="field">Wert <span class="inputunit"><input id="valdlg-input" inputmode="decimal" autocomplete="off" required /><span id="valdlg-unit"></span></span></label>
       <p id="valdlg-err" class="error-inline" role="alert"></p>
       <div class="bar end"><button value="cancel" formnovalidate type="submit">Abbrechen</button><button value="ok" type="submit" class="primary">Übernehmen</button></div>
+    </form>
+  </dialog>
+
+  <dialog id="derivedlg" aria-labelledby="derivedlg-title">
+    <form method="dialog" id="derivedlg-form">
+      <h3 id="derivedlg-title">Neue Größe</h3>
+      <label class="field">Art <select id="derivedlg-kind">
+        <option value="formula">Formel (z. B. U·I)</option>
+        <option value="derivative">Ableitung nach der Zeit</option>
+        <option value="integral">Integral über die Zeit</option>
+      </select></label>
+      <label class="field" id="derivedlg-src-row">Von Größe <select id="derivedlg-src"></select></label>
+      <div id="derivedlg-expr-row">
+        <label class="field">Formel <input id="derivedlg-expr" autocomplete="off" placeholder="z. B. Gerät_1*Gerät_2" /></label>
+        <p class="note">Zum Einfügen anklicken: <span id="derivedlg-vars"></span></p>
+        <p class="note">Erlaubt: + − * / ^ ( ) sowie sqrt, ln, exp, sin, cos, abs.</p>
+      </div>
+      <div class="bar nowrap">
+        <label class="field">Name <input id="derivedlg-name" autocomplete="off" required placeholder="z. B. Leistung" /></label>
+        <label class="field">Einheit <input id="derivedlg-unit" autocomplete="off" style="width:6em" placeholder="W" /></label>
+      </div>
+      <p id="derivedlg-err" class="error-inline" role="alert"></p>
+      <div class="bar end"><button value="cancel" formnovalidate type="submit">Abbrechen</button><button value="ok" type="submit" class="primary">Anlegen</button></div>
     </form>
   </dialog>
 

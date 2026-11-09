@@ -253,3 +253,22 @@ th .sym { color: var(--c); margin-right: .3rem; }
 .site-foot b { font-family: 'Space Grotesk', sans-serif; color: var(--ink); }
 .site-foot .dot { color: var(--brand-ziegel); }
 @media (max-width: 900px) { .site-foot { padding-bottom: 6.5rem; } }
+
+/* Fit und abgeleitete Größen */
+.fitbar { margin-top: 1rem; border: 1.5px solid var(--line); border-radius: 12px; padding: .75rem 1rem 1rem; }
+.fitbar legend { font-family: var(--head, inherit); font-weight: 700; padding: 0 .4rem; }
+.fitbar button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); }
+.fit-result { margin-top: .5rem; padding: .75rem 1rem; border-left: 4px solid var(--accent); background: var(--surface); }
+.fit-result.unreliable { border-left-color: var(--danger); }
+.fit-result .formula, .fit-result dd { font-family: "JetBrains Mono Variable", "JetBrains Mono", monospace; }
+.fit-result dl { display: grid; grid-template-columns: max-content 1fr; gap: .15rem 1rem; margin: .5rem 0; }
+.fit-result dt { font-weight: 700; }
+.fit-result dd { margin: 0; font-size: 1.05rem; }
+.fit-result ul { margin: .4rem 0 0; padding-left: 1.2rem; }
+.fit-result .stats { color: var(--ink-soft, inherit); }
+.chartwrap.resid { height: 130px; margin-top: .5rem; }
+.derived { list-style: none; margin: .75rem 0 0; padding: 0; display: grid; gap: .4rem; }
+.derived li { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; justify-content: space-between; }
+.derived .problem { color: var(--danger); flex-basis: 100%; }
+.bar.nowrap { flex-wrap: nowrap; }
+.unc { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: end; }
