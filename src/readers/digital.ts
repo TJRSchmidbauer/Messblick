@@ -1,17 +1,9 @@
-import type { Frame, ReadResult, Rect } from '../core/types';
-import { luminance } from '../core/types';
+import type { Frame, ReadResult } from '../core/types';
 import { DIGIT_SEGMENTS, DP_BOX, SEGMENT_BOXES } from '../core/synth';
+import { foregroundMask, readGlyph } from './glyph';
+import { NO_READING, extractRoi, foregroundIsDark, otsu, textToValue, type DigitalCalibration } from './shared';
 
-export interface DigitalCalibration {
-  type: 'digital';
-  roi: Rect;
-  /** Anzahl Ziffernzellen (ohne Dezimalpunkte). */
-  digits: number;
-  /** Feste Nachkommastellen, falls die Anzeige keinen Punkt zeigt/der Punkt nicht erkannt wird. */
-  decimals: number | null;
-  /** 'auto': die Minderheit der Pixel gilt als Segment. */
-  polarity: 'auto' | 'dark-on-light' | 'light-on-dark';
-}
+export type { DigitalCalibration, LearnedGlyph } from './shared';
 
 const PATTERNS = new Map<string, string>(
   Object.entries(DIGIT_SEGMENTS).map(([ch, segs]) => [[...segs].sort().join(''), ch]),
@@ -22,42 +14,38 @@ PATTERNS.set('bcdfg'.split('').sort().join(''), '9');
 PATTERNS.set('abcf'.split('').sort().join(''), '7');
 PATTERNS.set('cdefg'.split('').sort().join(''), '6');
 
-function otsu(values: Uint8Array | number[]): number {
-  const hist = new Array<number>(256).fill(0);
-  for (const v of values) hist[Math.max(0, Math.min(255, Math.round(v)))]++;
-  const total = values.length;
-  let sumAll = 0;
-  for (let i = 0; i < 256; i++) sumAll += i * hist[i];
-  let wB = 0, sumB = 0, best = 0, thr = 128;
-  for (let t = 0; t < 256; t++) {
-    wB += hist[t];
-    if (wB === 0) continue;
-    const wF = total - wB;
-    if (wF === 0) break;
-    sumB += t * hist[t];
-    const mB = sumB / wB, mF = (sumAll - sumB) / wF;
-    const between = wB * wF * (mB - mF) ** 2;
-    if (between > best) { best = between; thr = t; }
-  }
-  return thr;
+/** Unterhalb dieser Sicherheit setzt sich im Modus 'auto' bei Widerspruch die Segmentabtastung durch. */
+const GLYPH_TRUSTED_FROM = 0.4;
+
+/**
+ * Liest eine Digitalanzeige nach dem eingestellten Verfahren (Standard ohne Angabe: Segmentabtastung).
+ * 'auto' liest mit beiden Verfahren: stimmen sie überein, gilt das Ergebnis; bei Widerspruch gewinnt der
+ * Zeichenvergleich, weil er Schrägschrift, schwachen Kontrast und Lichtverlauf besser verträgt.
+ */
+export function readDigital(frame: Frame, cal: DigitalCalibration): ReadResult {
+  const style = cal.style ?? 'segment';
+  if (style === 'glyph') return readGlyph(frame, cal);
+  if (style === 'segment') return readSegments(frame, cal);
+  const seg = readSegments(frame, cal, true);
+  const glyph = readGlyph(frame, cal);
+  if (glyph.value === null) return seg;
+  if (seg.value === null) return glyph;
+  if (seg.value === glyph.value) return { value: seg.value, confidence: Math.max(seg.confidence, glyph.confidence) };
+  return glyph.confidence >= GLYPH_TRUSTED_FROM ? glyph : seg;
 }
 
-export function readDigital(frame: Frame, cal: DigitalCalibration): ReadResult {
+/** 7-Segment-Anzeigen: Füllgrad je Segmentbox. */
+export function readSegments(frame: Frame, cal: DigitalCalibration, adaptive = false): ReadResult {
   const { roi, digits } = cal;
-  const x0 = Math.max(0, Math.round(roi.x)), y0 = Math.max(0, Math.round(roi.y));
-  const w = Math.min(frame.width - x0, Math.round(roi.w)), h = Math.min(frame.height - y0, Math.round(roi.h));
-  if (w < digits * 4 || h < 8 || digits < 1) return { value: null, confidence: 0 };
-
-  const lum = new Uint8Array(w * h);
-  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) lum[y * w + x] = luminance(frame, x0 + x, y0 + y);
+  const px = extractRoi(frame, roi, digits);
+  if (!px) return NO_READING;
+  const { w, h, lum } = px;
   const thr = otsu(lum);
-  let fgIsDark = cal.polarity === 'dark-on-light';
-  if (cal.polarity === 'auto') {
-    let dark = 0;
-    for (const v of lum) if (v <= thr) dark++;
-    fgIsDark = dark < lum.length / 2;
-  }
-  const isFg = (x: number, y: number): boolean => (lum[y * w + x] <= thr) === fgIsDark;
+  const fgIsDark = foregroundIsDark(lum, thr, cal.polarity);
+  // adaptive Schwelle: verträgt Lichtverlauf und schwachen Kontrast (LCD); sonst eine Schwelle fürs ganze Bild
+  const local = adaptive ? foregroundMask(lum, w, h, fgIsDark) : null;
+  if (adaptive && !local) return NO_READING;
+  const isFg = (x: number, y: number): boolean => (local ? local[y * w + x] === 1 : (lum[y * w + x] <= thr) === fgIsDark);
 
   /** Füllanteil in einer Box (Anteile der Zelle), Randbereiche 20 % ausgespart. */
   const fill = (cx: number, cw: number, box: [number, number, number, number]): number => {
@@ -84,19 +72,12 @@ export function readDigital(frame: Frame, cal: DigitalCalibration): ReadResult {
       if (r > 0.5) key += s;
     }
     const ch = PATTERNS.get([...key].sort().join(''));
-    if (ch === undefined) return { value: null, confidence: 0 };
+    if (ch === undefined) return NO_READING;
     out += ch;
     const rdp = fill(cx, cw, DP_BOX);
     if (rdp > 0.5) { out += '.'; dpCount++; }
   }
-  if (dpCount > 1) return { value: null, confidence: 0 };
-  let text = out.replace(/ /g, '');
-  if (dpCount === 0 && cal.decimals && cal.decimals > 0) {
-    const neg = text.startsWith('-');
-    const digs = (neg ? text.slice(1) : text).padStart(cal.decimals + 1, '0');
-    text = (neg ? '-' : '') + digs.slice(0, -cal.decimals) + '.' + digs.slice(-cal.decimals);
-  }
-  const value = Number(text);
-  if (text === '' || text === '-' || !Number.isFinite(value)) return { value: null, confidence: 0 };
+  const value = textToValue(out, dpCount, cal.decimals);
+  if (value === null) return NO_READING;
   return { value, confidence: Math.max(0, Math.min(1, marginSum / marginN)) };
 }

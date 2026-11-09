@@ -107,3 +107,65 @@ export function drawSevenSegment(
     }
   });
 }
+
+/** 5×7-Punktmatrix wie bei gängigen Text-LCDs (HD44780-Zeichensatz, nur Zeichen für Zahlen). */
+export const DOT_FONT: Record<string, string[]> = {
+  '0': ['01110', '10001', '10011', '10101', '11001', '10001', '01110'],
+  '1': ['00100', '01100', '00100', '00100', '00100', '00100', '01110'],
+  '2': ['01110', '10001', '00001', '00010', '00100', '01000', '11111'],
+  '3': ['11111', '00010', '00100', '00010', '00001', '10001', '01110'],
+  '4': ['00010', '00110', '01010', '10010', '11111', '00010', '00010'],
+  '5': ['11111', '10000', '11110', '00001', '00001', '10001', '01110'],
+  '6': ['00110', '01000', '10000', '11110', '10001', '10001', '01110'],
+  '7': ['11111', '00001', '00010', '00100', '01000', '01000', '01000'],
+  '8': ['01110', '10001', '10001', '01110', '10001', '10001', '01110'],
+  '9': ['01110', '10001', '10001', '01111', '00001', '00010', '01100'],
+  '-': ['00000', '00000', '00000', '11111', '00000', '00000', '00000'],
+  '.': ['00000', '00000', '00000', '00000', '00000', '01100', '01100'],
+  ' ': ['00000', '00000', '00000', '00000', '00000', '00000', '00000'],
+};
+
+/**
+ * Zeichnet Text als Punktmatrix: ein Zeichen je Zelle (der Punkt belegt eine eigene Zelle).
+ * Punktabstand rechts 1 Spalte Lücke; `dotScale` skaliert den Punktdurchmesser (0,76 = runde Punkte mit Luft).
+ */
+export function drawDotMatrix(
+  f: Frame, x: number, y: number, w: number, h: number, text: string, cells: number,
+  opts: { fg?: number; bg?: number; dotScale?: number } = {},
+): void {
+  const fg = opts.fg ?? 20, bg = opts.bg ?? 235, r0 = (opts.dotScale ?? 0.76) / 2;
+  fillRect(f, x, y, w, h, bg);
+  const chars = [...text.padStart(cells, ' ')].slice(-cells);
+  const cw = w / cells, px = cw / 6, py = h / 7;
+  const r = r0 * Math.min(px, py);
+  chars.forEach((ch, i) => {
+    const rows = DOT_FONT[ch] ?? DOT_FONT[' '];
+    rows.forEach((row, ry) => {
+      for (let cx = 0; cx < 5; cx++) {
+        if (row[cx] === '1') fillDisc(f, x + i * cw + (cx + 0.5) * px, y + (ry + 0.5) * py, r, fg);
+      }
+    });
+  });
+}
+
+/** Schert einen Bildausschnitt waagerecht (schräge LCD-Schrift): oben nach rechts, um `shear` × Breite einer Zelle. */
+export function shearRegion(f: Frame, x: number, y: number, w: number, h: number, shear: number, cellWidth: number, bg: number): void {
+  for (let yy = 0; yy < h; yy++) {
+    const shift = Math.round(shear * (0.5 - yy / h) * cellWidth);
+    const row: number[] = [];
+    for (let xx = 0; xx < w; xx++) row.push(f.data[((y + yy) * f.width + x + xx) * 4]);
+    for (let xx = 0; xx < w; xx++) {
+      const src = xx - shift;
+      setGray(f, x + xx, y + yy, src >= 0 && src < w ? row[src] : bg);
+    }
+  }
+}
+
+/** Waagerechter Helligkeitsverlauf über dem Ausschnitt (ungleichmäßiges Licht): links −amount/2, rechts +amount/2. */
+export function addGradient(f: Frame, x: number, y: number, w: number, h: number, amount: number): void {
+  for (let yy = y; yy < y + h; yy++)
+    for (let xx = x; xx < x + w; xx++) {
+      const g = f.data[(yy * f.width + xx) * 4] + amount * ((xx - x) / w - 0.5);
+      setGray(f, xx, yy, Math.max(0, Math.min(255, g)));
+    }
+}

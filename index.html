@@ -157,6 +157,16 @@
     </form>
   </dialog>
 
+  <dialog id="learndlg" aria-labelledby="learndlg-title">
+    <form method="dialog" id="learndlg-form">
+      <h3 id="learndlg-title">Ziffern anlernen</h3>
+      <p class="note">Tippe ein, was das Gerät <strong>jetzt</strong> anzeigt, Zeichen für Zeichen. Die App merkt sich, wie diese Ziffern bei deiner Kamera aussehen, und liest danach sicherer. Besser mehrere Ziffern auf einmal (z. B. 1234, dann 5678, dann 90).</p>
+      <label class="field">Angezeigter Text <input id="learndlg-input" inputmode="decimal" autocomplete="off" placeholder="z. B. 12,34" required /></label>
+      <p id="learndlg-err" class="error-inline" role="alert"></p>
+      <div class="bar end"><button value="cancel" formnovalidate type="submit">Abbrechen</button><button value="ok" type="submit" class="primary">Anlernen</button></div>
+    </form>
+  </dialog>
+
   <dialog id="helpdlg" aria-labelledby="helpdlg-title">
     <h3 id="helpdlg-title">Tastenkürzel</h3>
     <dl class="keys">

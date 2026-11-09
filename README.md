@@ -10,6 +10,7 @@ Alles läuft **lokal im Browser**: kein Server, kein Konto, keine Übertragung v
 ## Funktionen
 - **Quellen:** Kamera (live), Videodatei (Frame-genau, schneller als Echtzeit auswertbar) oder Demo zum Ausprobieren.
 - **Zwei Gerätetypen, bis zu vier gleichzeitig:** Zeigerinstrument (Zeigerwinkel auf Skala abgebildet) und Digitalanzeige (7-Segment-Ziffern). Jedes Gerät hat eine feste Farbe und ein Symbol, in Bild, Live-Zahl, Graph und Tabelle.
+- **Ziffern anlernen:** Liest die App eine LCD- oder Punktmatrix-Anzeige nur unsicher, tippt man einmal ein, was das Gerät gerade zeigt. Die App merkt sich diese Ziffern (nur lokal, in der Sitzung und in der Kalibrierdatei) und liest danach sicherer.
 - **Geführte Kalibrierung:** Drehpunkt und zwei Skalenstriche anklicken bzw. Rechteck um die Ziffern ziehen. Punkte lassen sich ziehen oder mit Pfeiltasten verschieben, `Strg+Z` nimmt zurück. Die große Live-Zahl zeigt sofort, ob die Ablesung stimmt, Hinweise warnen bei Unschärfe, Spiegelung oder zu kleinem Gerät.
 - **Messen:** Live aufnehmen (Leertaste) oder Video auswerten (abbrechbar). „Reihe sichern“ legt eine Messung beiseite, damit mehrere Reihen im Graphen verglichen werden können.
 - **Auswertung:** Graph mit x = Zeit oder anderem Messgerät, zweite y-Achse, logarithmische Achsen, Zoom, Glättung, korrigierbare Wertetabelle.
@@ -55,7 +56,7 @@ node tests/screenshots.mjs  # erzeugt die Bilder in docs/screenshots
 Struktur: `src/readers` (Analog/Digital), `src/source` (Kamera/Datei/Demo), `src/session` (Daten), `src/export`, `src/ui` (Icons, Graph), `src/quality.ts` (Bildhinweise), `src/storage.ts` (Speichern), `src/sampler.ts`. Gestaltung: `PRODUCT.md`, `DESIGN.md`. Geplante Erweiterungen (Fit-Werkzeuge, Messunsicherheit): `docs/superpowers/specs/`.
 
 ## Grenzen
-- Digital: 7-Segment-Anzeigen werden per Segment-Abtastung gelesen; LCD- und Punktmatrix-Schriften brauchen einen OCR-Fallback (noch nicht enthalten).
+- Digital: 7-Segment-Anzeigen werden per Segmentabtastung gelesen. Für LCD (schwacher Kontrast, Schrägschrift, Lichtverlauf) und Punktmatrix-Anzeigen (5×7) gibt es den Zeichenvergleich, im Modus „automatisch“ als Rückfall. Er kennt eingebaute Vorlagen und lernt die Ziffern des eigenen Geräts an. Andere Schriften (Buchstaben, Sonderzeichen) liest er nicht; bei Punktmatrix zählt der Dezimalpunkt als eigene Zelle.
 - Die Kamera sollte ruhig stehen (Stativ); die Kalibrierung gilt für einen festen Bildausschnitt.
 - Beim Multimeter-Bereichswechsel müssen Einheit und Dezimalstellen am Gerät von Hand angepasst werden.
 - Offline-Nutzung als installierbare App (PWA) ist noch nicht umgesetzt.

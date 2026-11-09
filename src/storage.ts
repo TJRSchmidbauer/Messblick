@@ -17,6 +17,10 @@ export interface SavedChannel {
   digits: number;
   decimals: string;
   polarity: string;
+  /** Leseverfahren der Digitalanzeige; fehlt in älteren Dateien (dann Segmentabtastung). */
+  style?: string;
+  /** Angelernte Zeichen (Digitalanzeige). */
+  learned?: { ch: string; grid: string }[];
 }
 
 export interface SavedState {

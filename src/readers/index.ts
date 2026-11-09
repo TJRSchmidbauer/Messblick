@@ -7,4 +7,5 @@ export type Calibration = AnalogCalibration | DigitalCalibration;
 export function readChannel(frame: Frame, cal: Calibration): ReadResult {
   return cal.type === 'analog' ? readAnalog(frame, cal) : readDigital(frame, cal);
 }
-export type { AnalogCalibration, DigitalCalibration };
+export type { AnalogCalibration };
+export type { DigitalCalibration, LearnedGlyph } from './digital';

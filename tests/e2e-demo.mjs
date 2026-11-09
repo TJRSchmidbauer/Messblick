@@ -6,7 +6,7 @@ import fs from 'node:fs';
 const url = process.env.URL ?? 'http://localhost:5173/';
 const shots = process.env.SHOTS ?? '/tmp/shots';
 fs.mkdirSync(shots, { recursive: true });
-const browser = await chromium.launch();
+const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const ctx = await browser.newContext({ acceptDownloads: true, viewport: { width: 1360, height: 900 }, reducedMotion: 'reduce' });
 const page = await ctx.newPage();
 const errors = [];
@@ -47,6 +47,19 @@ const lives = await page.locator('.live-value').allTextContents();
 console.log('Live:', lives);
 if (lives.length !== 2 || lives.some((t) => t.startsWith('–'))) throw new Error('Live-Ablesung fehlt: ' + lives);
 await page.screenshot({ path: `${shots}/02-geraete.png` });
+
+// Zeichenvergleich (LCD/Punktmatrix): Schrift umstellen, die Demo-Anzeige wird weiter gelesen; Anlernen prüft Eingaben
+await page.selectOption('select[data-f=style]', 'glyph');
+await page.waitForTimeout(700);
+const glyphLives = await page.locator('.live-value').allTextContents();
+console.log('Live (Zeichenvergleich):', glyphLives);
+if (glyphLives.length !== 2 || glyphLives.some((t) => t.startsWith('–'))) throw new Error('Zeichenvergleich liest nicht: ' + glyphLives);
+await page.click('button[data-act=learn]');
+await page.fill('#learndlg-input', '123456');
+await page.click('#learndlg button[value=ok]');
+if (!/mehr Zeichen als Ziffern/.test(await page.locator('#learndlg-err').textContent())) throw new Error('Anlern-Fehlermeldung fehlt');
+await page.click('#learndlg button[value=cancel]');
+await page.selectOption('select[data-f=style]', 'auto');
 
 // Verschiebbarer Punkt + Undo: Drehpunkt 5px ziehen, Ctrl+Z
 await click(d.cx / W, d.cy / H);          // Drehpunkt wählen

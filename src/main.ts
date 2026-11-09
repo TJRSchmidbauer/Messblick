@@ -1,6 +1,7 @@
 import type { Frame, Point, Rect } from './core/types';
 import { buildAnalogCalibration, type AnalogRaw } from './readers/analog';
-import { readChannel, type Calibration, type DigitalCalibration } from './readers';
+import { readChannel, type Calibration, type DigitalCalibration, type LearnedGlyph } from './readers';
+import { learnGlyphs } from './readers/glyph';
 import { Session, TIME_KEY, seriesOf, tableOf, type ChannelDef } from './session/session';
 import { toCsv } from './export/csv';
 import { toXlsx } from './export/xlsx';
@@ -32,6 +33,8 @@ interface Chan {
   digits: number;
   decimals: string;
   polarity: DigitalCalibration['polarity'];
+  style: NonNullable<DigitalCalibration['style']>;
+  learned: LearnedGlyph[];
   cal: Calibration | null;
   live: { value: number | null; confidence: number } | null;
   issues: string[];
@@ -101,7 +104,7 @@ function rebuildCal(c: Chan): void {
   } else {
     const dec = c.decimals === '' ? null : Math.max(0, parseInt(c.decimals, 10) || 0);
     c.cal = c.roi && c.roi.w > 8 && c.roi.h > 8
-      ? { type: 'digital', roi: c.roi, digits: c.digits, decimals: dec, polarity: c.polarity }
+      ? { type: 'digital', roi: c.roi, digits: c.digits, decimals: dec, polarity: c.polarity, style: c.style, learned: c.learned }
       : null;
   }
 }
@@ -252,6 +255,58 @@ function askValue(title: string, help: string, unit: string, def: string): Promi
     input.select();
   });
 }
+const learndlg = $<HTMLDialogElement>('learndlg');
+/** Fragt den aktuell angezeigten Text ab. Der Prüfer liefert eine Fehlermeldung oder null. null = abgebrochen. */
+function askText(check: (text: string) => string | null): Promise<string | null> {
+  return new Promise((resolve) => {
+    const input = $<HTMLInputElement>('learndlg-input');
+    const form = $<HTMLFormElement>('learndlg-form');
+    $('learndlg-err').textContent = '';
+    input.value = '';
+    const onSubmit = (ev: SubmitEvent): void => {
+      if ((ev.submitter as HTMLButtonElement | null)?.value !== 'ok') return finish(null);
+      const err = check(input.value);
+      if (err) { ev.preventDefault(); $('learndlg-err').textContent = err; return; }
+      finish(input.value);
+    };
+    const onCancel = (): void => finish(null);
+    const finish = (v: string | null): void => {
+      form.removeEventListener('submit', onSubmit);
+      learndlg.removeEventListener('cancel', onCancel);
+      if (learndlg.open) learndlg.close();
+      resolve(v);
+    };
+    form.addEventListener('submit', onSubmit);
+    learndlg.addEventListener('cancel', onCancel);
+    learndlg.showModal();
+    input.focus();
+  });
+}
+
+/** Lernt die Ziffern an, die das Gerät im aktuellen Bild zeigt (Zeichenvergleich, siehe readers/glyph.ts). */
+async function learnDigits(id: string): Promise<void> {
+  const c = chan(id);
+  if (!c.cal || c.cal.type !== 'digital' || !source) return showError('Zum Anlernen braucht es eine Quelle und eine kalibrierte Digitalanzeige.');
+  let frame: Frame;
+  try { frame = source.grab(); } catch { return showError('Noch kein Bild verfügbar.'); }
+  const base = c.cal;
+  let result: ReturnType<typeof learnGlyphs> | null = null;
+  const text = await askText((t) => {
+    result = learnGlyphs(frame, base, t);
+    return result.ok ? null : result.error;
+  });
+  const outcome = result as ReturnType<typeof learnGlyphs> | null;
+  if (text === null || !outcome || !outcome.ok) return;
+  c.learned = outcome.learned;
+  // Angelernte Zeichen nutzt nur der Zeichenvergleich: bei reiner Segmentabtastung wäre das Anlernen wirkungslos
+  if (c.style === 'segment') c.style = 'auto';
+  rebuildCal(c);
+  renderChannels();
+  renderLive();
+  scheduleSave();
+  setHint(`${outcome.added} Zeichen angelernt. Die Ablesung oben zeigt, ob es besser passt.`);
+}
+
 const helpdlg = $<HTMLDialogElement>('helpdlg');
 $('btn-help').onclick = () => helpdlg.showModal();
 $('helpdlg-close').onclick = () => helpdlg.close();
@@ -265,7 +320,7 @@ function addChannel(type: 'analog' | 'digital'): void {
   const id = `k${nextId++}`;
   chans.push({
     id, slot, type, name: `Gerät ${chans.length + 1}`, unit: type === 'analog' ? 'V' : 'A', raw: {}, bigArc: type === 'analog',
-    pointerDark: true, digits: 4, decimals: '', polarity: 'auto', cal: null, live: null, issues: [], hist: [],
+    pointerDark: true, digits: 4, decimals: '', polarity: 'auto', style: 'auto', learned: [], cal: null, live: null, issues: [], hist: [],
   });
   startCalibration(id);
 }
@@ -473,10 +528,15 @@ function renderChannels(): void {
              <label class="field">Dezimalstellen <input type="number" data-f="decimals" min="0" max="6" value="${c.decimals}" placeholder="auto" style="width:5.5em"/></label>
              <label class="field">Anzeige <select data-f="polarity">
                ${(['auto', 'dark-on-light', 'light-on-dark'] as const).map((p) => `<option value="${p}" ${p === c.polarity ? 'selected' : ''}>${{ auto: 'automatisch', 'dark-on-light': 'dunkle Ziffern', 'light-on-dark': 'helle Ziffern' }[p]}</option>`).join('')}
+             </select></label>
+             <label class="field">Schrift <select data-f="style">
+               ${(['auto', 'segment', 'glyph'] as const).map((p) => `<option value="${p}" ${p === c.style ? 'selected' : ''}>${{ auto: 'automatisch', segment: '7-Segment', glyph: 'LCD / Punktmatrix' }[p]}</option>`).join('')}
              </select></label>`}
       </div>
       <div class="bar">
         <button type="button" data-act="calib">${icon(c.type === 'analog' ? 'gauge' : 'digits', 18)}${c.cal ? 'Neu kalibrieren' : 'Kalibrieren'}</button>
+        ${c.type === 'digital' ? `<button type="button" data-act="learn" ${c.cal ? '' : 'disabled'} title="Das Gerät zeigt gerade Ziffern an: eintippen, damit die App sie wiedererkennt">${icon('digits', 18)}Ziffern anlernen${c.learned.length ? ` (${c.learned.length})` : ''}</button>
+        ${c.learned.length ? `<button type="button" class="ghost" data-act="unlearn">${icon('reset', 18)}Angelernte löschen</button>` : ''}` : ''}
         <button type="button" class="ghost" data-act="undo" ${c.hist.length ? '' : 'disabled'}>${icon('undo', 18)}Rückgängig</button>
         <button type="button" class="ghost" data-act="remove" aria-label="${esc(c.name)} entfernen">${icon('trash', 18)}Entfernen</button>
       </div>
@@ -499,6 +559,7 @@ function onFieldChange(el: HTMLInputElement | HTMLSelectElement): void {
   else if (f === 'digits') c.digits = Math.max(1, parseInt(String(val), 10) || 1);
   else if (f === 'decimals') c.decimals = String(val);
   else if (f === 'polarity') c.polarity = val as Chan['polarity'];
+  else if (f === 'style') c.style = val as Chan['style'];
   const sc = session.channels.find((s) => s.id === c.id);
   if (sc) { sc.name = c.name; sc.unit = c.unit; }
   rebuildCal(c);
@@ -514,6 +575,14 @@ $('channels').addEventListener('click', (e) => {
   if (!btn || !box) return;
   const id = box.dataset.id!;
   if (btn.dataset.act === 'calib') startCalibration(id);
+  else if (btn.dataset.act === 'learn') void learnDigits(id);
+  else if (btn.dataset.act === 'unlearn') {
+    const c = chan(id);
+    c.learned = [];
+    rebuildCal(c);
+    renderChannels();
+    scheduleSave();
+  }
   else if (btn.dataset.act === 'undo') { calib = calib ?? null; sel = { id, key: 'p2' }; undo(); }
   else if (btn.dataset.act === 'remove') {
     chans = chans.filter((c) => c.id !== id);
@@ -531,10 +600,10 @@ $('channels').addEventListener('click', (e) => {
 /* ---- Kalibrierung sichern / laden ---- */
 
 function toSaved(c: Chan): SavedChannel {
-  return { id: c.id, type: c.type, name: c.name, unit: c.unit, cal: c.cal, raw: c.raw, bigArc: c.bigArc, pointerDark: c.pointerDark, roi: c.roi, digits: c.digits, decimals: c.decimals, polarity: c.polarity };
+  return { id: c.id, type: c.type, name: c.name, unit: c.unit, cal: c.cal, raw: c.raw, bigArc: c.bigArc, pointerDark: c.pointerDark, roi: c.roi, digits: c.digits, decimals: c.decimals, polarity: c.polarity, style: c.style, learned: c.learned };
 }
 function fromSaved(s: SavedChannel, slot: number): Chan {
-  return { id: s.id, slot, type: s.type, name: s.name, unit: s.unit, raw: (s.raw as Chan['raw']) ?? {}, bigArc: s.bigArc, pointerDark: s.pointerDark, roi: s.roi as Rect | undefined, digits: s.digits, decimals: s.decimals, polarity: s.polarity as Chan['polarity'], cal: s.cal, live: null, issues: [], hist: [] };
+  return { id: s.id, slot, type: s.type, name: s.name, unit: s.unit, raw: (s.raw as Chan['raw']) ?? {}, bigArc: s.bigArc, pointerDark: s.pointerDark, roi: s.roi as Rect | undefined, digits: s.digits, decimals: s.decimals, polarity: s.polarity as Chan['polarity'], style: (s.style as Chan['style']) ?? 'segment', learned: s.learned ?? [], cal: s.cal, live: null, issues: [], hist: [] };
 }
 $('cal-save').onclick = () => download(new Blob([calibrationFile(chans.filter((c) => c.cal).map(toSaved))], { type: 'application/json' }), `kalibrierung-${stamp()}.json`);
 $<HTMLInputElement>('cal-load').onchange = async (e) => {
@@ -985,7 +1054,7 @@ function restore(): void {
 document.addEventListener('keydown', (e) => {
   const t = e.target as HTMLElement;
   const typing = ['INPUT', 'SELECT', 'TEXTAREA'].includes(t.tagName) && !(t as HTMLInputElement).type?.match(/checkbox|range|file/);
-  if (valdlg.open || helpdlg.open) return;
+  if (valdlg.open || helpdlg.open || learndlg.open) return;
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undo(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey || typing) return;
   if (e.key === 'Escape') {
