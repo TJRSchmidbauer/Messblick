@@ -289,3 +289,19 @@ th .sym { color: var(--c); margin-right: .3rem; }
 .varbar .grid-controls { grid-template-columns: 1fr 6rem 1fr 6rem; }
 .varbar .grid-controls input { width: 100%; }
 @media (max-width: 640px) { .varbar .grid-controls { grid-template-columns: 1fr 6rem; } }
+
+/* Versuchsvorlagen */
+.tplpick { margin: 1rem 0; border: 1.5px solid var(--line); border-radius: 12px; padding: .5rem 1rem 1rem; }
+.tplpick legend { font-weight: 700; padding: 0 .4rem; }
+.tplcard { margin-bottom: 1.25rem; padding: .9rem 1rem; border: 1.5px solid var(--ink); border-radius: 12px; background: var(--surface); }
+.tpl-head { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: space-between; align-items: center; }
+.tpl-head h3 { margin: 0; }
+.tpl-inputs { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; margin: .6rem 0; }
+.tpl-inputs .field input { width: 8em; }
+.tpl-inputs .rel input { width: 4.5em; }
+.tplres { margin: .6rem 0 0; padding: .6rem .8rem; border-left: 4px solid var(--accent); }
+.tplres .val { font-family: "JetBrains Mono Variable", "JetBrains Mono", monospace; font-size: 1.15rem; font-weight: 700; }
+.tplres .lit { margin: .25rem 0 0; }
+.tplres .lit.ok { color: var(--ok); }
+.tplres .lit.bad { color: var(--danger); }
+.tplres .problem { color: var(--warn); margin: 0; }

@@ -66,6 +66,15 @@
           <label class="choice"><span data-icon="film" data-size="28"></span><b>Videodatei</b><small>Vorher gefilmt, Frame-genau</small><input id="file" type="file" accept="video/*" hidden /></label>
           <button id="btn-demo" type="button" class="choice"><span data-icon="flask" data-size="28"></span><b>Demo</b><small>Ausprobieren ohne Gerät</small></button>
         </div>
+        <fieldset class="tplpick">
+          <legend>Versuchsvorlage (optional)</legend>
+          <p class="note">Stellt Geräte, Achsen und Fitmodell für einen Standardversuch ein und rechnet die gesuchte Größe samt Unsicherheit aus.</p>
+          <div class="bar">
+            <label class="field">Versuch <select id="tpl-select"></select></label>
+            <button id="tpl-apply" type="button" disabled><span data-icon="flask"></span>Vorlage anwenden</button>
+          </div>
+          <p id="tpl-pick-summary" class="note"></p>
+        </fieldset>
         <details open class="tips">
           <summary>So gelingt die Aufnahme</summary>
           <ul>
@@ -114,6 +123,13 @@
       </section>
 
       <section class="panel" id="panel-4" role="tabpanel" aria-labelledby="tab-4" hidden>
+        <section id="tpl-card" class="tplcard" hidden aria-labelledby="tpl-title">
+          <div class="tpl-head"><h3 id="tpl-title"></h3><button id="tpl-end" type="button" class="ghost"><span data-icon="x"></span>Vorlage beenden</button></div>
+          <p id="tpl-topic" class="note"></p>
+          <details><summary>Ablauf</summary><ol id="tpl-steps"></ol></details>
+          <div id="tpl-inputs" class="tpl-inputs"></div>
+          <div id="tpl-results" aria-live="polite"></div>
+        </section>
         <h2>Graph und Export</h2>
         <div class="grid-controls">
           <label class="field">x-Achse <select id="xsel"></select></label>

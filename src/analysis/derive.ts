@@ -1,6 +1,6 @@
 /**
  * Abgeleitete Größen: Ableitung, Integral und Formelkanal mit Fehlerfortpflanzung.
- * Eigener Parser, kein eval: Zahlen, Namen, + - * / ^, Klammern, sqrt ln exp sin cos abs.
+ * Eigener Parser, kein eval: Zahlen, Namen, die Konstante pi, + - * / ^, Klammern, sqrt ln exp sin cos abs.
  */
 
 export interface XY {
@@ -66,8 +66,8 @@ function tokenize(src: string): Token[] {
       const m = /^(\d+([.,]\d+)?|[.,]\d+)([eE][+-]?\d+)?/.exec(src.slice(i))!;
       out.push({ t: 'num', s: m[0].replace(',', '.'), pos: i });
       i += m[0].length;
-    } else if (/[A-Za-zÄÖÜäöüß_τωφδ]/.test(c)) {
-      const m = /^[A-Za-zÄÖÜäöüß_τωφδ][A-Za-zÄÖÜäöüß_τωφδ0-9]*/.exec(src.slice(i))!;
+    } else if (/[A-Za-zÄÖÜäöüß_τωφδπ]/.test(c)) {
+      const m = /^[A-Za-zÄÖÜäöüß_τωφδπ][A-Za-zÄÖÜäöüß_τωφδπ0-9]*/.exec(src.slice(i))!;
       out.push({ t: 'id', s: m[0], pos: i });
       i += m[0].length;
     } else if ('+-*/^()'.includes(c)) {
@@ -134,6 +134,7 @@ export function parseExpression(src: string): Expression {
         expectOp(')');
         return { k: 'fn', name: t.s.toLowerCase(), a };
       }
+      if (t.s === 'pi' || t.s === 'π') return { k: 'num', v: Math.PI };
       vars.add(t.s);
       return { k: 'var', name: t.s, pos: t.pos };
     }

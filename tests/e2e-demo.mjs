@@ -148,6 +148,34 @@ await page.screenshot({ path: `${shots}/03c-parameterreihe.png`, fullPage: true 
 await page.click('#var-clear');
 await page.selectOption('#fit-model', '');
 
+// Versuchsvorlagen: Zeitverlauf (Kondensator) mit Eingaben und Literaturvergleich, Parameterreihe (Fotoeffekt)
+await page.click('#tab-1');
+await page.selectOption('#tpl-select', 'kond-entladen');
+await page.click('#tpl-apply');
+await page.click('#tab-4');
+await page.waitForTimeout(400);
+if (!(await page.locator('#tpl-card').isVisible())) throw new Error('Vorlagenkarte fehlt');
+const tpl1 = await page.locator('#tpl-results').innerText();
+console.log('Vorlage Kondensator:', tpl1.replace(/\n+/g, ' | ').slice(0, 200));
+if (!/Bitte eintragen: Widerstand R/.test(tpl1)) throw new Error('Hinweis auf fehlendes R fehlt: ' + tpl1);
+await page.fill('#tpl-in-R', '1000'); await page.fill('#tpl-in-Cnenn', '4700'); await page.fill('#tpl-rel-R', '1');
+const tpl2 = await page.locator('#tpl-results').innerText();
+if (!/Kapazität C/.test(tpl2) || /Bitte eintragen/.test(tpl2) || !/Nennwert/.test(tpl2)) throw new Error('Kapazität mit Vergleich fehlt: ' + tpl2);
+await page.click('#tab-1');
+await page.selectOption('#tpl-select', 'fotoeffekt');
+await page.click('#tpl-apply');
+await page.click('#tab-4');
+for (const p of ['5', '6', '7']) { await page.fill('#var-p', p); await page.waitForTimeout(900); await page.click('#var-take'); }
+const tpl3 = await page.locator('#tpl-results').innerText();
+console.log('Vorlage Fotoeffekt:', tpl3.replace(/\n+/g, ' | ').slice(0, 260));
+if (!/Planck-Konstante/.test(tpl3) || !/Literaturwert/.test(tpl3)) throw new Error('Fotoeffekt-Ergebnis fehlt: ' + tpl3);
+const [tx] = await Promise.all([page.waitForEvent('download'), page.click('#var-xlsx')]);
+if (!XLSX.read(fs.readFileSync(await tx.path())).SheetNames.includes('Ergebnis')) throw new Error('Blatt Ergebnis fehlt');
+await page.screenshot({ path: `${shots}/03d-vorlage.png`, fullPage: true });
+await page.click('#tpl-end');
+if (await page.locator('#tpl-card').isVisible()) throw new Error('Vorlage lässt sich nicht beenden');
+await page.click('#var-clear');
+
 // Reihe sichern + zweite Aufnahme (live) + Vergleich
 await page.keyboard.press('3');
 await page.click('#btn-archive');

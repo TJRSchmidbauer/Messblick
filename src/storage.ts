@@ -34,6 +34,8 @@ export interface SavedState {
   smoothing: number;
   /** Parameterreihe (siehe main.ts); fehlt in älteren Sitzungen. */
   variation?: unknown;
+  /** Gewählte Versuchsvorlage mit Eingaben; fehlt in älteren Sitzungen. */
+  template?: unknown;
   session: { channels: ChannelDef[]; samples: Sample[]; runs: Run[] };
 }
 

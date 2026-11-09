@@ -11,6 +11,7 @@ import { modelById } from './analysis/fit/models';
 import { parseExpression } from './analysis/derive';
 import { TRANSFORMS, averageReadings, suggestPlots, toPoints, transformLabel, type Transform, type VarRow } from './analysis/variation';
 import { sigmaOf } from './analysis/uncertainty';
+import { TEMPLATES, evalTemplateResults, templateById, type Template, type TplResultLine } from './templates';
 import { describeUncertainty, type UncertaintyConfig } from './analysis/uncertainty';
 import { icon, symbol, SYMBOLS } from './ui/icons';
 import { openCamera, openVideoFile } from './source/video';
@@ -72,6 +73,11 @@ let variation: VarState = freshVariation();
 /** Letzte Ablesungen je Gerät (für den Mittelwert beim Übernehmen). */
 const liveBuf = new Map<string, number[]>();
 let lastVarFit: FitSuccess | null = null;
+/** Versuchsvorlage: gewählte Kennung, Eingaben (Wert und relative Unsicherheit in %), Achsenwahl, die beim nächsten Rendern gesetzt wird. */
+let tplId = '';
+let tplInputs: Record<string, { v: string; rel: string }> = {};
+let tplAxes: { x: 'time' | 'dev0'; y: 'dev0' | 'dev1' } | null = null;
+let tplLines: TplResultLine[] = [];
 let stopLive: (() => void) | null = null;
 let abort: AbortController | null = null;
 let beamer = false;
@@ -968,6 +974,7 @@ function renderResults(light = false): void {
   updateButtons();
   const problems = session.recompute();
   renderDerivedList(problems);
+  applyTplAxes();
   const x = xsel.value || TIME_KEY;
   const ys = [...new Set([ysel.value, y2sel.value])].filter((v) => v && session.channels.some((c) => c.id === v));
   const series: ChartSeries[] = [];
@@ -993,6 +1000,7 @@ function renderResults(light = false): void {
   renderRuns();
   renderTable();
   renderVariation(light);
+  renderTemplateResults();
 }
 
 /* ---- Fit ---- */
@@ -1002,10 +1010,14 @@ $<HTMLSelectElement>('fit-model').innerHTML = `<option value="">– kein Fit –
 
 /** Wert ± Unsicherheit: Unsicherheit auf 2 gültige Stellen, Wert auf dieselbe Stelle gerundet. */
 function withError(v: number, s: number): string {
+  const exp = (n: number, d: number): string => n.toExponential(d).replace('.', ',').replace('e+', 'e');
+  if (!Number.isFinite(v)) return '–';
+  if (Math.abs(v) >= 1e15 || (Number.isFinite(s) && s >= 1e15)) return Number.isFinite(s) && s > 0 ? `${exp(v, 3)} ± ${exp(s, 1)}` : exp(v, 3);
   const fix = (n: number, dec: number): string => n.toFixed(Math.max(0, dec)).replace('.', ',');
-  if (!Number.isFinite(s) || s <= 0) return fix(Number(v.toPrecision(4)), 6 - Math.max(0, Math.floor(Math.log10(Math.abs(v) || 1))));
+  if (!Number.isFinite(s) || s <= 0) return fix(Number(v.toPrecision(4)), 3 - Math.floor(Math.log10(Math.abs(v) || 1)));
   const p = Math.pow(10, Math.floor(Math.log10(s)) - 1);
   const dec = -Math.floor(Math.log10(p));
+  if (dec > 9) return `${String(Number(v.toPrecision(6))).replace('.', ',').replace('e+', 'e')} ± ${exp(s, 1)}`; // winzige Größenordnung: Zehnerpotenz statt vieler Nullen
   return `${fix(Math.round(v / p) * p, dec)} ± ${fix(Math.round(s / p) * p, dec)}`;
 }
 const fitLines = (f: FitSuccess): string[] => [
@@ -1300,8 +1312,130 @@ $('var-xlsx').onclick = () => {
       ...f.params.map((p) => [p.name, p.value, Number.isFinite(p.sigma) ? p.sigma : null]),
     ] } });
   }
+  const res = tplSheet();
+  if (res) sheets.push(res);
   download(new Blob([toXlsx(sheets) as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `parameterreihe-${stamp()}.xlsx`);
 };
+
+/* ---- Versuchsvorlagen ---- */
+
+const tplSelect = $<HTMLSelectElement>('tpl-select');
+tplSelect.innerHTML = `<option value="">– Vorlage wählen –</option>${TEMPLATES.map((t) => `<option value="${t.id}">${esc(t.title)}</option>`).join('')}`;
+tplSelect.onchange = () => {
+  const t = templateById(tplSelect.value);
+  $<HTMLButtonElement>('tpl-apply').disabled = !t;
+  $('tpl-pick-summary').textContent = t ? `${t.topic}. ${t.summary}` : '';
+};
+$('tpl-apply').onclick = () => { const t = templateById(tplSelect.value); if (t) applyTemplate(t); };
+$('tpl-end').onclick = () => { tplId = ''; tplInputs = {}; tplLines = []; renderTemplateCard(); scheduleSave(); };
+
+function applyTemplate(t: Template): void {
+  if (t.mode === 'series' && variation.rows.length && !window.confirm('Die vorhandene Parameterreihe wird durch eine neue ersetzt. Fortfahren?')) return;
+  tplId = t.id;
+  tplInputs = {};
+  fitRange = null;
+  // Geräte benennen, wie die Vorlage es vorsieht (nur vorhandene; fehlende legt man selbst an)
+  (t.channels ?? []).forEach((spec, i) => {
+    const c = chans[i];
+    if (!c) return;
+    c.name = spec.name; c.unit = spec.unit;
+    if (spec.poisson) c.unc = { mode: 'poisson', a: '', b: '', c: '' };
+    const sc = session.channels.find((x) => x.id === c.id);
+    if (sc) { sc.name = c.name; sc.unit = c.unit; sc.uncertainty = uncOf(c); }
+  });
+  if (t.mode === 'series') {
+    const s = t.series!;
+    variation = { ...freshVariation(), pname: s.pname, punit: s.punit, vname: s.vname, vunit: s.vunit, tx: s.tx, ty: s.ty, model: s.model };
+    fitModelId = '';
+  } else {
+    fitModelId = t.fit!;
+    tplAxes = t.mode === 'time' ? { x: 'time', y: 'dev0' } : { x: 'dev0', y: 'dev1' };
+  }
+  renderChannels(); renderLive(); refreshSelects();
+  const have = chans.length, need = t.channels?.length ?? 0;
+  setHint(have < need
+    ? `Vorlage „${t.title}“: Lege noch ${need - have} Gerät(e) an (${(t.channels ?? []).slice(have).map((c) => c.name).join(', ')}) und kalibriere sie.`
+    : `Vorlage „${t.title}“ angewendet. Der Ablauf steht in Schritt 4 oben.`);
+  renderResults(); scheduleSave();
+}
+
+/** Setzt x- und y-Achse nach der Vorlage, sobald die Sitzung die Geräte kennt (nach der ersten Aufnahme). */
+function applyTplAxes(): void {
+  if (!tplAxes) return;
+  const ch = session.channels.filter((c) => !c.derived);
+  const need = tplAxes.y === 'dev1' ? 2 : 1;
+  if (ch.length < need) return;
+  xsel.value = tplAxes.x === 'time' ? TIME_KEY : ch[0].id;
+  ysel.value = tplAxes.y === 'dev1' ? ch[1].id : ch[0].id;
+  tplAxes = null;
+}
+
+function renderTemplateCard(): void {
+  const t = templateById(tplId);
+  $('tpl-card').hidden = !t;
+  if (!t) { $('tpl-results').innerHTML = ''; return; }
+  $('tpl-title').textContent = `Versuch: ${t.title}`;
+  $('tpl-topic').textContent = `${t.topic}. ${t.summary}`;
+  $('tpl-steps').innerHTML = t.steps.map((s) => `<li>${esc(s)}</li>`).join('');
+  tplSelect.value = t.id;
+  $('tpl-inputs').innerHTML = t.inputs.map((i) => `
+    <span class="field"><label for="tpl-in-${i.id}">${esc(i.label)}${i.optional ? ' (optional)' : ''}</label>
+      <span class="inputunit"><input id="tpl-in-${i.id}" data-tpl-in="${i.id}" inputmode="decimal" autocomplete="off" value="${esc(tplInputs[i.id]?.v ?? '')}" /><span>${esc(i.unit)}</span></span></span>
+    <span class="field rel"><label for="tpl-rel-${i.id}">± Unsicherheit</label>
+      <span class="inputunit"><input id="tpl-rel-${i.id}" data-tpl-rel="${i.id}" inputmode="decimal" autocomplete="off" placeholder="0" value="${esc(tplInputs[i.id]?.rel ?? '')}" /><span>%</span></span></span>`).join('');
+  renderTemplateResults();
+}
+$('tpl-inputs').addEventListener('input', (e) => {
+  const el = e.target as HTMLInputElement;
+  const id = el.dataset.tplIn ?? el.dataset.tplRel;
+  if (!id) return;
+  tplInputs[id] = { v: tplInputs[id]?.v ?? '', rel: tplInputs[id]?.rel ?? '' };
+  if (el.dataset.tplIn) tplInputs[id].v = el.value; else tplInputs[id].rel = el.value;
+  renderTemplateResults(); scheduleSave();
+});
+
+function renderTemplateResults(): void {
+  const t = templateById(tplId);
+  const host = $('tpl-results');
+  tplLines = [];
+  if (!t) return;
+  if ($('tpl-card').hidden) { renderTemplateCard(); return; }
+  const fit = t.mode === 'series' ? lastVarFit : lastFit;
+  if (!fit) {
+    host.innerHTML = `<p class="note">${icon('info', 16)} ${t.mode === 'series' ? 'Das Ergebnis erscheint, sobald die Parameterreihe mindestens zwei Zeilen und einen gültigen Fit hat.' : 'Das Ergebnis erscheint, sobald es Messwerte gibt und der Fit gelingt.'}</p>`;
+    return;
+  }
+  const inputs = Object.fromEntries(t.inputs.map((i) => {
+    const v = tplInputs[i.id];
+    const num = v && v.v.trim() !== '' ? Number(v.v.trim().replace(',', '.')) : NaN;
+    const rel = v && v.rel.trim() !== '' ? Number(v.rel.trim().replace(',', '.')) : NaN;
+    return [i.id, { value: Number.isFinite(num) ? num : null, relPercent: Number.isFinite(rel) ? rel : null }];
+  }));
+  tplLines = evalTemplateResults(t, fit.params, inputs);
+  host.innerHTML = tplLines.map((l) => {
+    if (l.problem) return `<div class="tplres"><b>${esc(l.label)}</b><p class="problem">${icon('warning', 16)} ${esc(l.problem)}</p></div>`;
+    const unit = l.unit ? ` ${esc(l.unit)}` : '';
+    const lit = l.lit ? (() => {
+      const c = l.lit.comparison, ok = c.verdict === 'compatible';
+      return `<p class="lit ${c.verdict === 'unknown' ? '' : ok ? 'ok' : 'bad'}">${icon(ok ? 'check' : 'warning', 16)} ${esc(l.lit.label)}: ${withError(l.lit.value, l.lit.sigma ?? NaN)}${unit}${l.lit.source ? ` (${esc(l.lit.source)})` : ''}. ${esc(c.text)}</p>`;
+    })() : '';
+    return `<div class="tplres"><b>${esc(l.label)}</b><div class="val">${withError(l.value!, l.sigma ?? NaN)}${unit}</div>${lit}</div>`;
+  }).join('');
+}
+
+/** Ergebnisblatt für die XLSX-Exporte. */
+function tplSheet(): { name: string; table: { header: string[]; rows: (number | string | null)[][] } } | null {
+  const t = templateById(tplId);
+  const lines = tplLines.filter((l) => l.value !== null);
+  if (!t || !lines.length) return null;
+  return {
+    name: 'Ergebnis',
+    table: {
+      header: ['Größe', 'Wert', 'Unsicherheit', 'Einheit', 'Literaturwert', 'Beurteilung'],
+      rows: lines.map((l) => [l.label, l.value, l.sigma, l.unit, l.lit?.value ?? null, l.lit?.comparison.text ?? '']),
+    },
+  };
+}
 
 function renderRuns(): void {
   const host = $('runs');
@@ -1370,6 +1504,8 @@ $('dl-xlsx').onclick = () => {
       },
     });
   }
+  const res = tplSheet();
+  if (res) sheets.push(res);
   download(new Blob([toXlsx(sheets) as BlobPart], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), `messwerte-${stamp()}.xlsx`);
 };
 $('dl-png').onclick = async () => {
@@ -1393,7 +1529,7 @@ function saveNow(): void {
   saveTimer = 0;
   const state: SavedState = {
     version: 1, channels: chans.map(toSaved), nextId, hz: Number($<HTMLSelectElement>('hz').value), theme: themeSel.value,
-    smoothing: session.smoothing, variation, session: { channels: session.channels, samples: session.samples, runs: session.runs },
+    smoothing: session.smoothing, variation, template: { id: tplId, inputs: tplInputs }, session: { channels: session.channels, samples: session.samples, runs: session.runs },
   };
   try { localStorage.setItem(STORAGE_KEY, serialize(state)); } catch {
     if (!saveWarned) { saveWarned = true; showError('Automatisches Speichern ist nicht möglich (Speicher voll oder gesperrt). Exportiere deine Daten rechtzeitig.'); }
@@ -1419,6 +1555,8 @@ function restore(): void {
   session.samples = s.session.samples ?? [];
   session.runs = s.session.runs ?? [];
   session.smoothing = s.smoothing ?? 0;
+  const tp = s.template as { id?: string; inputs?: typeof tplInputs } | undefined;
+  if (tp?.id && templateById(tp.id)) { tplId = tp.id; tplInputs = tp.inputs ?? {}; }
   if (s.variation && typeof s.variation === 'object') variation = { ...freshVariation(), ...(s.variation as Partial<VarState>) };
   $<HTMLInputElement>('smooth').checked = session.smoothing >= 3;
   if (chans.length || session.samples.length || session.runs.length || variation.rows.length) {
@@ -1428,7 +1566,7 @@ function restore(): void {
       <button type="button" id="restore-reset">Neu beginnen</button><button type="button" class="ghost" id="restore-ok">OK</button>`;
     $('restore-ok').onclick = () => { n.hidden = true; };
     $('restore-reset').onclick = () => {
-      chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1; variation = freshVariation();
+      chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1; variation = freshVariation(); tplId = ''; tplInputs = {};
       n.hidden = true;
       try { localStorage.removeItem(STORAGE_KEY); } catch { /* egal */ }
       renderChannels(); renderLive(); updateButtons(); renderResults();
@@ -1480,6 +1618,7 @@ renderLive();
 refreshSelects();
 updateButtons();
 applyStep();
+renderTemplateCard();
 renderResults();
 
 /* ============================== Offline ============================== */
