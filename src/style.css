@@ -251,6 +251,8 @@ th .sym { color: var(--c); margin-right: .3rem; }
 /* ---------- Fußzeile ---------- */
 .site-foot { max-width: 1500px; margin: 0 auto; padding: 1rem 1.25rem 2rem; color: var(--ink-2); display: flex; flex-wrap: wrap; gap: .4rem 1.5rem; align-items: baseline; }
 .site-foot b { font-family: 'Space Grotesk', sans-serif; color: var(--ink); }
+.site-foot .legal { display: flex; gap: 1.25rem; margin-left: auto; }
+.site-foot .legal a { color: var(--link); text-underline-offset: .2em; }
 .site-foot .dot { color: var(--brand-ziegel); }
 @media (max-width: 900px) { .site-foot { padding-bottom: 6.5rem; } }
 

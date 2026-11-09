@@ -28,7 +28,7 @@ Physiksaal, Unterrichtsstunde mit knapper Zeit; wechselnde Bediener; teils unzuv
 
 ## Brand Commitments
 Name: „Physik-Messwerterfassung“. Visuelle Marke: schmidbauer.io (Corporate Design): Apricot #F6B48F, Ziegelrot #E8836B, Kohle #2E2A28, Creme #FBF4EC, Link #A0502C; Schriften Space Grotesk (Überschriften), Atkinson Hyperlegible (Text), JetBrains Mono (Zahlen); Wortmarke „ts.“; flächig und ruhig, keine Verläufe, keine Schatten. Claim: „Verstehen. Bauen. Teilen.“
-Keine Verweise auf fremde Webseiten und keine fremd geladenen Ressourcen (Schriften, Skripte, Bilder): alles wird mitausgeliefert.
+Keine Verweise auf fremde Webseiten und keine fremd geladenen Ressourcen (Schriften, Skripte, Bilder): alles wird mitausgeliefert. Einzige Ausnahme sind die Links „Impressum“ und „Datenschutz“ in der Fußzeile auf die eigene Seite schmidbauer.io; sie laden nichts nach, sondern öffnen erst beim Anklicken in einem neuen Tab.
 
 ## Evidence on Hand
 Demo-Quelle und synthetische Testbilder; keine realen Fotos oder Videos von PHYWE-Geräten oder Multimetern vorhanden. Lehrplanbezug: LehrplanPLUS Physik 12/13 eA.
