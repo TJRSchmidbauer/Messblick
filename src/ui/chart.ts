@@ -14,6 +14,8 @@ export interface ChartSeries {
   points: { x: number; y: number; c: number; sy?: number }[];
   /** Fitkurve: nur Linie, ohne Punkte, ohne Fehlerbalken. */
   fit?: boolean;
+  /** Gezeichnete Vorhersage: gepunktete Linie. */
+  pred?: boolean;
 }
 
 export interface ChartInput {
@@ -109,6 +111,12 @@ export class ResultChart {
     const ch = this.chart;
     ch.data.datasets = d.series.map((s) => {
       const low = (p: { c: number }) => p.c < 0.4;
+      if (s.pred) {
+        return {
+          label: s.label, data: s.points.map((p) => ({ x: p.x, y: p.y })), yAxisID: s.axis, showLine: true,
+          borderColor: s.color, backgroundColor: s.color, borderWidth: 3, borderDash: [2, 6], pointRadius: 0, pointHoverRadius: 0,
+        } as any;
+      }
       if (s.fit) {
         return {
           label: s.label, data: s.points.map((p) => ({ x: p.x, y: p.y })), yAxisID: s.axis, showLine: true,

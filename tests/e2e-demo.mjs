@@ -97,6 +97,25 @@ await page.click('[data-jump-undo]');
 if (!/Sprung ×10/.test(await page.locator('#jump-notes').innerText())) throw new Error('Zurücknehmen fehlt');
 await page.click('[data-jump-fix]');
 
+// Vorhersage: Kurve zeichnen, im Graphen erscheint sie gepunktet, dazu eine Rückmeldung mit Denkanstoß
+await page.click('#tab-3');
+await page.click('#pred-box summary');
+await page.selectOption('#pred-x', 't'); await page.selectOption('#pred-y', { index: 0 });
+await page.fill('#pred-xmax', '30'); await page.fill('#pred-ymin', '0'); await page.fill('#pred-ymax', '10');
+await page.locator('#pred-canvas').scrollIntoViewIfNeeded();
+const pb = await page.locator('#pred-canvas').boundingBox();
+await page.mouse.move(pb.x + pb.width * 0.12, pb.y + pb.height * 0.5); await page.mouse.down();
+for (let i = 0; i <= 40; i++) { const f = i / 40; await page.mouse.move(pb.x + pb.width * (0.12 + 0.84 * f), pb.y + pb.height * (0.5 - 0.35 * Math.sin(f * Math.PI * 2 * 1.6))); }
+await page.mouse.up();
+if (!/Vorhersage gespeichert/.test(await page.locator('#pred-state').textContent())) throw new Error('Vorhersage wurde nicht gespeichert');
+await page.click('#tab-4');
+await page.selectOption('#xsel', { value: 't' }); await page.selectOption('#ysel', { index: 0 });
+const predFb = await page.locator('#pred-feedback').innerText();
+console.log('Vorhersage:', predFb);
+if (!/Abweichung|Vorhersage/.test(predFb)) throw new Error('Rückmeldung zur Vorhersage fehlt');
+await page.screenshot({ path: `${shots}/03e-vorhersage.png`, fullPage: true });
+await page.click('#pred-clear').catch(() => {});
+
 // Teilprojekt 1: Messunsicherheit (Güteklasse), Fit (Sinus, ω ≈ 1/3 der Demo), Fitbereich, Neue Größe, Export
 await page.click('#tab-2');
 await page.selectOption('.chan:nth-child(1) select[data-f=umode]', 'class');

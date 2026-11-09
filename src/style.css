@@ -316,3 +316,9 @@ th .sym { color: var(--c); margin-right: .3rem; }
 .tplres .budget th { position: static; }
 .tplres .budget th, .tplres .budget td { padding: .2rem .8rem .2rem 0; text-align: left; border-bottom: 1px solid var(--line); }
 .tplres .budget td.num { font-family: "JetBrains Mono Variable", "JetBrains Mono", monospace; }
+
+/* Vorhersage */
+.predict { margin: 1rem 0; border: 1.5px solid var(--line); border-radius: 12px; padding: .6rem 1rem 1rem; }
+.predict summary { font-weight: 700; cursor: pointer; }
+#pred-canvas { width: 100%; max-width: 560px; height: auto; aspect-ratio: 2 / 1; touch-action: none; cursor: crosshair; background: var(--surface); border: 1.5px solid var(--ink); border-radius: 8px; margin-top: .6rem; }
+.predfeedback { margin: .5rem 0; padding: .55rem .8rem; border-left: 4px solid var(--accent); background: var(--surface); }

@@ -119,6 +119,23 @@
           <button id="btn-clear" type="button" disabled><span data-icon="trash"></span>Verwerfen</button>
         </div>
         <p class="note">„Reihe sichern“ legt die aktuelle Messung beiseite, damit du eine zweite aufnehmen und im Graphen vergleichen kannst.</p>
+        <details class="predict" id="pred-box">
+          <summary>Vorhersage: Was erwartest du?</summary>
+          <p class="note">Zeichne vor der Messung die erwartete Kurve. In der Auswertung liegt deine Messung dann darüber, mit einer Rückmeldung.</p>
+          <div class="grid-controls">
+            <label class="field">x-Achse <select id="pred-x"></select></label>
+            <label class="field">y-Achse <select id="pred-y"></select></label>
+          </div>
+          <div class="grid-controls">
+            <label class="field">x von <input id="pred-xmin" inputmode="decimal" value="0" /></label>
+            <label class="field">x bis <input id="pred-xmax" inputmode="decimal" value="30" /></label>
+            <label class="field">y von <input id="pred-ymin" inputmode="decimal" value="0" /></label>
+            <label class="field">y bis <input id="pred-ymax" inputmode="decimal" value="10" /></label>
+          </div>
+          <canvas id="pred-canvas" width="560" height="280" aria-label="Zeichenfläche für deine Vorhersage. Mit gedrückter Maustaste oder dem Finger die erwartete Kurve zeichnen."></canvas>
+          <p id="pred-msg" class="error-inline" role="alert"></p>
+          <div class="bar"><button id="pred-clear" type="button" class="ghost"><span data-icon="trash"></span>Vorhersage löschen</button><span id="pred-state" class="note"></span></div>
+        </details>
         <div class="nextbar"><button type="button" class="primary" data-goto="4" id="next-3" disabled>Weiter: Auswertung<span data-icon="arrow"></span></button></div>
       </section>
 
@@ -143,6 +160,7 @@
           <label><input id="showruns" type="checkbox" checked /> gesicherte Reihen zeigen</label>
         </div>
         <div id="jump-notes" class="jumpnotes" aria-live="polite"></div>
+        <p id="pred-feedback" class="predfeedback" aria-live="polite" hidden></p>
         <div class="chartwrap"><canvas id="chart" aria-label="Messgraph"></canvas></div>
         <div class="bar"><button id="zoom-reset" type="button" class="ghost"><span data-icon="reset"></span>Zoom zurücksetzen</button><span class="note">Mausrad oder Pinch zoomt, Ziehen verschiebt.</span></div>
         <fieldset class="fitbar">

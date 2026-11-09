@@ -12,6 +12,7 @@ import { parseExpression } from './analysis/derive';
 import { TRANSFORMS, averageReadings, suggestPlots, toPoints, transformLabel, type Transform, type VarRow } from './analysis/variation';
 import { sigmaOf } from './analysis/uncertainty';
 import { detectScaleJumps, factorLabel } from './analysis/jumps';
+import { cleanPath, comparePrediction, type Prediction } from './analysis/prediction';
 import { TEMPLATES, evalTemplateResults, templateById, type Template, type TplResultLine } from './templates';
 import { describeUncertainty, type UncertaintyConfig } from './analysis/uncertainty';
 import { icon, symbol, SYMBOLS } from './ui/icons';
@@ -83,6 +84,9 @@ let tplLines: TplResultLine[] = [];
 const ignoredJumps = new Set<string>();
 let lastRescale: { id: string; from: number; to: number; factor: number } | null = null;
 const jumpWarnAt = new Map<string, number>();
+/** Vorhersage: gezeichnete Kurve und Achsenbereiche des Zeichenfelds. */
+let prediction: Prediction | null = null;
+const predRange = { xmin: 0, xmax: 30, ymin: 0, ymax: 10 };
 let stopLive: (() => void) | null = null;
 let abort: AbortController | null = null;
 let beamer = false;
@@ -963,6 +967,7 @@ function refreshSelects(): void {
   if ([...xsel.options].some((o) => o.value === px)) xsel.value = px;
   if ([...ysel.options].some((o) => o.value === py)) ysel.value = py; else if (ch.length) ysel.value = ch[0].id;
   if ([...y2sel.options].some((o) => o.value === py2)) y2sel.value = py2;
+  if ((document.getElementById('pred-box') as HTMLDetailsElement | null)?.open) predAxisOptions();
 }
 xsel.onchange = ysel.onchange = y2sel.onchange = () => renderResults();
 for (const id of ['xlog', 'ylog', 'showruns']) $(id).onchange = () => renderResults();
@@ -1001,6 +1006,7 @@ function renderResults(light = false): void {
       series.push({ label: `${name} (${run.name})`, color: colorFor(slotOf(y)), slot: slotOf(y), axis, faded: true, points: seriesOf(run.samples, x, y, session.smoothing) });
     }
   });
+  renderPredictionOnChart(x, ys[0], series, light);
   renderFit(x, ys[0], series, light);
   chart.update({
     band: fitRange, series, xLabel: label(x), yLabel: ys[0] ? label(ys[0]) : '', y2Label: ys[1] ? label(ys[1]) : '',
@@ -1487,6 +1493,130 @@ $('jump-notes').addEventListener('click', (e) => {
   renderResults(); scheduleSave();
 });
 
+/* ---- Vorhersage ---- */
+
+const predCanvas = $<HTMLCanvasElement>('pred-canvas');
+let predDrawing: { raw: { x: number; y: number }[] } | null = null;
+
+function predAxisOptions(): void {
+  const px = $<HTMLSelectElement>('pred-x'), py = $<HTMLSelectElement>('pred-y');
+  const keepX = px.value, keepY = py.value;
+  const devs = chans.filter((c) => c.cal || session.channels.some((s) => s.id === c.id));
+  const opts = devs.map((c) => `<option value="${c.id}">${esc(c.name)}${c.unit ? ` / ${esc(c.unit)}` : ''}</option>`).join('');
+  px.innerHTML = `<option value="${TIME_KEY}">Zeit / s</option>${opts}`;
+  py.innerHTML = opts || '<option value="">– kein Gerät –</option>';
+  if (prediction && !keepX) { px.value = prediction.xKey; py.value = prediction.yId; }
+  else {
+    if ([...px.options].some((o) => o.value === keepX)) px.value = keepX;
+    if ([...py.options].some((o) => o.value === keepY)) py.value = keepY;
+  }
+}
+
+const readRange = (): typeof predRange | null => {
+  const g = (id: string): number => Number($<HTMLInputElement>(id).value.trim().replace(',', '.'));
+  const r = { xmin: g('pred-xmin'), xmax: g('pred-xmax'), ymin: g('pred-ymin'), ymax: g('pred-ymax') };
+  return Object.values(r).every(Number.isFinite) && r.xmax > r.xmin && r.ymax > r.ymin ? r : null;
+};
+
+/** Zeichenfläche: Achsen mit Teilstrichen, gezeichnete Kurve. Koordinaten liegen im Rahmen links/unten für die Achsenzahlen. */
+const PRED_PAD = { l: 52, r: 12, t: 12, b: 34 };
+function drawPredCanvas(): void {
+  const ctx = predCanvas.getContext('2d')!;
+  const W = predCanvas.width, H = predCanvas.height, p = PRED_PAD;
+  const ink = cssVar('--ink'), grid = cssVar('--line');
+  ctx.clearRect(0, 0, W, H);
+  ctx.font = '13px "Atkinson Hyperlegible", system-ui, sans-serif';
+  ctx.fillStyle = ink; ctx.strokeStyle = grid; ctx.lineWidth = 1;
+  const r = readRange();
+  if (!r) { ctx.fillText('Achsenbereich prüfen: „bis“ muss größer sein als „von“.', p.l, H / 2); return; }
+  const X = (v: number): number => p.l + ((v - r.xmin) / (r.xmax - r.xmin)) * (W - p.l - p.r);
+  const Y = (v: number): number => H - p.b - ((v - r.ymin) / (r.ymax - r.ymin)) * (H - p.t - p.b);
+  for (let i = 0; i <= 5; i++) {
+    const xv = r.xmin + ((r.xmax - r.xmin) * i) / 5, yv = r.ymin + ((r.ymax - r.ymin) * i) / 5;
+    ctx.beginPath(); ctx.moveTo(X(xv), p.t); ctx.lineTo(X(xv), H - p.b); ctx.moveTo(p.l, Y(yv)); ctx.lineTo(W - p.r, Y(yv)); ctx.stroke();
+    ctx.fillText(String(Number(xv.toPrecision(3))).replace('.', ','), X(xv) - 10, H - p.b + 18);
+    ctx.fillText(String(Number(yv.toPrecision(3))).replace('.', ','), 4, Y(yv) + 4);
+  }
+  ctx.strokeStyle = ink; ctx.lineWidth = 1.5;
+  ctx.strokeRect(p.l, p.t, W - p.l - p.r, H - p.t - p.b);
+  const pts = predDrawing ? predDrawing.raw : prediction?.points ?? [];
+  if (pts.length > 1) {
+    ctx.strokeStyle = chanColor(0); ctx.lineWidth = 3; ctx.setLineDash([2, 6]); ctx.lineCap = 'round';
+    ctx.beginPath();
+    pts.forEach((q, i) => (i ? ctx.lineTo(X(q.x), Y(q.y)) : ctx.moveTo(X(q.x), Y(q.y))));
+    ctx.stroke(); ctx.setLineDash([]);
+  }
+}
+/** Pixel der Zeichenfläche → Datenwerte. */
+function predPoint(e: PointerEvent): { x: number; y: number } | null {
+  const r = readRange();
+  if (!r) return null;
+  const b = predCanvas.getBoundingClientRect();
+  const px = ((e.clientX - b.left) / b.width) * predCanvas.width, py = ((e.clientY - b.top) / b.height) * predCanvas.height;
+  const p = PRED_PAD;
+  const x = r.xmin + ((px - p.l) / (predCanvas.width - p.l - p.r)) * (r.xmax - r.xmin);
+  const y = r.ymin + ((predCanvas.height - p.b - py) / (predCanvas.height - p.t - p.b)) * (r.ymax - r.ymin);
+  return { x: Math.min(r.xmax, Math.max(r.xmin, x)), y: Math.min(r.ymax, Math.max(r.ymin, y)) };
+}
+predCanvas.addEventListener('pointerdown', (e) => {
+  const q = predPoint(e);
+  if (!q) return;
+  predCanvas.setPointerCapture(e.pointerId);
+  predDrawing = { raw: [q] };
+  $('pred-msg').textContent = '';
+  drawPredCanvas();
+});
+predCanvas.addEventListener('pointermove', (e) => {
+  if (!predDrawing) return;
+  const q = predPoint(e);
+  if (q) predDrawing.raw.push(q);
+  drawPredCanvas();
+});
+predCanvas.addEventListener('pointerup', () => {
+  if (!predDrawing) return;
+  const r = readRange()!;
+  const path = cleanPath(predDrawing.raw, (r.xmax - r.xmin) / 200);
+  predDrawing = null;
+  if (!$<HTMLSelectElement>('pred-y').value) {
+    $('pred-msg').textContent = 'Lege zuerst in Schritt 2 ein Messgerät an. Dann kannst du dafür eine Vorhersage zeichnen.';
+  } else if (path.length < 2 || path[path.length - 1].x - path[0].x < (r.xmax - r.xmin) * 0.05) {
+    $('pred-msg').textContent = 'Bitte eine Kurve über einen größeren x-Bereich ziehen.';
+  } else {
+    prediction = { xKey: $<HTMLSelectElement>('pred-x').value || TIME_KEY, yId: $<HTMLSelectElement>('pred-y').value, points: path };
+    Object.assign(predRange, r);
+    scheduleSave();
+  }
+  drawPredCanvas(); renderPredState(); renderResults();
+});
+for (const id of ['pred-xmin', 'pred-xmax', 'pred-ymin', 'pred-ymax']) {
+  $<HTMLInputElement>(id).addEventListener('input', () => { const r = readRange(); if (r) Object.assign(predRange, r); drawPredCanvas(); });
+}
+$('pred-clear').onclick = () => { prediction = null; $('pred-msg').textContent = ''; drawPredCanvas(); renderPredState(); renderResults(); scheduleSave(); };
+$('pred-box').addEventListener('toggle', () => { predAxisOptions(); drawPredCanvas(); });
+function renderPredState(): void {
+  $('pred-state').textContent = prediction ? `Vorhersage gespeichert (${prediction.points.length} Punkte).` : 'Noch keine Vorhersage.';
+}
+function syncPredInputs(): void {
+  $<HTMLInputElement>('pred-xmin').value = String(predRange.xmin).replace('.', ',');
+  $<HTMLInputElement>('pred-xmax').value = String(predRange.xmax).replace('.', ',');
+  $<HTMLInputElement>('pred-ymin').value = String(predRange.ymin).replace('.', ',');
+  $<HTMLInputElement>('pred-ymax').value = String(predRange.ymax).replace('.', ',');
+}
+
+/** Legt die Vorhersage als gepunktete Linie in den Graphen, wenn Achsen passen, und gibt die Rückmeldung aus. */
+function renderPredictionOnChart(x: string, yId: string | undefined, series: ChartSeries[], light: boolean): void {
+  const fb = $('pred-feedback');
+  fb.hidden = true;
+  if (!prediction || !yId || prediction.xKey !== x || prediction.yId !== yId) return;
+  series.push({ label: 'Vorhersage', color: light ? LIGHT.ink : cssVar('--ink'), slot: 0, axis: 'y', faded: false, pred: true, points: prediction.points.map((p) => ({ x: p.x, y: p.y, c: 1 })) });
+  const data = session.series(x, yId);
+  if (data.length) {
+    const f = comparePrediction(prediction.points, data);
+    fb.hidden = false;
+    fb.innerHTML = `${icon('info', 16)} ${esc(f.text)}`;
+  }
+}
+
 function renderRuns(): void {
   const host = $('runs');
   if (!session.runs.length) { host.innerHTML = ''; return; }
@@ -1579,7 +1709,7 @@ function saveNow(): void {
   saveTimer = 0;
   const state: SavedState = {
     version: 1, channels: chans.map(toSaved), nextId, hz: Number($<HTMLSelectElement>('hz').value), theme: themeSel.value,
-    smoothing: session.smoothing, variation, template: { id: tplId, inputs: tplInputs }, session: { channels: session.channels, samples: session.samples, runs: session.runs },
+    smoothing: session.smoothing, variation, template: { id: tplId, inputs: tplInputs }, prediction: prediction ? { ...prediction, range: predRange } : null, session: { channels: session.channels, samples: session.samples, runs: session.runs },
   };
   try { localStorage.setItem(STORAGE_KEY, serialize(state)); } catch {
     if (!saveWarned) { saveWarned = true; showError('Automatisches Speichern ist nicht möglich (Speicher voll oder gesperrt). Exportiere deine Daten rechtzeitig.'); }
@@ -1607,6 +1737,8 @@ function restore(): void {
   session.smoothing = s.smoothing ?? 0;
   const tp = s.template as { id?: string; inputs?: typeof tplInputs } | undefined;
   if (tp?.id && templateById(tp.id)) { tplId = tp.id; tplInputs = tp.inputs ?? {}; }
+  const pr = s.prediction as (Prediction & { range?: typeof predRange }) | null | undefined;
+  if (pr && Array.isArray(pr.points) && pr.points.length >= 2) { prediction = { xKey: pr.xKey, yId: pr.yId, points: pr.points }; if (pr.range) Object.assign(predRange, pr.range); }
   if (s.variation && typeof s.variation === 'object') variation = { ...freshVariation(), ...(s.variation as Partial<VarState>) };
   $<HTMLInputElement>('smooth').checked = session.smoothing >= 3;
   if (chans.length || session.samples.length || session.runs.length || variation.rows.length) {
@@ -1616,7 +1748,7 @@ function restore(): void {
       <button type="button" id="restore-reset">Neu beginnen</button><button type="button" class="ghost" id="restore-ok">OK</button>`;
     $('restore-ok').onclick = () => { n.hidden = true; };
     $('restore-reset').onclick = () => {
-      chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1; variation = freshVariation(); tplId = ''; tplInputs = {};
+      chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1; variation = freshVariation(); tplId = ''; tplInputs = {}; prediction = null;
       n.hidden = true;
       try { localStorage.removeItem(STORAGE_KEY); } catch { /* egal */ }
       renderChannels(); renderLive(); updateButtons(); renderResults();
@@ -1669,6 +1801,9 @@ refreshSelects();
 updateButtons();
 applyStep();
 renderTemplateCard();
+syncPredInputs();
+renderPredState();
+drawPredCanvas();
 renderResults();
 
 /* ============================== Offline ============================== */

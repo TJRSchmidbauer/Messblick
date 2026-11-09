@@ -36,6 +36,8 @@ export interface SavedState {
   variation?: unknown;
   /** Gewählte Versuchsvorlage mit Eingaben; fehlt in älteren Sitzungen. */
   template?: unknown;
+  /** Gezeichnete Vorhersage (siehe analysis/prediction.ts); fehlt in älteren Sitzungen. */
+  prediction?: unknown;
   session: { channels: ChannelDef[]; samples: Sample[]; runs: Run[] };
 }
 
