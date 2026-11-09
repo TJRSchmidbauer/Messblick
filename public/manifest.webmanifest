@@ -1,0 +1,16 @@
+{
+  "name": "Physik-Messwerterfassung",
+  "short_name": "Messwerte",
+  "description": "Messgeräte im Physikunterricht abfilmen, Werte ablesen, Graph und Tabelle erhalten. Läuft lokal im Browser.",
+  "lang": "de",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FBF4EC",
+  "theme_color": "#F6B48F",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

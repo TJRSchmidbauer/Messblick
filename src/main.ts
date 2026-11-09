@@ -1316,3 +1316,15 @@ refreshSelects();
 updateButtons();
 applyStep();
 renderResults();
+
+/* ============================== Offline ============================== */
+
+/** Service Worker nur im gebauten Stand: nach dem ersten Laden läuft die App auch ohne Netz. */
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  const state = $('offline-state');
+  const show = (): void => { state.hidden = false; state.textContent = 'Offline nutzbar'; };
+  navigator.serviceWorker.register('./sw.js').then(
+    (reg) => { if (navigator.serviceWorker.controller) show(); else navigator.serviceWorker.ready.then(show); void reg; },
+    () => { /* ohne Service Worker (z. B. privates Fenster): App läuft online wie bisher */ },
+  );
+}

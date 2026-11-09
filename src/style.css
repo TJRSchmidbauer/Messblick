@@ -274,3 +274,5 @@ th .sym { color: var(--c); margin-right: .3rem; }
 .derived .problem { color: var(--danger); flex-basis: 100%; }
 .bar.nowrap { flex-wrap: nowrap; }
 .unc { display: flex; flex-wrap: wrap; gap: .5rem 1rem; align-items: end; }
+
+.site-foot .offline { color: var(--ok); font-weight: 700; }

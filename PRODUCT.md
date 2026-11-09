@@ -23,7 +23,7 @@ Physiksaal, Unterrichtsstunde mit knapper Zeit; wechselnde Bediener; teils unzuv
 - Quellen: Kamera, Videodatei, Demo. Mehrere Kanäle gleichzeitig; Zeiger- (Winkel) und 7-Segment-Reader.
 - Export CSV (deutsch/international), XLSX, PNG.
 - Nur Deutsch; Fachbegriffe wie im LehrplanPLUS Bayern.
-- Offline im Physiksaal nutzbar (noch nicht umgesetzt).
+- Offline im Physiksaal nutzbar: Service Worker speichert die App beim ersten Laden; installierbar (Manifest, Symbole).
 - Noch nicht an echten Geräten getestet.
 
 ## Brand Commitments

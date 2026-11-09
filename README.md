@@ -17,6 +17,7 @@ Alles läuft **lokal im Browser**: kein Server, kein Konto, keine Übertragung v
 - **Fit und Messunsicherheit:** Pro Gerät lässt sich die Messunsicherheit angeben (Güteklasse mit Messbereich, Ziffernschritte, fester Wert oder Zählrate √N). Der Graph zeigt dann Fehlerbalken, und der Fit wird damit gewichtet. Modelle: Gerade, Proportional, Zerfall mit Offset, Sättigung, Potenz, Sinus mit Offset, gedämpfter Sinus. Ergebnis mit Parametern ± σ (auf 2 gültige Stellen der Unsicherheit gerundet), R², χ²<sub>red</sub>, Fitkurve und Residuen. Der Fitbereich wird im Graphen per Ziehen gewählt.
 - **Neue Größen:** Ableitung und Integral nach der Zeit sowie Formeln wie `Gerät_1*Gerät_2` (mit Fehlerfortpflanzung). Der Formelparser rechnet selbst und führt keinen Code aus.
 - **Export:** CSV (deutsch mit `;` und Dezimalkomma oder international), XLSX (eine Tabelle pro Reihe), PNG-Graph mit Titel, Name und Datum.
+- **Offline und installierbar:** Nach dem ersten Besuch ist die App ohne Netz nutzbar (Hinweis „Offline nutzbar“ in der Fußzeile) und lässt sich über das Browsermenü als App installieren. Gedacht für Physiksäle mit schwachem WLAN.
 - **Unterricht:** Beamer-Modus (`B`), Darstellung Hell, Dunkel oder Hoher Kontrast, Handy-Layout mit Schritten in Daumenreichweite, Tastenkürzel (`?`), automatisches Speichern der Sitzung, Kalibrierung als Datei speichern und laden.
 
 | Geräte kalibrieren | Auswertung mit zwei y-Achsen |
@@ -53,6 +54,7 @@ npm test                  # Unit-Tests (Reader, Session, Export, Bildhinweise, S
 npm run build             # Produktionsbuild nach dist/
 node tests/e2e-demo.mjs   # E2E mit Demo-Quelle (Dev-Server auf :5173 nötig, Playwright installiert); prüft u. a., dass keine externe Anfrage stattfindet
 node tests/screenshots.mjs  # erzeugt die Bilder in docs/screenshots
+npm run build && npx vite preview --port 4173 && node tests/e2e-offline.mjs   # Offline-Test: Neuladen ohne Netz, Demo liest weiter
 ```
 
 Struktur: `src/readers` (Analog/Digital), `src/source` (Kamera/Datei/Demo), `src/session` (Daten), `src/export`, `src/ui` (Icons, Graph), `src/quality.ts` (Bildhinweise), `src/storage.ts` (Speichern), `src/sampler.ts`. Gestaltung: `PRODUCT.md`, `DESIGN.md`. Rechenlogik für Fit, Unsicherheit und abgeleitete Größen: `src/analysis`. Entwurf dazu: `docs/superpowers/specs/`.
@@ -61,5 +63,5 @@ Struktur: `src/readers` (Analog/Digital), `src/source` (Kamera/Datei/Demo), `src
 - Digital: 7-Segment-Anzeigen werden per Segmentabtastung gelesen. Für LCD (schwacher Kontrast, Schrägschrift, Lichtverlauf) und Punktmatrix-Anzeigen (5×7) gibt es den Zeichenvergleich, im Modus „automatisch“ als Rückfall. Er kennt eingebaute Vorlagen und lernt die Ziffern des eigenen Geräts an. Andere Schriften (Buchstaben, Sonderzeichen) liest er nicht; bei Punktmatrix zählt der Dezimalpunkt als eigene Zelle.
 - Die Kamera sollte ruhig stehen (Stativ); die Kalibrierung gilt für einen festen Bildausschnitt.
 - Beim Multimeter-Bereichswechsel müssen Einheit und Dezimalstellen am Gerät von Hand angepasst werden.
-- Offline-Nutzung als installierbare App (PWA) ist noch nicht umgesetzt.
+- Offline: Nach dem ersten Laden (einmal mit Netz) läuft die App ohne Netz, auch nach einem Neustart des Browsers. Neue Versionen kommen beim nächsten Laden mit Netz an. Die Kamera braucht weiterhin eine sichere Adresse (HTTPS oder localhost); Videodatei und Demo gehen immer.
 - Bisher mit synthetischen Bildern und der Demo getestet, noch nicht an echten PHYWE-Geräten oder Multimetern.
