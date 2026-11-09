@@ -41,7 +41,7 @@ body {
   margin: 0; background: var(--paper); color: var(--ink);
   font-family: 'Atkinson Hyperlegible', system-ui, sans-serif; font-size: 1rem; line-height: 1.5;
 }
-::selection { background: var(--register); color: var(--on-register); }
+::selection { background: var(--focus); color: var(--surface); }
 input, select, button { caret-color: var(--focus); accent-color: var(--focus); }
 * { scrollbar-color: var(--line-strong) transparent; }
 :focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
@@ -65,8 +65,8 @@ h2 { font-size: 1.4rem; font-weight: 700; margin-bottom: .75rem; }
 .shell select option { color: #0f1b2d; background: #fff; }
 .shell button { background: transparent; color: var(--shell-ink); border-color: var(--shell-ink-2); font-weight: 400; }
 .shell button:hover:not(:disabled) { background: rgb(255 255 255 / .14); }
-.shell button[aria-pressed='true'] { background: var(--register); color: var(--on-register); border-color: var(--register); font-weight: 700; }
-.shell button[aria-pressed='true']:hover { background: var(--register); }
+.shell button[aria-pressed='true'] { background: var(--shell-ink); color: var(--shell); border-color: var(--shell-ink); font-weight: 700; }
+.shell button[aria-pressed='true']:hover { background: var(--shell-ink); }
 
 .register { background: var(--shell); padding: 0 1.25rem; border-top: 1px solid rgb(255 255 255 / .14); }
 .register [role='tablist'] { display: flex; gap: .35rem; align-items: flex-end; max-width: 1500px; margin: 0 auto; }
@@ -95,7 +95,7 @@ main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(360px, 1fr)
 .bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .6rem 0; }
 .bar.end { justify-content: flex-end; }
 .bar.secondary { margin-top: 1rem; }
-.nextbar { margin-top: 1.25rem; display: flex; justify-content: flex-end; }
+.nextbar { margin: 1.25rem -1.25rem -1.1rem; padding: .75rem 1.25rem; display: flex; justify-content: flex-end; position: sticky; bottom: 0; background: var(--surface); border-top: 1px solid var(--line); border-radius: 0 0 8px 8px; }
 
 /* ---------- Bedienelemente ---------- */
 button, .btn {
@@ -127,8 +127,9 @@ fieldset.export legend { font-weight: 700; font-size: .9rem; padding: 0 .3rem; }
 
 /* ---------- Schritt 1: Quelle ---------- */
 .choices { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .6rem; }
-.choice { display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: .25rem; padding: .85rem; min-height: 120px; justify-content: flex-start; border-color: var(--line-strong); font-weight: 400; }
+.choice { cursor: pointer; border: 1.5px solid var(--line-strong); background: var(--surface); border-radius: 8px; color: var(--ink); display: flex; flex-direction: column; align-items: flex-start; text-align: left; gap: .25rem; padding: .85rem; min-height: 120px; justify-content: flex-start; border-color: var(--line-strong); font-weight: 400; }
 .choice b { font-size: 1.05rem; margin-top: .25rem; }
+.choice:hover { background: var(--surface-2); }
 .choice small { color: var(--ink-2); }
 .choice.active { border-color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--ink); }
 .tips { margin-top: 1rem; color: var(--ink-2); }
@@ -144,7 +145,7 @@ fieldset.export legend { font-weight: 700; font-size: .9rem; padding: 0 .3rem; }
   border: 1.5px solid color-mix(in srgb, var(--c) 55%, var(--surface));
 }
 .live .name { display: flex; align-items: center; gap: .45rem; font-weight: 700; color: var(--c); }
-.live .live-value { font-family: 'JetBrains Mono Variable', ui-monospace, monospace; font-weight: 600; font-size: 2.1rem; line-height: 1.15; letter-spacing: -.02em; color: var(--ink); white-space: nowrap; }
+.live .live-value { font-family: 'JetBrains Mono Variable', ui-monospace, monospace; font-weight: 600; font-size: clamp(2.6rem, 3.2vw, 3.4rem); line-height: 1.15; letter-spacing: -.02em; color: var(--ink); white-space: nowrap; }
 .live .live-value small { font-size: 1rem; font-weight: 400; color: var(--ink-2); margin-left: .3rem; letter-spacing: 0; }
 .live .conf { display: flex; align-items: center; gap: .35rem; font-size: .9rem; color: var(--ink-2); min-height: 1.4rem; }
 .live .conf.ok { color: var(--ok); } .live .conf.low { color: var(--warn); } .live .conf.none { color: var(--danger); }
@@ -152,7 +153,7 @@ fieldset.export legend { font-weight: 700; font-size: .9rem; padding: 0 .3rem; }
 
 /* ---------- Kanalkarten (Schritt 2) ---------- */
 .chan { border: 1px solid var(--line); border-radius: 8px; padding: .75rem .85rem; margin: .7rem 0; background: var(--surface-2); }
-.chan.active { border-color: var(--ink); box-shadow: 0 0 0 2px var(--register); }
+.chan.active { border-color: var(--focus); box-shadow: 0 0 0 2px var(--focus); scroll-margin-bottom: 9rem; }
 .chan-head { display: flex; gap: .5rem; align-items: center; flex-wrap: wrap; }
 .chan-head .sym { color: var(--c); }
 .chan-head input[type='text'] { width: 9em; }
@@ -204,8 +205,9 @@ kbd { font-family: 'JetBrains Mono Variable', monospace; font-size: .85rem; bord
 
 /* ---------- Beamer-Modus ---------- */
 body.beamer { font-size: 1.2rem; }
-body.beamer .register, body.beamer .tips, body.beamer .nextbar, body.beamer .note { display: none; }
-body.beamer main { grid-template-columns: minmax(0, 1fr) minmax(0, 1.6fr); max-width: none; }
+body.beamer .tips, body.beamer .nextbar, body.beamer .note, body.beamer .notice { display: none; }
+body.beamer .register [role='tab'] { font-size: 1.2rem; }
+body.beamer main { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); max-width: none; }
 body.beamer .live .live-value { font-size: clamp(3rem, 6.5vw, 6rem); }
 body.beamer .live .name { font-size: 1.4rem; }
 body.beamer .livecards { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
@@ -215,15 +217,25 @@ body.beamer #panel-4 .grid-controls, body.beamer #panel-4 fieldset, body.beamer 
 /* ---------- Handy / Tablet ---------- */
 @media (max-width: 900px) {
   main { grid-template-columns: 1fr; padding: .75rem; padding-bottom: 6rem; }
-  #stage { position: static; }
+  #stage { position: sticky; top: 0; z-index: 4; background: var(--paper); padding-bottom: .4rem; }
+  #view { max-height: 34vh; width: auto; max-width: 100%; margin-inline: auto; }
+  .viewwrap { text-align: center; }
+  #hint { margin-top: .4rem; padding: .4rem .6rem; font-size: .9rem; }
+  #scrub { margin: .2rem 0 0; }
   .register { position: fixed; inset: auto 0 0 0; z-index: 5; padding: 0; border-top: 2px solid var(--register); }
   .register [role='tablist'] { gap: 0; }
   .register [role='tab'] { flex: 1; justify-content: center; flex-direction: column; gap: .05rem; border-radius: 0; margin: 0; padding: .35rem .2rem; font-size: .85rem; min-height: 56px; }
   .register [role='tab'][aria-selected='true'] { padding-top: .35rem; }
-  .nextbar { position: sticky; bottom: 4.5rem; background: linear-gradient(transparent, var(--surface) 40%); padding-top: 1rem; }
+  .nextbar { bottom: 3.6rem; margin-inline: -1.25rem; }
   .nextbar button { flex: 1; }
+  .checks label, .check { min-height: 44px; }
   fieldset.export { grid-template-columns: 1fr; }
   .live .live-value { font-size: 1.8rem; }
   body.beamer main { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+.live-value .dec { margin-inline: -.2em; }
+th .sym { color: var(--c); margin-right: .3rem; }
+.chan-head { padding: .35rem .5rem; margin: -.2rem -.3rem .2rem; border-radius: 6px; background: color-mix(in srgb, var(--c, var(--ink)) 10%, transparent); }
+.run .sym { color: var(--c, var(--ink)); }

@@ -329,6 +329,7 @@ function startCalibration(id: string): void {
   updateButtons();
   goStep(2);
   explain();
+  if (matchMedia('(max-width: 900px)').matches) document.querySelector('.chan.active')?.scrollIntoView({ block: 'nearest' });
 }
 
 function cancelCalibration(): void {
@@ -571,7 +572,7 @@ function updateLive(c: Chan): void {
   const val = document.getElementById(`val-${c.id}`), conf = document.getElementById(`conf-${c.id}`);
   if (!val || !conf || !c.live) return;
   const { value, confidence } = c.live;
-  val.innerHTML = `${de(value, 3)}<small>${esc(c.unit)}</small>`;
+  val.innerHTML = `${de(value, 3).replace(',', '<span class="dec">,</span>')}<small>${esc(c.unit)}</small>`;
   const [cls, ic, txt] = value === null ? ['none', 'warning', 'nicht lesbar'] : confidence >= 0.7 ? ['ok', 'check', 'sicher gelesen'] : confidence >= 0.4 ? ['low', 'warning', 'unsicher'] : ['none', 'warning', 'sehr unsicher'];
   conf.className = `conf ${cls}`;
   conf.innerHTML = `${icon(ic, 16)}${txt}`;
@@ -858,6 +859,7 @@ function renderResults(light = false): void {
     series, xLabel: label(x), yLabel: ys[0] ? label(ys[0]) : '', y2Label: ys[1] ? label(ys[1]) : '',
     xLog: $<HTMLInputElement>('xlog').checked, yLog: $<HTMLInputElement>('ylog').checked, line: x === TIME_KEY,
     ink: light ? LIGHT.ink : cssVar('--ink'), grid: light ? LIGHT.grid : cssVar('--line'),
+    font: light ? 14 : beamer ? 18 : 14,
   });
   renderRuns();
   renderTable();
@@ -867,7 +869,7 @@ function renderRuns(): void {
   const host = $('runs');
   if (!session.runs.length) { host.innerHTML = ''; return; }
   host.innerHTML = `<h3>Gesicherte Reihen</h3>${session.runs.map((r, i) => `
-    <div class="run"><span><b>${esc(r.name)}</b> · ${r.samples.length} Messpunkte</span>
+    <div class="run ch-${(i % 4) + 1}"><span>${symbol(i + 1, 12)} <b>${esc(r.name)}</b> · ${r.samples.length} Messpunkte</span>
     <button type="button" class="ghost" data-del="${i}" aria-label="${esc(r.name)} löschen">${icon('trash', 18)}Löschen</button></div>`).join('')}`;
 }
 $('runs').addEventListener('click', (e) => {
@@ -883,7 +885,7 @@ function renderTable(): void {
   const total = session.samples.length;
   const from = Math.max(0, total - 100);
   const t = session.table();
-  let html = `<table><thead><tr><th>#</th>${t.header.map((h) => `<th>${esc(h)}</th>`).join('')}</tr></thead><tbody>`;
+  let html = `<table><thead><tr><th>#</th><th>${esc(t.header[0])}</th>${session.channels.map((c, k) => `<th class="ch-${slotOf(c.id) + 1}">${symbol(slotOf(c.id), 12)}${esc(t.header[k + 1])}</th>`).join('')}</tr></thead><tbody>`;
   for (let i = from; i < total; i++) {
     const s = session.samples[i];
     html += `<tr><td>${i + 1}</td><td>${de(s.t, 2)}</td>${session.channels.map((c) => {

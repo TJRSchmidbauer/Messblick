@@ -26,6 +26,8 @@ export interface ChartInput {
   /** Farben des aktuellen Themes. */
   ink: string;
   grid: string;
+  /** Schriftgröße der Achsen in px (Beamer größer). */
+  font: number;
 }
 
 const DASHES = [[], [6, 3], [2, 3], [10, 3, 2, 3]];
@@ -71,13 +73,14 @@ export class ResultChart {
       } as any;
     });
     const hasY2 = d.series.some((s) => s.axis === 'y2');
-    const text = { color: d.ink };
+    const text = { color: d.ink, font: { size: d.font } };
     const grid = { color: d.grid };
     const sc = ch.options.scales as any;
-    sc.x = { type: d.xLog ? 'logarithmic' : 'linear', title: { display: true, text: d.xLabel, ...text }, ticks: text, grid, border: { color: d.ink } };
-    sc.y = { type: d.yLog ? 'logarithmic' : 'linear', position: 'left', title: { display: true, text: d.yLabel, ...text }, ticks: text, grid, border: { color: d.ink } };
-    sc.y2 = { type: d.yLog ? 'logarithmic' : 'linear', position: 'right', display: hasY2, title: { display: hasY2, text: d.y2Label, ...text }, ticks: text, grid: { drawOnChartArea: false }, border: { color: d.ink } };
+    sc.x = { type: d.xLog ? 'logarithmic' : 'linear', title: { display: true, text: d.xLabel, color: d.ink, font: { size: d.font + 2 } }, ticks: text, grid, border: { color: d.ink } };
+    sc.y = { type: d.yLog ? 'logarithmic' : 'linear', position: 'left', title: { display: true, text: d.yLabel, color: d.ink, font: { size: d.font + 2 } }, ticks: text, grid, border: { color: d.ink } };
+    sc.y2 = { type: d.yLog ? 'logarithmic' : 'linear', position: 'right', display: hasY2, title: { display: hasY2, text: d.y2Label, color: d.ink, font: { size: d.font + 2 } }, ticks: text, grid: { drawOnChartArea: false }, border: { color: d.ink } };
     (ch.options.plugins!.legend as any).labels.color = d.ink;
+    (ch.options.plugins!.legend as any).labels.font = { size: d.font };
     (ch.options.plugins!.tooltip as any) = {
       callbacks: { label: (c: any) => `${c.dataset.label}: ${c.parsed.x.toPrecision(4)} | ${c.parsed.y.toPrecision(4)}` },
     };
