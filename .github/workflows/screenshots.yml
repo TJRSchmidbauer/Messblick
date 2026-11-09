@@ -1,0 +1,30 @@
+name: Screenshots aktualisieren
+# Erzeugt docs/screenshots/*.png aus der laufenden App (Demo-Quelle) und committet sie.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['src/**', 'index.html', 'tests/screenshots.mjs']
+permissions:
+  contents: write
+jobs:
+  shots:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - run: npm install
+      - run: npx playwright install --with-deps chromium
+      - name: App starten und Bilder erzeugen
+        run: |
+          npx vite --port 5173 > vite.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf http://localhost:5173/ >/dev/null && break; sleep 1; done
+          node tests/screenshots.mjs
+          kill %1 || true
+      - name: Bilder committen
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/screenshots
+          git diff --cached --quiet || (git commit -m "Screenshots aktualisiert" && git push)

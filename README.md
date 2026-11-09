@@ -28,7 +28,7 @@ Alles läuft **lokal im Browser**: kein Server, kein Konto, keine Übertragung v
 |---|---|
 | ![Dunkle Darstellung](docs/screenshots/06-dunkel.png) | ![Handy-Ansicht](docs/screenshots/07-handy.png) |
 
-Alle Bilder stammen aus der laufenden App mit der eingebauten Demo-Quelle (synthetisches Zeigerinstrument und Digitalanzeige).
+Alle Bilder stammen aus der laufenden App mit der eingebauten Demo-Quelle (synthetisches Zeigerinstrument und Digitalanzeige). Der Workflow `Screenshots aktualisieren` erzeugt sie bei Änderungen an der Oberfläche automatisch neu.
 
 ## Benutzung
 Vier Schritte, oben als Register: **1 Quelle → 2 Geräte → 3 Messen → 4 Auswertung**.
