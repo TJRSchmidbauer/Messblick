@@ -1,0 +1,32 @@
+:root { --accent: #1b6ca8; --bg: #f5f7fa; --ink: #1c2530; font-family: system-ui, sans-serif; }
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--ink); }
+header { padding: 1rem 1.5rem; background: var(--accent); color: #fff; }
+header h1 { margin: 0 0 .25rem; font-size: 1.4rem; }
+header p { margin: 0; opacity: .9; font-size: .9rem; }
+main { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 1rem; padding: 1rem; }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; } }
+h2 { font-size: 1rem; margin: 1rem 0 .5rem; }
+.bar { display: flex; flex-wrap: wrap; gap: .5rem; align-items: center; margin: .4rem 0; }
+button, .btn { font: inherit; padding: .45rem .8rem; border: 1px solid var(--accent); background: #fff; color: var(--accent);
+  border-radius: 6px; cursor: pointer; }
+button:hover:not(:disabled), .btn:hover { background: #e6f1fa; }
+button:disabled { opacity: .45; cursor: default; }
+button.primary { background: var(--accent); color: #fff; }
+.viewwrap { background: #000; border-radius: 6px; overflow: hidden; }
+#view { width: 100%; height: auto; display: block; cursor: crosshair; touch-action: none; }
+#hint { margin: .5rem 0; padding: .5rem .75rem; background: #fff7d6; border-left: 4px solid #e0b100; border-radius: 4px; }
+#error { padding: .5rem .75rem; background: #fde2e2; border-left: 4px solid #c0392b; border-radius: 4px; }
+#scrub-range { flex: 1; }
+.chan { background: #fff; border: 1px solid #d5dce4; border-radius: 8px; padding: .6rem; margin: .5rem 0; }
+.chan.active { border-color: var(--accent); box-shadow: 0 0 0 2px #1b6ca833; }
+.chan header { all: unset; display: flex; gap: .4rem; align-items: center; flex-wrap: wrap; }
+.chan input[type=text], .chan input[type=number] { width: 6.5em; font: inherit; padding: .2rem .3rem; }
+.live { font-variant-numeric: tabular-nums; font-weight: 600; margin-left: auto; }
+.live.low { color: #b26a00; }
+.chartwrap { background: #fff; border-radius: 8px; padding: .5rem; height: 280px; }
+table { border-collapse: collapse; font-size: .85rem; }
+td, th { border: 1px solid #d5dce4; padding: .1rem .3rem; }
+td input { width: 5.5em; border: 0; font: inherit; background: transparent; }
+td.low { background: #fff1cf; }
+#table { max-height: 260px; overflow: auto; }

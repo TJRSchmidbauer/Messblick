@@ -1,0 +1,24 @@
+{
+  "name": "physikmesswerterfassung",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Messgeräte im Physikunterricht abfilmen, Werte ablesen, CSV/XLSX und Graphen exportieren – komplett im Browser.",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "playwright": "^1.65.0",
+    "typescript": "^5.5.0",
+    "vite": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
+}

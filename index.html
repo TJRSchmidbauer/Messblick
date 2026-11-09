@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Physik-Messwerterfassung</title>
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <header>
+    <h1>Physik-Messwerterfassung</h1>
+    <p>Messgerät abfilmen → Werte ablesen → CSV/XLSX &amp; Graph. Alles läuft lokal im Browser, das Video wird nicht hochgeladen.</p>
+  </header>
+  <main>
+    <section id="stage">
+      <h2>1 · Quelle</h2>
+      <div class="bar">
+        <button id="btn-camera">📷 Kamera</button>
+        <label class="btn">🎞️ Videodatei<input id="file" type="file" accept="video/*" hidden /></label>
+        <button id="btn-demo">🧪 Demo</button>
+      </div>
+      <div id="error" role="alert" hidden></div>
+      <div class="viewwrap"><canvas id="view" width="640" height="360"></canvas></div>
+      <div id="hint">Wähle eine Quelle.</div>
+      <div id="scrub" class="bar" hidden>
+        <input id="scrub-range" type="range" min="0" max="1" step="0.01" value="0" />
+        <span id="scrub-time">0.0 s</span>
+      </div>
+    </section>
+    <aside>
+      <h2>2 · Messgeräte kalibrieren</h2>
+      <div class="bar">
+        <button id="add-analog">＋ Zeigerinstrument</button>
+        <button id="add-digital">＋ Digitalanzeige</button>
+      </div>
+      <div id="channels"></div>
+      <h2>3 · Messen</h2>
+      <div class="bar">
+        <label>Rate <select id="hz"><option>1</option><option selected>2</option><option>5</option><option>10</option></select> Hz</label>
+        <button id="btn-live" disabled>● Aufnahme starten</button>
+        <button id="btn-analyze" disabled hidden>▶ Video auswerten</button>
+        <button id="btn-clear" disabled>Verwerfen</button>
+      </div>
+      <progress id="progress" max="1" value="0" hidden></progress>
+      <h2>4 · Auswertung</h2>
+      <div class="bar">
+        <label>x <select id="xsel"></select></label>
+        <label>y <select id="ysel"></select></label>
+        <label><input id="smooth" type="checkbox" /> Glätten (Median 3)</label>
+      </div>
+      <div class="chartwrap"><canvas id="chart"></canvas></div>
+      <div class="bar">
+        <button id="dl-csv" disabled>CSV</button>
+        <label><input id="german" type="checkbox" checked /> deutsch (; und ,)</label>
+        <button id="dl-xlsx" disabled>XLSX</button>
+        <button id="dl-png" disabled>Graph (PNG)</button>
+      </div>
+      <details><summary>Wertetabelle (korrigierbar)</summary><div id="table"></div></details>
+    </aside>
+  </main>
+  <script type="module" src="/src/main.ts"></script>
+</body>
+</html>
