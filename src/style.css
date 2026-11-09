@@ -305,3 +305,14 @@ th .sym { color: var(--c); margin-right: .3rem; }
 .tplres .lit.ok { color: var(--ok); }
 .tplres .lit.bad { color: var(--danger); }
 .tplres .problem { color: var(--warn); margin: 0; }
+
+/* Hinweise auf Bereichswechsel */
+.jumpnotes { display: grid; gap: .5rem; margin: .5rem 0; }
+.jumpnotes .jump { display: flex; flex-wrap: wrap; gap: .4rem .75rem; align-items: center; padding: .55rem .8rem; border-left: 4px solid var(--warn); background: var(--surface); }
+.jumpnotes .jump p { margin: 0; flex: 1 1 18rem; }
+
+.tplres .budget { margin-top: .4rem; }
+.tplres .budget table { border-collapse: collapse; margin: .3rem 0; }
+.tplres .budget th { position: static; }
+.tplres .budget th, .tplres .budget td { padding: .2rem .8rem .2rem 0; text-align: left; border-bottom: 1px solid var(--line); }
+.tplres .budget td.num { font-family: "JetBrains Mono Variable", "JetBrains Mono", monospace; }

@@ -4,7 +4,7 @@ import { fitModel } from '../src/analysis/fit/fit';
 import { modelById } from '../src/analysis/fit/models';
 import type { Pt } from '../src/analysis/fit/types';
 import { describeUncertainty, sigmaOf } from '../src/analysis/uncertainty';
-import { derivative, evalWithError, integral, parseExpression, ParseError } from '../src/analysis/derive';
+import { derivative, evalWithError, integral, parseExpression, ParseError, uncertaintyBudget } from '../src/analysis/derive';
 
 /** Feste Zufallssaat (LCG) + Box-Muller: Tests sind reproduzierbar. */
 function rng(seed: number): { uniform: () => number; normal: () => number } {
@@ -207,5 +207,27 @@ describe('abgeleitete Größen', () => {
     const e = parseExpression('U*I');
     expect(evalWithError(e, { U: 2, I: 3 }, { U: 0.1, I: null }).sigma).toBeCloseTo(0.3, 6);
     expect(evalWithError(e, { U: 2, I: 3 }, { U: null, I: null }).sigma).toBeNull();
+  });
+});
+
+describe('Unsicherheitsbudget', () => {
+  it('U/I: Beiträge, Anteile ergeben 100 %, größter Beitrag zuerst, passt zu σ aus evalWithError', () => {
+    const e = parseExpression('U/I');
+    const vals = { U: 6, I: 0.3 }, sig = { U: 0.15, I: 0.01 };
+    const b = uncertaintyBudget(e, vals, sig);
+    expect(b.map((x) => x.name)).toEqual(['I', 'U']); // relativ: 3,3 % gegen 2,5 %
+    expect(b.reduce((s, x) => s + x.share, 0)).toBeCloseTo(100, 8);
+    expect(b[0].contribution).toBeCloseTo((6 / 0.09) * 0.01, 4);
+    expect(Math.hypot(...b.map((x) => x.contribution))).toBeCloseTo(evalWithError(e, vals, sig).sigma!, 10);
+  });
+  it('Größen ohne σ fehlen im Budget; ohne jede σ ist es leer', () => {
+    const e = parseExpression('U*I');
+    expect(uncertaintyBudget(e, { U: 2, I: 3 }, { U: 0.1, I: null }).map((x) => x.name)).toEqual(['U']);
+    expect(uncertaintyBudget(e, { U: 2, I: 3 }, { U: null, I: null })).toEqual([]);
+  });
+  it('Potenzgesetz: der Beitrag wächst mit dem Exponenten', () => {
+    const b = uncertaintyBudget(parseExpression('a^2*b'), { a: 2, b: 3 }, { a: 0.02, b: 0.02 });
+    expect(b[0].name).toBe('a'); // 2·a·b·σ = 0,24 gegen a²·σ = 0,08
+    expect(b[0].share).toBeCloseTo(90, 5);
   });
 });

@@ -166,6 +166,38 @@ export function parseExpression(src: string): Expression {
   return { vars: [...vars], eval: (values) => ev(root, values) };
 }
 
+export interface BudgetItem {
+  /** Name der Größe im Ausdruck. */
+  name: string;
+  /** Beitrag |∂f/∂x · σ| zur Unsicherheit des Ergebnisses (in Einheiten des Ergebnisses). */
+  contribution: number;
+  /** Anteil an der Varianz (σ²) des Ergebnisses in Prozent; die Anteile ergeben zusammen 100. */
+  share: number;
+}
+
+/**
+ * Unsicherheitsbudget: Beitrag jeder Eingangsgröße zur Unsicherheit des Ergebnisses (Gauß, unkorreliert),
+ * Ableitungen numerisch. Größen ohne bekannte Unsicherheit tauchen nicht auf; ohne eine einzige: leere Liste.
+ */
+export function uncertaintyBudget(
+  expr: Expression, values: Record<string, number>, sigmas: Record<string, number | null>,
+): BudgetItem[] {
+  const items: { name: string; c: number }[] = [];
+  for (const name of expr.vars) {
+    const s = has(sigmas, name) ? sigmas[name] : null;
+    if (s === null || s === undefined || !Number.isFinite(s)) continue;
+    const x = values[name];
+    const h = 1e-6 * Math.max(Math.abs(x), 1e-3);
+    const d = (expr.eval({ ...values, [name]: x + h }) - expr.eval({ ...values, [name]: x - h })) / (2 * h);
+    const c = Math.abs(d * s);
+    if (Number.isFinite(c)) items.push({ name, c });
+  }
+  const total = items.reduce((acc, i) => acc + i.c * i.c, 0);
+  return items
+    .map((i) => ({ name: i.name, contribution: i.c, share: total > 0 ? (100 * i.c * i.c) / total : 0 }))
+    .sort((a, b) => b.share - a.share);
+}
+
 /**
  * Wert und Unsicherheit eines Ausdrucks (Gauß, unkorreliert): σ² = Σ (∂f/∂xᵢ · σᵢ)², Ableitungen numerisch.
  * Fehlt zu einer Größe die Unsicherheit, zählt sie als exakt; `sigma` ist null, wenn gar keine bekannt ist.
@@ -174,15 +206,8 @@ export function evalWithError(
   expr: Expression, values: Record<string, number>, sigmas: Record<string, number | null>,
 ): { value: number; sigma: number | null } {
   const value = expr.eval(values);
-  let sum = 0, any = false;
-  for (const name of expr.vars) {
-    const s = has(sigmas, name) ? sigmas[name] : null;
-    if (s === null || s === undefined || !Number.isFinite(s)) continue;
-    any = true;
-    const x = values[name];
-    const h = 1e-6 * Math.max(Math.abs(x), 1e-3);
-    const d = (expr.eval({ ...values, [name]: x + h }) - expr.eval({ ...values, [name]: x - h })) / (2 * h);
-    sum += (d * s) ** 2;
-  }
-  return { value, sigma: any && Number.isFinite(sum) ? Math.sqrt(sum) : null };
+  const items = uncertaintyBudget(expr, values, sigmas);
+  if (!items.length) return { value, sigma: null };
+  const sum = items.reduce((acc, i) => acc + i.contribution ** 2, 0);
+  return { value, sigma: Number.isFinite(sum) ? Math.sqrt(sum) : null };
 }

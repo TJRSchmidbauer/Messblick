@@ -105,6 +105,13 @@ export class Session {
     });
     this.samples = [];
   }
+  /** Multipliziert die Werte eines Kanals in den Messpunkten [from, to) mit `factor` (Korrektur nach Bereichswechsel). */
+  rescale(channelId: string, from: number, to: number, factor: number): void {
+    for (let i = Math.max(0, from); i < Math.min(to, this.samples.length); i++) {
+      const cell = this.samples[i].values[channelId];
+      if (cell && cell.v !== null) this.samples[i].values[channelId] = { ...cell, v: cell.v * factor, ...(cell.s ? { s: cell.s * Math.abs(factor) } : {}) };
+    }
+  }
   /** Manuelle Korrektur eines Wertes. */
   setValue(index: number, channelId: string, v: number | null): void {
     const s = this.samples[index];

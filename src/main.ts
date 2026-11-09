@@ -11,6 +11,7 @@ import { modelById } from './analysis/fit/models';
 import { parseExpression } from './analysis/derive';
 import { TRANSFORMS, averageReadings, suggestPlots, toPoints, transformLabel, type Transform, type VarRow } from './analysis/variation';
 import { sigmaOf } from './analysis/uncertainty';
+import { detectScaleJumps, factorLabel } from './analysis/jumps';
 import { TEMPLATES, evalTemplateResults, templateById, type Template, type TplResultLine } from './templates';
 import { describeUncertainty, type UncertaintyConfig } from './analysis/uncertainty';
 import { icon, symbol, SYMBOLS } from './ui/icons';
@@ -78,6 +79,10 @@ let tplId = '';
 let tplInputs: Record<string, { v: string; rel: string }> = {};
 let tplAxes: { x: 'time' | 'dev0'; y: 'dev0' | 'dev1' } | null = null;
 let tplLines: TplResultLine[] = [];
+/** Bereichswechsel: ignorierte Hinweise, letzte Korrektur (zum Zurücknehmen), Zeitpunkt der letzten Live-Warnung je Gerät. */
+const ignoredJumps = new Set<string>();
+let lastRescale: { id: string; from: number; to: number; factor: number } | null = null;
+const jumpWarnAt = new Map<string, number>();
 let stopLive: (() => void) | null = null;
 let abort: AbortController | null = null;
 let beamer = false;
@@ -764,11 +769,18 @@ function drawOverlay(): void {
 
 function qualityOf(c: Chan, frame: Frame): string[] {
   if (!c.cal) return [];
-  if (c.cal.type === 'analog') {
-    const R = c.cal.radius;
-    return assessRegion(frame, { x: c.cal.pivot.x - R, y: c.cal.pivot.y - R, w: 2 * R, h: 2 * R }, { minFeature: R / 2 }).issues;
+  const issues = c.cal.type === 'analog'
+    ? assessRegion(frame, { x: c.cal.pivot.x - c.cal.radius, y: c.cal.pivot.y - c.cal.radius, w: 2 * c.cal.radius, h: 2 * c.cal.radius }, { minFeature: c.cal.radius / 2 }).issues
+    : assessRegion(frame, c.cal.roi, { minFeature: c.cal.roi.h / 3 }).issues;
+  // Sprung um eine Zehnerpotenz in den letzten Ablesungen: Messbereich oder Dezimalpunkt am Gerät geändert?
+  const buf = liveBuf.get(c.id) ?? [];
+  if (detectScaleJumps(buf, { persist: 2 }).some((j) => j.index >= buf.length - 5)) jumpWarnAt.set(c.id, performance.now());
+  if (performance.now() - (jumpWarnAt.get(c.id) ?? -1e9) < 15000) {
+    issues.push(c.type === 'digital'
+      ? 'Der Wert ist plötzlich um eine Zehnerpotenz gesprungen: Messbereich oder Dezimalpunkt am Gerät geändert? Dezimalstellen hier und Einheit prüfen.'
+      : 'Der Wert ist plötzlich um eine Zehnerpotenz gesprungen: Messbereich am Gerät geändert? Skalenwerte der Kalibrierung prüfen.');
   }
-  return assessRegion(frame, c.cal.roi, { minFeature: c.cal.roi.h / 3 }).issues;
+  return issues;
 }
 
 let lastRead = 0, lastQuality = 0;
@@ -1001,6 +1013,7 @@ function renderResults(light = false): void {
   renderTable();
   renderVariation(light);
   renderTemplateResults();
+  renderJumpNotes();
 }
 
 /* ---- Fit ---- */
@@ -1419,7 +1432,10 @@ function renderTemplateResults(): void {
       const c = l.lit.comparison, ok = c.verdict === 'compatible';
       return `<p class="lit ${c.verdict === 'unknown' ? '' : ok ? 'ok' : 'bad'}">${icon(ok ? 'check' : 'warning', 16)} ${esc(l.lit.label)}: ${withError(l.lit.value, l.lit.sigma ?? NaN)}${unit}${l.lit.source ? ` (${esc(l.lit.source)})` : ''}. ${esc(c.text)}</p>`;
     })() : '';
-    return `<div class="tplres"><b>${esc(l.label)}</b><div class="val">${withError(l.value!, l.sigma ?? NaN)}${unit}</div>${lit}</div>`;
+    const budget = l.budget ? `<details class="budget"><summary>Unsicherheitsbudget: größter Beitrag ${esc(l.budget[0].name)} (${l.budget[0].share.toFixed(0)} %)</summary>
+      <table><thead><tr><th>Größe</th><th>Beitrag</th><th>Anteil</th></tr></thead><tbody>${l.budget.map((b) => `<tr><td>${esc(b.name)}</td><td class="num">${withError(b.contribution, NaN)}${unit}</td><td class="num">${b.share.toFixed(1).replace('.', ',')} %</td></tr>`).join('')}</tbody></table>
+      <p class="note">Eine genauere Messung von „${esc(l.budget[0].name)}“ verbessert das Ergebnis am meisten.</p></details>` : '';
+    return `<div class="tplres"><b>${esc(l.label)}</b><div class="val">${withError(l.value!, l.sigma ?? NaN)}${unit}</div>${lit}${budget}</div>`;
   }).join('');
 }
 
@@ -1436,6 +1452,40 @@ function tplSheet(): { name: string; table: { header: string[]; rows: (number | 
     },
   };
 }
+
+/* ---- Bereichswechsel in den Messdaten ---- */
+
+function renderJumpNotes(): void {
+  const host = $('jump-notes');
+  const parts: string[] = [];
+  for (const ch of session.channels.filter((c) => !c.derived)) {
+    const all = detectScaleJumps(session.samples.map((s) => s.values[ch.id]?.v ?? null));
+    all.forEach((j, i) => {
+      if (ignoredJumps.has(`${ch.id}:${j.index}:${j.factor}`)) return;
+      const end = all[i + 1]?.index ?? session.samples.length; // das neue Niveau gilt bis zum nächsten Wechsel
+      parts.push(`<div class="jump">${icon('warning', 18)}<p><b>${esc(ch.name)}:</b> Sprung ${factorLabel(j.factor)} bei Messpunkt ${j.index + 1} (t = ${de(session.samples[j.index].t, 1)} s). Messbereich oder Dezimalpunkt am Gerät geändert?</p>
+        <button type="button" data-jump-fix="${ch.id}:${j.index}:${end}:${j.factor}">Werte ab hier ${factorLabel(1 / j.factor)}</button>
+        <button type="button" class="ghost" data-jump-ignore="${ch.id}:${j.index}:${j.factor}">Kein Fehler</button></div>`);
+    });
+  }
+  if (lastRescale) parts.push(`<div class="jump">${icon('info', 18)}<p>Korrektur angewendet (${factorLabel(lastRescale.factor)}).</p><button type="button" class="ghost" data-jump-undo="1">${icon('undo', 16)}Zurücknehmen</button></div>`);
+  host.innerHTML = parts.join('');
+}
+$('jump-notes').addEventListener('click', (e) => {
+  const t = e.target as HTMLElement;
+  const fix = t.closest<HTMLElement>('[data-jump-fix]'), ign = t.closest<HTMLElement>('[data-jump-ignore]'), undoBtn = t.closest<HTMLElement>('[data-jump-undo]');
+  if (fix) {
+    const [id, from, to, factor] = fix.dataset.jumpFix!.split(':');
+    const f = 1 / Number(factor);
+    session.rescale(id, Number(from), Number(to), f);
+    lastRescale = { id, from: Number(from), to: Number(to), factor: f };
+  } else if (ign) ignoredJumps.add(ign.dataset.jumpIgnore!);
+  else if (undoBtn && lastRescale) {
+    session.rescale(lastRescale.id, lastRescale.from, lastRescale.to, 1 / lastRescale.factor);
+    lastRescale = null;
+  } else return;
+  renderResults(); scheduleSave();
+});
 
 function renderRuns(): void {
   const host = $('runs');

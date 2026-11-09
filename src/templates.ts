@@ -1,4 +1,4 @@
-import { evalWithError, parseExpression } from './analysis/derive';
+import { evalWithError, parseExpression, uncertaintyBudget, type BudgetItem } from './analysis/derive';
 import { compareToLiterature, type Comparison } from './analysis/literature';
 import type { Transform } from './analysis/variation';
 
@@ -188,6 +188,8 @@ export interface TplResultLine {
   /** Hinweis, warum nichts berechnet wurde. */
   problem?: string;
   lit?: { label: string; value: number; sigma: number | null; source?: string; comparison: Comparison };
+  /** Beiträge der Eingangsgrößen zur Unsicherheit, größter zuerst; Namen sind Anzeigenamen. */
+  budget?: BudgetItem[];
 }
 
 /** Rechnet die Ergebniszeilen einer Vorlage aus Fitparametern und Eingaben (Fehlerfortpflanzung nach Gauß, unkorreliert). */
@@ -216,6 +218,8 @@ export function evalTemplateResults(
     const res = evalWithError(expr, values, sigmas);
     if (!Number.isFinite(res.value)) return { ...base, value: null, sigma: null, problem: 'Nicht berechenbar (Division durch 0 o. Ä.).' };
     const line: TplResultLine = { ...base, value: res.value, sigma: res.sigma };
+    const budget = uncertaintyBudget(expr, values, sigmas).map((b) => ({ ...b, name: label(b.name) }));
+    if (budget.length > 1) line.budget = budget;
     if (r.lit) {
       let lv: number | null = null, ls: number | null = null;
       if (r.lit.value !== undefined) lv = r.lit.value;

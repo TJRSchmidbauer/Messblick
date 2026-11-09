@@ -44,6 +44,13 @@ describe('Vorlagen: Ergebnisse stimmen mit der Physik überein', () => {
     expect(evalTemplateResults(t, P({ τ: [4.7, 0.05] }), inp({ R: 1000 }))[1].lit).toBeUndefined(); // kein Nennwert: kein Vergleich
   });
 
+  it('Unsicherheitsbudget: zeigt, welche Eingabe die Unsicherheit dominiert', () => {
+    const r = evalTemplateResults(tpl('spule'), P({ τ: [0.002, 0.00002] }), inp({ R: [50, 5] }));
+    expect(r[1].budget?.map((b) => b.name)).toEqual(['Gesamtwiderstand R', 'τ']);
+    expect(r[1].budget![0].share).toBeGreaterThan(95);
+    expect(evalTemplateResults(tpl('spule'), P({ τ: [0.002, 0.00002] }), inp({ R: 50 }))[1].budget).toBeUndefined(); // nur eine Quelle: kein Budget
+  });
+
   it('Spule: L = τ·R in mH', () => {
     const r = evalTemplateResults(tpl('spule'), P({ τ: [0.002, 0.0001] }), inp({ R: 50 }));
     expect(r[1].value).toBeCloseTo(100, 8);

@@ -75,6 +75,28 @@ await page.selectOption('#ysel', { index: 1 });
 await page.waitForTimeout(300);
 await page.screenshot({ path: `${shots}/03-auswertung.png`, fullPage: true });
 
+// Bereichswechsel: die letzten vier Werte von Gerät 1 ×10 (wie nach einem Messbereichswechsel) → Hinweis, Korrektur, Rücknahme
+await page.click('summary:has-text("Wertetabelle")');
+const orig = [];
+for (const i of [147, 148, 149, 150]) {
+  const loc = page.locator(`#table input[data-i="${i}"][data-c="k1"]`);
+  const v = Number((await loc.inputValue()).replace(',', '.'));
+  orig.push(v);
+  await loc.fill(String(v * 10).replace('.', ','));
+  await loc.blur();
+}
+await page.waitForTimeout(200);
+const jumpText = await page.locator('#jump-notes').innerText();
+console.log('Sprung:', jumpText.replace(/\n+/g, ' | ').slice(0, 160));
+if (!/Gerät 1.*Sprung ×10 bei Messpunkt 148/.test(jumpText)) throw new Error('Bereichswechsel nicht erkannt: ' + jumpText);
+await page.click('[data-jump-fix]');
+if (/Sprung ×/.test(await page.locator('#jump-notes').innerText())) throw new Error('Korrektur hat den Hinweis nicht beseitigt');
+const fixed = Number((await page.locator('#table input[data-i="149"][data-c="k1"]').inputValue()).replace(',', '.'));
+if (Math.abs(fixed - orig[2]) > 0.01) throw new Error(`Korrektur stellt den Wert nicht her: ${fixed} statt ${orig[2]}`);
+await page.click('[data-jump-undo]');
+if (!/Sprung ×10/.test(await page.locator('#jump-notes').innerText())) throw new Error('Zurücknehmen fehlt');
+await page.click('[data-jump-fix]');
+
 // Teilprojekt 1: Messunsicherheit (Güteklasse), Fit (Sinus, ω ≈ 1/3 der Demo), Fitbereich, Neue Größe, Export
 await page.click('#tab-2');
 await page.selectOption('.chan:nth-child(1) select[data-f=umode]', 'class');
@@ -161,6 +183,7 @@ if (!/Bitte eintragen: Widerstand R/.test(tpl1)) throw new Error('Hinweis auf fe
 await page.fill('#tpl-in-R', '1000'); await page.fill('#tpl-in-Cnenn', '4700'); await page.fill('#tpl-rel-R', '1');
 const tpl2 = await page.locator('#tpl-results').innerText();
 if (!/Kapazität C/.test(tpl2) || /Bitte eintragen/.test(tpl2) || !/Nennwert/.test(tpl2)) throw new Error('Kapazität mit Vergleich fehlt: ' + tpl2);
+if (!/Unsicherheitsbudget: größter Beitrag/.test(tpl2)) throw new Error('Unsicherheitsbudget fehlt: ' + tpl2);
 await page.click('#tab-1');
 await page.selectOption('#tpl-select', 'fotoeffekt');
 await page.click('#tpl-apply');

@@ -68,4 +68,16 @@ describe('abgeleitete Kanäle in der Sitzung', () => {
     s.removeChannel('d1');
     expect(s.samples[0].values.d1).toBeUndefined();
   });
+
+  it('rescale: Bereich [von, bis) wird umgerechnet, σ mit, Rest bleibt; zweimal gegenläufig stellt den Ausgangszustand her', () => {
+    const s = demo();
+    const before = s.samples.map((x) => x.values.k1.v);
+    s.rescale('k1', 6, 9, 0.1);
+    expect(s.samples[5].values.k1.v).toBe(before[5]);
+    expect(s.samples[6].values.k1.v).toBeCloseTo(before[6]! * 0.1, 12);
+    expect(s.samples[8].values.k1.v).toBeCloseTo(before[8]! * 0.1, 12);
+    expect(s.samples[9].values.k1.v).toBe(before[9]);
+    s.rescale('k1', 6, 9, 10);
+    expect(s.samples.map((x) => x.values.k1.v).every((v, i) => Math.abs(v! - before[i]!) < 1e-12)).toBe(true);
+  });
 });
