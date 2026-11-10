@@ -21,6 +21,7 @@ import { Tracker, makeTemplate, type TrackConfig } from './readers/track';
 import { parseTask, serializeTask, type TaskFile } from './task';
 import { Stabilizer } from './readers/stabilize';
 import type { TrackResult } from './readers/track';
+import { encodeShare, parseShares, summarize } from './analysis/classview';
 import { TEMPLATES, evalTemplateResults, templateById, type Template, type TplResultLine } from './templates';
 import { describeUncertainty, type UncertaintyConfig } from './analysis/uncertainty';
 import { icon, symbol, SYMBOLS } from './ui/icons';
@@ -1538,6 +1539,7 @@ function renderTemplateResults(): void {
     return [i.id, { value: Number.isFinite(num) ? num : null, relPercent: Number.isFinite(rel) ? rel : null }];
   }));
   tplLines = evalTemplateResults(t, fit.params, inputs);
+  renderClassShare();
   host.innerHTML = tplLines.map((l) => {
     if (l.problem) return `<div class="tplres"><b>${esc(l.label)}</b><p class="problem">${icon('warning', 16)} ${esc(l.problem)}</p></div>`;
     const unit = l.unit ? ` ${esc(l.unit)}` : '';
@@ -1551,6 +1553,58 @@ function renderTemplateResults(): void {
     return `<div class="tplres"><b>${esc(l.label)}</b><div class="val">${withError(l.value!, l.sigma ?? NaN)}${unit}</div>${lit}${budget}</div>`;
   }).join('');
 }
+
+/* ---- Klassenansicht ---- */
+
+const classUrl = (code: string): string => `${location.origin}${location.pathname}#pmw=${code}`;
+function currentShareCode(): string | null {
+  const t = templateById(tplId);
+  const lines = tplLines.filter((l) => l.value !== null && !l.problem);
+  if (!t || !lines.length) return null;
+  const group = $<HTMLInputElement>('class-group').value.trim() || 'Gruppe';
+  return encodeShare({ tpl: t.id, group, lines: lines.map((l) => ({ label: l.label, unit: l.unit, value: l.value!, sigma: l.sigma !== null && Number.isFinite(l.sigma) ? l.sigma : null })) });
+}
+function renderClassShare(): void {
+  const ok = currentShareCode() !== null;
+  $<HTMLButtonElement>('class-copy-code').disabled = !ok;
+  $<HTMLButtonElement>('class-copy-link').disabled = !ok;
+  $('class-share-msg').textContent = ok ? 'Bereit: Code oder Link kopieren und der Lehrkraft schicken (Chat, Mail, Tafelbild).' : 'Das Ergebnis einer Vorlage steht erst nach dem Fit zum Teilen bereit.';
+}
+async function copyText(text: string, what: string): Promise<void> {
+  try { await navigator.clipboard.writeText(text); $('class-share-msg').textContent = `${what} kopiert.`; }
+  catch { $<HTMLTextAreaElement>('class-text').value = text; $('class-share-msg').textContent = `Kopieren nicht möglich; der ${what} steht unten im Feld und kann von Hand markiert werden.`; renderClassView(); }
+}
+$('class-copy-code').onclick = () => { const c = currentShareCode(); if (c) void copyText(c, 'Code'); };
+$('class-copy-link').onclick = () => { const c = currentShareCode(); if (c) void copyText(classUrl(c), 'Link'); };
+const sig2 = (x: number): string => String(Number(x.toPrecision(2))).replace('.', ',');
+function renderClassView(): void {
+  const text = $<HTMLTextAreaElement>('class-text').value;
+  try { localStorage.setItem('pmw-class', text); } catch { /* ohne Speicher geht es auch */ }
+  const rs = parseShares(text);
+  const host = $('class-out');
+  if (!rs.length) { host.innerHTML = text.trim() ? `<p class="problem">${icon('warning', 16)} Kein gültiger Code gefunden. Ein Code beginnt mit PMW1.</p>` : ''; return; }
+  const sums = summarize(rs);
+  const rows = rs.map((r) => `<tr><td>${esc(r.group)}</td>${r.lines.map((l) => `<td class="num">${withError(l.value, l.sigma ?? NaN)} ${esc(l.unit)}</td>`).join('')}</tr>`).join('');
+  const head = rs[0].lines.map((l) => `<th>${esc(l.label)}</th>`).join('');
+  const sumHtml = sums.map((s) => {
+    const unit = s.unit ? ` ${esc(s.unit)}` : '';
+    const w = s.weighted ? `<br>Gewichteter Mittelwert (nach Unsicherheit): ${withError(s.weighted.value, s.weighted.sigma)}${unit}` : '';
+    const o = s.outliers.length ? `<br><span class="problem">${icon('warning', 16)} Auffällig weit vom Rest: ${s.outliers.map(esc).join(', ')}. Messung oder Eingabe prüfen.</span>` : '';
+    return `<div class="tplres"><b>${esc(s.label)}</b><div class="val">${withError(s.mean, s.sem ?? NaN)}${unit}</div><p class="note">Mittelwert von ${s.n} Gruppe${s.n === 1 ? '' : 'n'}${s.sd !== null ? `, Standardabweichung ${sig2(s.sd)}${unit}, Fehler des Mittelwerts ${sig2(s.sem!)}` : ''}.${w}${o}</p></div>`;
+  }).join('');
+  host.innerHTML = `<div class="tablewrap"><table><thead><tr><th>Gruppe</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>${sumHtml}<p class="note">Nur Gruppen mit gleicher Vorlage vergleichen. Systematische Fehler, die alle gleich machen, mittelt man nicht weg.</p>`;
+}
+$('class-text').addEventListener('input', renderClassView);
+$('class-group').addEventListener('input', renderClassShare);
+(() => {
+  let saved = '';
+  try { saved = localStorage.getItem('pmw-class') ?? ''; } catch { /* egal */ }
+  const m = /[#&]pmw=(PMW1\.[A-Za-z0-9_-]+)/.exec(location.hash);
+  if (m && !saved.includes(m[1])) saved = `${saved}${saved && !saved.endsWith('\n') ? '\n' : ''}${m[1]}\n`;
+  if (saved) $<HTMLTextAreaElement>('class-text').value = saved;
+  if (m) { history.replaceState(null, '', location.pathname + location.search); $<HTMLDetailsElement>('classbox').open = true; setTimeout(() => goStep(4), 0); }
+  renderClassView();
+})();
 
 /** Ergebnisblatt für die XLSX-Exporte. */
 function tplSheet(): { name: string; table: { header: string[]; rows: (number | string | null)[][] } } | null {

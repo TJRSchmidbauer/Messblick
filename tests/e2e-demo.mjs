@@ -7,7 +7,7 @@ const url = process.env.URL ?? 'http://localhost:5173/';
 const shots = process.env.SHOTS ?? '/tmp/shots';
 fs.mkdirSync(shots, { recursive: true });
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
-const ctx = await browser.newContext({ acceptDownloads: true, viewport: { width: 1360, height: 900 }, reducedMotion: 'reduce' });
+const ctx = await browser.newContext({ acceptDownloads: true, permissions: ['clipboard-read', 'clipboard-write'], viewport: { width: 1360, height: 900 }, reducedMotion: 'reduce' });
 const page = await ctx.newPage();
 const errors = [];
 page.on('pageerror', (e) => { errors.push(e.message); console.error('PAGEERROR', e.message); });
@@ -214,6 +214,17 @@ const tpl1 = await page.locator('#tpl-results').innerText();
 console.log('Vorlage Kondensator:', tpl1.replace(/\n+/g, ' | ').slice(0, 200));
 if (!/Bitte eintragen: Widerstand R/.test(tpl1)) throw new Error('Hinweis auf fehlendes R fehlt: ' + tpl1);
 await page.fill('#tpl-in-R', '1000'); await page.fill('#tpl-in-Cnenn', '4700'); await page.fill('#tpl-rel-R', '1');
+{ // Ergebnis teilen: Code erscheint im Klassenfeld, wenn das Kopieren nicht klappt, sonst in der Zwischenablage
+  await page.locator('#classbox > summary').click();
+  await page.fill('#class-group', 'Gruppe Demo');
+  await page.click('#class-copy-code');
+  await page.waitForFunction(() => /Code/.test(document.getElementById('class-share-msg').textContent));
+  const code = (await page.inputValue('#class-text')).match(/PMW1\.[A-Za-z0-9_-]+/)?.[0] ?? (await page.evaluate(() => navigator.clipboard.readText().catch(() => '')));
+  if (!/^PMW1\./.test(code)) throw new Error('Kein Gruppencode erzeugt');
+  await page.fill('#class-text', code);
+  if (!/Gruppe Demo/.test(await page.locator('#class-out').innerText())) throw new Error('Eigener Code wird nicht gelesen');
+  await page.fill('#class-text', '');
+}
 const tpl2 = await page.locator('#tpl-results').innerText();
 if (!/Kapazität C/.test(tpl2) || /Bitte eintragen/.test(tpl2) || !/Nennwert/.test(tpl2)) throw new Error('Kapazität mit Vergleich fehlt: ' + tpl2);
 if (!/Unsicherheitsbudget: größter Beitrag/.test(tpl2)) throw new Error('Unsicherheitsbudget fehlt: ' + tpl2);

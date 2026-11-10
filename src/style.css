@@ -362,3 +362,11 @@ body.beamer .audiolive .live .live-value { font-size: clamp(3rem, 6.5vw, 6rem); 
 .taskedit input[type=text] { width: 100%; }
 body.beamer .taskedit { display: none; }
 @media (max-width: 900px) { .taskcard { width: calc(100% - 1.5rem); padding: .6rem .8rem; } }
+
+/* Klassenansicht */
+.classbox { margin: 1rem 0; padding: .6rem .9rem; border: 1px solid var(--line-strong); border-radius: 10px; }
+.classbox > summary { cursor: pointer; font-weight: 600; }
+.classbox .tablewrap { overflow-x: auto; margin: .6rem 0; }
+.classbox table { border-collapse: collapse; width: 100%; }
+.classbox th, .classbox td { padding: .3rem .6rem; border-bottom: 1px solid var(--line); text-align: left; }
+.classbox td.num { font-variant-numeric: tabular-nums; }

@@ -216,6 +216,18 @@
           <div id="tpl-inputs" class="tpl-inputs"></div>
           <div id="tpl-results" aria-live="polite"></div>
         </section>
+        <details id="classbox" class="classbox">
+          <summary>Klassenansicht: Ergebnisse der Gruppen sammeln</summary>
+          <p class="note">Jede Gruppe teilt ihr Ergebnis als kurzen Code oder Link (ohne Messdaten, ohne Server). Die Lehrkraft fügt alle Codes unten ein; die App zeigt die Werte nebeneinander, rechnet Mittelwert und Streuung und nennt Ausreißer.</p>
+          <div class="bar">
+            <label class="field">Gruppenname <input id="class-group" autocomplete="off" maxlength="40" placeholder="z. B. Gruppe 3" style="width:11em" /></label>
+            <button id="class-copy-code" type="button" disabled>Code kopieren</button>
+            <button id="class-copy-link" type="button" class="ghost" disabled>Link kopieren</button>
+          </div>
+          <p id="class-share-msg" class="note" aria-live="polite">Das Ergebnis einer Vorlage steht erst nach dem Fit zum Teilen bereit.</p>
+          <label class="field">Codes der Gruppen einfügen (einer je Zeile oder durch Leerzeichen getrennt)<textarea id="class-text" rows="4" spellcheck="false" style="width:100%"></textarea></label>
+          <div id="class-out" aria-live="polite"></div>
+        </details>
         <h2>Graph und Export</h2>
         <div class="grid-controls">
           <label class="field">x-Achse <select id="xsel"></select></label>
