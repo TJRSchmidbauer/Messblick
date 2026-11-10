@@ -1272,14 +1272,17 @@ function takeLive(): void {
   varMsg('');
   const p = parseNum($<HTMLInputElement>('var-p').value);
   if (!Number.isFinite(p) || $<HTMLInputElement>('var-p').value.trim() === '') return varMsg('Bitte zuerst den Wert des Parameters eintippen, z. B. 100.');
-  const c = chans.find((x) => x.id === $<HTMLSelectElement>('var-src').value);
-  if (!c || !c.cal) return varMsg('Bitte ein kalibriertes Gerät wählen.');
-  const buf = liveBuf.get(c.id) ?? [];
-  if (buf.length < 3) return varMsg('Noch zu wenige sichere Ablesungen. Kamera oder Demo muss laufen und die Anzeige sicher gelesen werden.');
-  const dev = sigmaOf(uncOf(c), buf[buf.length - 1]);
+  const srcId = $<HTMLSelectElement>('var-src').value;
+  const mic = srcId === 'mic-f' || srcId === 'mic-l';
+  const c = mic ? null : chans.find((x) => x.id === srcId);
+  if (!mic && (!c || !c.cal)) return varMsg('Bitte ein kalibriertes Gerät wählen.');
+  const buf = liveBuf.get(srcId) ?? [];
+  if (buf.length < 3) return varMsg(mic ? 'Noch zu wenige sichere Messwerte. Es muss ein Ton zu hören sein (Mikrofon näher an die Quelle).' : 'Noch zu wenige sichere Ablesungen. Kamera oder Demo muss laufen und die Anzeige sicher gelesen werden.');
+  // Gerätefehler: bei Geräten aus der Angabe, beim Mikrofon die Auflösung der Analyse (Frequenz 0,2 Hz, Pegel 0,5 dB)
+  const dev = mic ? (srcId === 'mic-f' ? 0.2 : 0.5) : sigmaOf(uncOf(c!), buf[buf.length - 1]);
   const r = averageReadings(buf, dev)!;
-  if (!variation.vname) { variation.vname = c.name; variation.vunit = c.unit; }
-  variation.src = c.id;
+  if (!variation.vname) { variation.vname = mic ? (srcId === 'mic-f' ? 'Frequenz' : 'Pegel') : c!.name; variation.vunit = mic ? (srcId === 'mic-f' ? 'Hz' : 'dB') : c!.unit; }
+  variation.src = srcId;
   variation.rows.push({ p, v: r.v, s: r.s });
   $<HTMLInputElement>('var-p').value = '';
   $<HTMLInputElement>('var-p').focus();
@@ -1306,8 +1309,9 @@ function renderVariation(light = false): void {
   set('var-pname', variation.pname); set('var-punit', variation.punit); set('var-vname', variation.vname); set('var-vunit', variation.vunit);
   const devs = chans.filter((c) => c.cal);
   const srcSel = $<HTMLSelectElement>('var-src');
-  srcSel.innerHTML = devs.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('') || '<option value="">– kein Gerät –</option>';
-  if (devs.some((c) => c.id === variation.src)) srcSel.value = variation.src;
+  const micOpts = source?.kind === 'audio' ? '<option value="mic-f">Frequenz (Mikrofon)</option><option value="mic-l">Pegel (Mikrofon)</option>' : '';
+  srcSel.innerHTML = devs.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('') + micOpts || '<option value="">– kein Gerät –</option>';
+  if (devs.some((c) => c.id === variation.src) || (micOpts && (variation.src === 'mic-f' || variation.src === 'mic-l'))) srcSel.value = variation.src;
   $('var-fit-row').hidden = !lastFit;
   if (lastFit) {
     const fp = $<HTMLSelectElement>('var-fitparam'), keep = fp.value;
@@ -1438,9 +1442,15 @@ function applyTemplate(t: Template): void {
     fitModelId = t.fit!;
     tplAxes = t.mode === 'time' ? { x: 'time', y: 'dev0' } : { x: 'dev0', y: 'dev1' };
   }
+  if (t.audio) {
+    $<HTMLInputElement>('mic-freq').checked = true;
+    $<HTMLInputElement>('mic-level').checked = t.id === 'schallpegel-abstand';
+  }
   renderChannels(); renderLive(); refreshSelects();
-  const have = chans.length, need = t.channels?.length ?? 0;
-  setHint(have < need
+  const have = chans.length, need = t.audio ? 0 : t.channels?.length ?? 0;
+  setHint(t.audio && source?.kind !== 'audio'
+    ? `Vorlage „${t.title}“: Wähle in Schritt 1 als Quelle Mikrofon (oder Demo-Ton zum Ausprobieren).`
+    : have < need
     ? `Vorlage „${t.title}“: Lege noch ${need - have} Gerät(e) an (${(t.channels ?? []).slice(have).map((c) => c.name).join(', ')}) und kalibriere sie.`
     : `Vorlage „${t.title}“ angewendet. Der Ablauf steht in Schritt 4 oben.`);
   renderResults(); scheduleSave();
@@ -2043,6 +2053,12 @@ function drawAudioLabels(scale: number): void {
 function renderAudioLive(): void {
   if (source?.kind !== 'audio') return;
   const a = (source as unknown as AudioReader).read();
+  const fb = liveBuf.get('mic-f') ?? [], lb = liveBuf.get('mic-l') ?? [];
+  if (a?.freq != null) fb.push(a.freq); else fb.length = 0;
+  if (a) lb.push(a.level);
+  if (fb.length > 8) fb.shift();
+  if (lb.length > 8) lb.shift();
+  liveBuf.set('mic-f', fb); liveBuf.set('mic-l', lb);
   const host = $('audiolive');
   const freqTxt = a?.freq != null ? `${a.freq.toFixed(1).replace('.', ',')}<small>Hz</small>` : '–';
   const note = a?.freq != null ? noteName(a.freq) : null;

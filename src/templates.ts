@@ -42,6 +42,8 @@ export interface Template {
   summary: string;
   steps: string[];
   mode: TplMode;
+  /** Messgröße kommt vom Mikrofon (Frequenz oder Pegel) statt von Kamerageräten. */
+  audio?: boolean;
   /** Geräte in Reihenfolge: Name und Einheit; bei mode 'channels' ist das erste die x-, das zweite die y-Achse. */
   channels?: { name: string; unit: string; poisson?: boolean }[];
   /** Fitmodell für time/channels. */
@@ -139,6 +141,49 @@ export const TEMPLATES: Template[] = [
     series: { pname: 'Länge l', punit: 'cm', vname: 'Periodendauer T', vunit: 's', tx: 'id', ty: 'square', model: 'line' },
     inputs: [],
     results: [{ label: 'Fallbeschleunigung g = 4π²/a', unit: 'm/s²', expr: '4*pi*pi/(a*100)', lit: { label: 'Richtwert', value: 9.81, source: 'ortsabhängig, in Mitteleuropa etwa 9,81 m/s²' } }],
+  },
+  {
+    id: 'resonanzrohr-offen', title: 'Resonanzrohr (beidseitig offen): Schallgeschwindigkeit', topic: 'Mechanische Wellen, Schall, stehende Wellen', mode: 'series', audio: true,
+    summary: 'Grundfrequenz einer Luftsäule für verschiedene Rohrlängen. Beidseitig offen gilt f = c/(2L): f über 1/L ist eine Gerade mit der Steigung c/2.',
+    steps: ['Als Quelle Mikrofon wählen; Mikrofon an die Rohröffnung halten.', 'Pro Rohrlänge L (in cm, Innenlänge) das Rohr anblasen oder anschlagen und die Frequenz übernehmen.', 'Die Auftragung f über 1/L ist voreingestellt. Die Mündungskorrektur ist nicht berücksichtigt: Der Achsenabschnitt weicht deshalb leicht von 0 ab.', 'Optional die Lufttemperatur für den Vergleich eintragen.'],
+    series: { pname: 'Länge L', punit: 'cm', vname: 'Frequenz f', vunit: 'Hz', tx: 'inverse', ty: 'id', model: 'line' },
+    inputs: [{ id: 'theta', label: 'Lufttemperatur', unit: '°C', optional: true }],
+    results: [{ label: 'Schallgeschwindigkeit c = 2·a', unit: 'm/s', expr: '2*a/100', lit: { label: 'Näherung für trockene Luft', expr: '331.3+0.606*theta', source: 'c ≈ 331,3 + 0,606·ϑ' } }],
+  },
+  {
+    id: 'resonanzrohr-geschlossen', title: 'Resonanzrohr (einseitig geschlossen): Schallgeschwindigkeit', topic: 'Mechanische Wellen, Schall, stehende Wellen', mode: 'series', audio: true,
+    summary: 'Einseitig geschlossen gilt f = c/(4L): f über 1/L ist eine Gerade mit der Steigung c/4.',
+    steps: ['Als Quelle Mikrofon wählen; Mikrofon an die offene Öffnung halten.', 'Pro Rohrlänge L (in cm) anblasen und die Frequenz übernehmen.', 'Die Auftragung f über 1/L ist voreingestellt.', 'Optional die Lufttemperatur für den Vergleich eintragen.'],
+    series: { pname: 'Länge L', punit: 'cm', vname: 'Frequenz f', vunit: 'Hz', tx: 'inverse', ty: 'id', model: 'line' },
+    inputs: [{ id: 'theta', label: 'Lufttemperatur', unit: '°C', optional: true }],
+    results: [{ label: 'Schallgeschwindigkeit c = 4·a', unit: 'm/s', expr: '4*a/100', lit: { label: 'Näherung für trockene Luft', expr: '331.3+0.606*theta', source: 'c ≈ 331,3 + 0,606·ϑ' } }],
+  },
+  {
+    id: 'saite', title: 'Schwingende Saite: Wellengeschwindigkeit', topic: 'Mechanische Wellen, stehende Wellen auf einer Saite', mode: 'series', audio: true,
+    summary: 'Grundfrequenz einer gezupften Saite für verschiedene schwingende Längen: f = c/(2L), die Steigung von f über 1/L ist c/2.',
+    steps: ['Als Quelle Mikrofon wählen; Mikrofon nah an die Saite.', 'Pro schwingender Länge L (in cm) zupfen und die Frequenz übernehmen. Gleiche Spannung halten.', 'Die Auftragung f über 1/L ist voreingestellt.'],
+    series: { pname: 'Länge L', punit: 'cm', vname: 'Frequenz f', vunit: 'Hz', tx: 'inverse', ty: 'id', model: 'line' },
+    inputs: [],
+    results: [{ label: 'Wellengeschwindigkeit c = 2·a', unit: 'm/s', expr: '2*a/100' }],
+  },
+  {
+    id: 'stimmgabel', title: 'Stimmgabel: Frequenz', topic: 'Schwingungen, Frequenz, Töne', mode: 'time', audio: true,
+    summary: 'Frequenz eines gleichmäßigen Tons über der Zeit; der Mittelwert (Achsenabschnitt der Geraden) ist die Frequenz, die Steigung zeigt eine Drift.',
+    steps: ['Als Quelle Mikrofon wählen; Stimmgabel anschlagen und neben das Mikrofon halten.', 'Einige Sekunden aufnehmen.', 'Modell „Gerade“ ist voreingestellt: b ist die Frequenz.', 'Optional den Nennwert (z. B. 440 Hz) eintragen.'],
+    fit: 'line',
+    inputs: [{ id: 'fnenn', label: 'Nennfrequenz', unit: 'Hz', optional: true }],
+    results: [
+      { label: 'Frequenz f', unit: 'Hz', expr: 'b', lit: { label: 'Nennwert', expr: 'fnenn' } },
+      { label: 'Drift', unit: 'Hz/s', expr: 'a' },
+    ],
+  },
+  {
+    id: 'schallpegel-abstand', title: 'Schallpegel und Abstand', topic: 'Schall, Abstandsgesetz, Schallpegel', mode: 'series', audio: true,
+    summary: 'Pegel in dB über dem Logarithmus des Abstands: Eine Punktquelle im Freien verliert 20·lg 2 ≈ 6 dB je Abstandsverdopplung, das entspricht I ∝ 1/r². Die Steigung gibt den Exponenten.',
+    steps: ['Als Quelle Mikrofon wählen; gleichmäßigen Ton (Lautsprecher mit Sinuston) verwenden.', 'Pro Abstand r (in cm) den Pegel übernehmen. Wähle bei der Messgröße „Pegel (Mikrofon)“.', 'Die Auftragung Pegel über ln(r) ist voreingestellt.'],
+    series: { pname: 'Abstand r', punit: 'cm', vname: 'Pegel', vunit: 'dB', tx: 'ln', ty: 'id', model: 'line' },
+    inputs: [],
+    results: [{ label: 'Exponent n in I ∝ 1/rⁿ', unit: '', expr: '-a/4.3429448', lit: { label: 'Richtwert Punktquelle im Freien', value: 2, source: 'in Räumen durch Reflexionen meist kleiner' } }],
   },
   {
     id: 'ohm', title: 'Ohmsches Gesetz', topic: 'Elektrizitätslehre, Stromstärke, Spannung, Widerstand', mode: 'channels',

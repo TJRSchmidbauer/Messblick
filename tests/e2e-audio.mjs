@@ -43,6 +43,33 @@ if (!(Math.abs(w - (2 * Math.PI) / 12) < 0.02)) throw new Error('ω weicht ab: '
 if (!(Math.abs(A - 110) < 4)) throw new Error('Amplitude weicht ab: ' + A);
 if (!(Math.abs(C - 440) < 3)) throw new Error('Mittelwert weicht ab: ' + C);
 await page.screenshot({ path: process.env.SHOT ?? '/tmp/audio.png', fullPage: true });
+
+// Vorlagen für das Mikrofon: Stimmgabel (Zeitverlauf) und Resonanzrohr (Parameterreihe aus der Live-Frequenz)
+await page.click('#tab-1');
+await page.selectOption('#tpl-select', 'stimmgabel');
+await page.click('#tpl-apply');
+await page.click('#tab-4');
+await page.fill('#tpl-in-fnenn', '440');
+await page.waitForTimeout(400);
+const tpl1 = (await page.locator('#tpl-results').innerText()).replace(/\n+/g, ' | ');
+console.log('Stimmgabel:', tpl1.slice(0, 220));
+if (!/Frequenz f/.test(tpl1) || !/Nennwert/.test(tpl1)) throw new Error('Stimmgabel-Ergebnis fehlt: ' + tpl1);
+await page.click('#tab-1');
+await page.selectOption('#tpl-select', 'resonanzrohr-offen');
+await page.click('#tpl-apply');
+await page.click('#tab-4');
+if (!(await page.locator('#var-src option[value="mic-f"]').count())) throw new Error('Mikrofon fehlt als Quelle der Parameterreihe');
+await page.selectOption('#var-src', 'mic-f');
+for (const L of ['30', '40', '50']) {
+  await page.fill('#var-p', L);
+  await page.waitForTimeout(1200);
+  await page.click('#var-take');
+  const m = await page.locator('#var-msg').textContent();
+  if (m) throw new Error('Messwert übernehmen: ' + m);
+}
+const tpl2 = (await page.locator('#tpl-results').innerText()).replace(/\n+/g, ' | ');
+console.log('Resonanzrohr:', tpl2.slice(0, 260));
+if (!/Schallgeschwindigkeit/.test(tpl2)) throw new Error('Resonanzrohr-Ergebnis fehlt: ' + tpl2);
 if (errors.length) throw new Error('Konsolenfehler: ' + errors.join(' | '));
 await browser.close();
 console.log('AUDIO OK');

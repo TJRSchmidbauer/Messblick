@@ -26,7 +26,7 @@ describe('Vorlagen: Aufbau', () => {
     for (const t of TEMPLATES) {
       expect(t.steps.length, t.id).toBeGreaterThan(1);
       if (t.mode === 'channels') expect(t.channels).toHaveLength(2);
-      else expect(t.channels?.length, t.id).toBeGreaterThanOrEqual(1);
+      else if (!t.audio) expect(t.channels?.length, t.id).toBeGreaterThanOrEqual(1);
       if (t.mode === 'series') expect(t.series, t.id).toBeDefined(); else expect(t.fit, t.id).toBeDefined();
     }
   });
@@ -90,6 +90,26 @@ describe('Vorlagen: Ergebnisse stimmen mit der Physik überein', () => {
     const r = evalTemplateResults(tpl('fadenpendel'), P({ a: [aG, aG * 0.01], b: [0, 0.001] }), {});
     expect(r[0].value).toBeCloseTo(g, 8);
     expect(r[0].lit?.comparison.verdict).toBe('compatible');
+  });
+
+  it('Resonanzrohr: Steigung von f über 1/L (L in cm) ergibt c; Vergleich mit der Temperaturformel', () => {
+    const c = 343, a = (c * 100) / 2; // f = c/(2L) mit L in cm: f = (c·100/2)·(1/L)
+    const r = evalTemplateResults(tpl('resonanzrohr-offen'), P({ a: [a * 1.01, a * 0.02], b: [3, 5] }), inp({ theta: 20 }));
+    expect(r[0].value).toBeCloseTo(c * 1.01, 8);
+    expect(r[0].lit?.value).toBeCloseTo(331.3 + 0.606 * 20, 8);
+    expect(r[0].lit?.comparison.verdict).toBe('compatible');
+    expect(evalTemplateResults(tpl('resonanzrohr-geschlossen'), P({ a: [c * 100 / 4, 10], b: [0, 1] }), {})[0].value).toBeCloseTo(c, 8);
+    expect(evalTemplateResults(tpl('saite'), P({ a: [20000, 100], b: [0, 1] }), {})[0].value).toBeCloseTo(400, 8);
+  });
+
+  it('Stimmgabel und Schallpegel-Abstandsgesetz', () => {
+    const s = evalTemplateResults(tpl('stimmgabel'), P({ a: [0.01, 0.005], b: [440.2, 0.1] }), inp({ fnenn: 440 }));
+    expect(s[0].value).toBeCloseTo(440.2, 8);
+    expect(s[0].lit?.comparison.verdict).toBe('compatible');
+    // −20·lg r: je ln-Einheit −8,686 dB → n = 2
+    const p = evalTemplateResults(tpl('schallpegel-abstand'), P({ a: [-20 / Math.LN10, 0.3], b: [70, 1] }), {});
+    expect(p[0].value).toBeCloseTo(2, 5);
+    expect(p[0].lit?.comparison.verdict).toBe('compatible');
   });
 
   it('Ohm, Zerfall, Abkühlung', () => {
