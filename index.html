@@ -104,6 +104,16 @@
           </div>
           <p id="trk-status" class="note" aria-live="polite">Noch kein Marker gewählt.</p>
         </fieldset>
+        <fieldset class="trackbox" id="gatebox">
+          <legend>Lichtschranke (Kamerazone)</legend>
+          <p class="note">Eine kleine Bildzone wirkt wie eine Lichtschranke: Läuft etwas hindurch, ändert sich die Helligkeit. Daraus ergeben sich Zeitabstände, Periodendauern und Geschwindigkeiten. Für schnelle Vorgänge in Schritt 3 eine hohe Messrate wählen.</p>
+          <div class="bar">
+            <label class="field">Name <input id="gate-name" autocomplete="off" value="Lichtschranke" style="width:10em" /></label>
+            <button id="gate-zone" type="button"><span data-icon="expand"></span>Zone wählen</button>
+            <button id="gate-remove" type="button" class="ghost" disabled><span data-icon="trash"></span>Entfernen</button>
+          </div>
+          <p id="gate-status" class="note" aria-live="polite">Noch keine Zone gewählt.</p>
+        </fieldset>
         <div class="bar secondary">
           <button id="cal-save" type="button" class="ghost" disabled><span data-icon="download"></span>Kalibrierung speichern</button>
           <label class="btn ghost"><span data-icon="upload"></span>Kalibrierung laden<input id="cal-load" type="file" accept="application/json,.json" hidden /></label>
@@ -115,7 +125,7 @@
         <h2>Messreihe aufnehmen</h2>
         <div class="bar">
           <label class="field-inline">Messrate
-            <select id="hz"><option value="1">1 pro Sekunde</option><option value="2" selected>2 pro Sekunde</option><option value="5">5 pro Sekunde</option><option value="10">10 pro Sekunde</option></select>
+            <select id="hz"><option value="1">1 pro Sekunde</option><option value="2" selected>2 pro Sekunde</option><option value="5">5 pro Sekunde</option><option value="10">10 pro Sekunde</option><option value="25">25 pro Sekunde</option><option value="30">30 pro Sekunde (Video)</option><option value="60">60 pro Sekunde (Video)</option></select>
           </label>
         </div>
         <div class="bar">
@@ -171,6 +181,18 @@
           <label><input id="showruns" type="checkbox" checked /> gesicherte Reihen zeigen</label>
         </div>
         <div id="jump-notes" class="jumpnotes" aria-live="polite"></div>
+        <section id="gate-card" class="gatecard" hidden aria-labelledby="gate-title">
+          <h3 id="gate-title">Lichtschranke: Durchgänge</h3>
+          <div id="gate-body"></div>
+          <div class="bar">
+            <label class="field">Breite des Körpers (für die Geschwindigkeit) <span class="inputunit"><input id="gate-width" inputmode="decimal" autocomplete="off" placeholder="z. B. 0,05" style="width:7em" /><span>m</span></span></label>
+          </div>
+          <div class="bar">
+            <button id="gate-take-interval" type="button"><span data-icon="plus"></span>Zeitabstand in die Parameterreihe</button>
+            <button id="gate-take-period" type="button"><span data-icon="plus"></span>Periodendauer in die Parameterreihe</button>
+          </div>
+          <p class="note">Der Wert des Parameters kommt aus dem Feld in der Parameterreihe weiter unten.</p>
+        </section>
         <p id="pred-feedback" class="predfeedback" aria-live="polite" hidden></p>
         <div class="chartwrap"><canvas id="chart" aria-label="Messgraph"></canvas></div>
         <div class="bar"><button id="zoom-reset" type="button" class="ghost"><span data-icon="reset"></span>Zoom zurücksetzen</button><span class="note">Mausrad oder Pinch zoomt, Ziehen verschiebt.</span></div>

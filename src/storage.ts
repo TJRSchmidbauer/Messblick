@@ -40,6 +40,8 @@ export interface SavedState {
   prediction?: unknown;
   /** Markerverfolgung (Vorlage, Startzeit, Maßstab); fehlt in älteren Sitzungen. */
   track?: unknown;
+  /** Lichtschranke (Zone, Name, Breite); fehlt in älteren Sitzungen. */
+  gate?: unknown;
   session: { channels: ChannelDef[]; samples: Sample[]; runs: Run[] };
 }
 

@@ -14,6 +14,7 @@ import { TRANSFORMS, averageReadings, suggestPlots, toPoints, transformLabel, ty
 import { sigmaOf } from './analysis/uncertainty';
 import { detectScaleJumps, factorLabel } from './analysis/jumps';
 import { cleanPath, comparePrediction, type Prediction } from './analysis/prediction';
+import { detectGate, stats as gateStats, type GateResult } from './analysis/gate';
 import { Tracker, makeTemplate, type TrackConfig } from './readers/track';
 import { TEMPLATES, evalTemplateResults, templateById, type Template, type TplResultLine } from './templates';
 import { describeUncertainty, type UncertaintyConfig } from './analysis/uncertainty';
@@ -92,7 +93,15 @@ let prediction: Prediction | null = null;
 interface TrackState { name: string; cfg: TrackConfig | null; scaleP: Point[]; meters: number | null }
 const freshTrack = (): TrackState => ({ name: 'Marker', cfg: null, scaleP: [], meters: null });
 let trackSt: TrackState = freshTrack();
-let trackMode: 'marker' | 'scale1' | 'scale2' | null = null;
+let trackMode: 'marker' | 'gate' | 'scale1' | 'scale2' | null = null;
+/** Lichtschranke: Zone im Bild, Name, Breite des Körpers (m) für die Geschwindigkeit. */
+interface GateState { name: string; rect: Rect | null; width: string }
+const freshGate = (): GateState => ({ name: 'Lichtschranke', rect: null, width: '' });
+let gateSt: GateState = freshGate();
+let drawKind: 'marker' | 'gate' = 'marker';
+let gateLast: { r: GateResult; intervals: ReturnType<typeof gateStats>; periods: ReturnType<typeof gateStats> } | null = null;
+/** Anzahl der Größen, die schon belegt sind (Geräte, Marker x/y, Lichtschranke, abgeleitete Größen). */
+const usedChannelCount = (): number => chans.length + session.channels.filter((c) => c.derived).length + (trackSt.cfg ? 2 : 0) + (gateSt.rect ? 1 : 0);
 let trkDraw: { start: Point; cur: Point } | null = null;
 let trackerCache: { cfg: TrackConfig; tracker: Tracker } | null = null;
 const predRange = { xmin: 0, xmax: 30, ymin: 0, ymax: 10 };
@@ -169,6 +178,7 @@ function uncOf(c: Chan): UncertaintyConfig {
 const active = (): ActiveChannel[] => [
   ...chans.filter((c) => c.cal).map((c) => ({ id: c.id, cal: c.cal! })),
   ...(trackSt.cfg ? [{ id: 'trk-', track: trackerOf(trackSt.cfg) }] : []),
+  ...(gateSt.rect ? [{ id: 'gate', gate: gateSt.rect }] : []),
 ];
 /** Ein Tracker je Marker-Konfiguration; der Sampler setzt ihn beim Start einer Aufnahme zurück. */
 function trackerOf(cfg: TrackConfig): Tracker {
@@ -379,7 +389,7 @@ $('helpdlg-close').onclick = () => helpdlg.close();
 /* ============================== Kanäle ============================== */
 
 function addChannel(type: 'analog' | 'digital'): void {
-  if (chans.length + session.channels.filter((c) => c.derived).length + (trackSt.cfg ? 2 : 0) >= MAX_CHANNELS) return showError('Mehr als vier Größen gleichzeitig (Messgeräte, Markerverfolgung mit x und y und abgeleitete Größen zusammen) werden nicht unterstützt.');
+  if (usedChannelCount() >= MAX_CHANNELS) return showError('Mehr als vier Größen gleichzeitig (Messgeräte, Markerverfolgung mit x und y, Lichtschranke und abgeleitete Größen zusammen) werden nicht unterstützt.');
   const used = new Set(chans.map((c) => c.slot));
   const slot = [0, 1, 2, 3].find((s) => !used.has(s))!;
   const id = `k${nextId++}`;
@@ -566,7 +576,8 @@ view.addEventListener('pointerup', () => {
   if (trkDraw) {
     const { start, cur } = trkDraw;
     trkDraw = null;
-    finishMarker({ x: Math.min(start.x, cur.x), y: Math.min(start.y, cur.y), w: Math.abs(cur.x - start.x), h: Math.abs(cur.y - start.y) });
+    const rect = { x: Math.min(start.x, cur.x), y: Math.min(start.y, cur.y), w: Math.abs(cur.x - start.x), h: Math.abs(cur.y - start.y) };
+    if (drawKind === 'gate') finishGate(rect); else finishMarker(rect);
     return;
   }
   if (roiDraw) {
@@ -875,6 +886,10 @@ function syncSessionChannels(): void {
       if (ex) { ex.name = name; ex.unit = unit; } else session.addChannel({ id, name, unit });
     }
   }
+  if (gateSt.rect) {
+    const ex = session.channels.find((s) => s.id === 'gate');
+    if (ex) { ex.name = gateSt.name; ex.unit = 'rel.'; } else session.addChannel({ id: 'gate', name: gateSt.name, unit: 'rel.' });
+  }
   refreshSelects();
 }
 
@@ -1054,6 +1069,7 @@ function renderResults(light = false): void {
   renderVariation(light);
   renderTemplateResults();
   renderJumpNotes();
+  renderGate();
 }
 
 /* ---- Fit ---- */
@@ -1176,7 +1192,7 @@ function syncDerivedDialog(): void {
 $('derivedlg-kind').addEventListener('change', syncDerivedDialog);
 $('derive-new').onclick = () => {
   if (session.channels.length < 1) return showError('Zuerst ein Messgerät anlegen und messen.');
-  if (chans.length + session.channels.filter((c) => c.derived).length >= MAX_CHANNELS) return showError('Mehr als vier Größen gleichzeitig (Messgeräte und abgeleitete Größen zusammen) werden nicht unterstützt.');
+  if (usedChannelCount() >= MAX_CHANNELS) return showError('Mehr als vier Größen gleichzeitig (Messgeräte, Marker, Lichtschranke und abgeleitete Größen zusammen) werden nicht unterstützt.');
   const real = session.channels.filter((c) => !c.derived || true);
   $('derivedlg-src').innerHTML = real.map((c) => `<option value="${c.id}">${esc(c.name)}</option>`).join('');
   $('derivedlg-vars').innerHTML = real.map((c) => `<button type="button" class="ghost" data-ins="${esc(Session.identOf(c.name))}">${esc(Session.identOf(c.name))}</button>`).join(' ');
@@ -1742,7 +1758,8 @@ function syncSessionChannelsIfAny(): void {
 }
 
 function onTrackPointerDown(e: PointerEvent, p: Point): void {
-  if (trackMode === 'marker') {
+  if (trackMode === 'marker' || trackMode === 'gate') {
+    drawKind = trackMode;
     view.setPointerCapture(e.pointerId);
     trkDraw = { start: p, cur: p };
   } else if (trackMode === 'scale1') {
@@ -1784,6 +1801,13 @@ function finishMarker(r: Rect): void {
 function drawTrackOverlay(scale: number): void {
   const c = trackSt.cfg;
   const col = '#F6B48F';
+  if (gateSt.rect) {
+    const g = gateSt.rect;
+    strokeHalo(() => { vctx.beginPath(); vctx.rect(g.x, g.y, g.w, g.h); }, col, 2);
+    vctx.fillStyle = 'rgb(0 0 0 / .72)';
+    vctx.fillRect(g.x, g.y - 22 * scale, vctx.measureText(gateSt.name).width + 16 * scale, 20 * scale);
+    vctx.fillStyle = '#fff'; vctx.fillText(gateSt.name, g.x + 8 * scale, g.y - 7 * scale);
+  }
   if (trkDraw) strokeHalo(() => { vctx.beginPath(); vctx.rect(Math.min(trkDraw!.start.x, trkDraw!.cur.x), Math.min(trkDraw!.start.y, trkDraw!.cur.y), Math.abs(trkDraw!.cur.x - trkDraw!.start.x), Math.abs(trkDraw!.cur.y - trkDraw!.start.y)); }, col, 2);
   if (!c) return;
   const recording = !!stopLive || !!abort;
@@ -1802,6 +1826,88 @@ function drawTrackOverlay(scale: number): void {
   vctx.fillRect(t.x, t.y - 22 * scale, vctx.measureText(label).width + 16 * scale, 20 * scale);
   vctx.fillStyle = '#fff'; vctx.fillText(label, t.x + 8 * scale, t.y - 7 * scale);
 }
+
+/* ---- Lichtschranke ---- */
+
+function renderGateStatus(): void {
+  const g = gateSt.rect;
+  $('gate-status').textContent = g
+    ? `Zone gewählt (${Math.round(g.w)} × ${Math.round(g.h)} Bildpunkte). Zone schmal wählen und genau dort, wo der Körper durchläuft. In Schritt 3 mit hoher Messrate aufnehmen.`
+    : 'Noch keine Zone gewählt. Ziehe ein kleines Rechteck dorthin, wo der Körper durchläuft.';
+  $<HTMLButtonElement>('gate-remove').disabled = !g;
+  $<HTMLInputElement>('gate-name').value = gateSt.name;
+  $<HTMLInputElement>('gate-width').value = gateSt.width;
+}
+$('gate-zone').onclick = () => {
+  if (!source) return showError('Bitte zuerst eine Quelle wählen.');
+  trackMode = 'gate';
+  calib = null;
+  setHint('Ziehe ein kleines Rechteck dorthin, wo der Körper durch das Bild läuft (die „Lichtschranke“).');
+};
+$('gate-remove').onclick = () => {
+  gateSt = freshGate();
+  session.removeChannel('gate');
+  refreshSelects(); renderGateStatus(); updateButtons(); renderResults(); scheduleSave();
+};
+$('gate-name').addEventListener('input', (e) => {
+  gateSt.name = (e.target as HTMLInputElement).value || 'Lichtschranke';
+  if (session.channels.some((c) => c.id === 'gate')) { syncSessionChannels(); renderResults(); }
+  scheduleSave();
+});
+$('gate-width').addEventListener('input', (e) => { gateSt.width = (e.target as HTMLInputElement).value; renderGate(); scheduleSave(); });
+
+function finishGate(r: Rect): void {
+  trackMode = null;
+  if (r.w < 3 || r.h < 3) return showError('Die Zone ist zu klein. Ziehe ein größeres Rechteck (mindestens 3 × 3 Bildpunkte).');
+  showError(null);
+  gateSt.rect = r;
+  setHint('Zone gewählt. In Schritt 3 mit hoher Messrate aufnehmen (bei Videos z. B. 30 pro Sekunde).');
+  renderGateStatus(); updateButtons(); scheduleSave();
+}
+
+const fmtS = (v: number, s: number | null): string => (s !== null && s > 0 ? withError(v, s) : fmtNum(v));
+
+/** Durchgänge aus der aufgenommenen Helligkeit der Zone; Kennzahlen mit Unsicherheit aus Streuung und Bildabstand. */
+function renderGate(): void {
+  const card = $('gate-card');
+  const rows = session.samples.flatMap((s) => (s.values.gate?.v != null ? [{ t: s.t, v: s.values.gate.v as number }] : []));
+  gateLast = null;
+  card.hidden = !gateSt.rect || rows.length < 3;
+  if (card.hidden) return;
+  const r = detectGate(rows);
+  const res = r.frameDt / Math.sqrt(12); // Zeitauflösung: gleichverteilter Fehler innerhalb eines Bildabstands
+  const withRes = (st: ReturnType<typeof gateStats>): number | null => (st ? Math.hypot(st.sem ?? 0, res) : null);
+  const iv = gateStats(r.intervals), pe = gateStats(r.periods);
+  gateLast = { r, intervals: iv, periods: pe };
+  const lines: string[] = [];
+  lines.push(`<p><b>${r.blocks.length} Durchgänge</b> erkannt (${r.polarity === 'dark' ? 'dunkler Körper' : 'heller Körper'}), Bildabstand ${fmtNum(r.frameDt * 1000)} ms.</p>`);
+  if (iv) lines.push(`<p>Zeit zwischen aufeinanderfolgenden Durchgängen: <span class="big">${fmtS(iv.mean, withRes(iv))} s</span> (n = ${iv.n})</p>`);
+  if (pe) lines.push(`<p>Periodendauer (jeder zweite Durchgang, z. B. Pendel mit Schranke in der Mitte): <span class="big">${fmtS(pe.mean, withRes(pe))} s</span> (n = ${pe.n})</p>`);
+  const d = Number(gateSt.width.trim().replace(',', '.'));
+  if (Number.isFinite(d) && d > 0 && r.blocks.length) {
+    const vs = gateStats(r.blocks.filter((b) => b.width > 0).map((b) => d / b.width));
+    if (vs) lines.push(`<p>Geschwindigkeit beim Durchgang (Breite ${fmtNum(d)} m / Dauer): <span class="big">${fmtS(vs.mean, vs.sem)} m/s</span></p>`);
+  }
+  if (r.blocks.length) lines.push(`<details><summary>Alle Durchgänge</summary><table><thead><tr><th>#</th><th>Eintritt / s</th><th>Dauer / s</th></tr></thead><tbody>${r.blocks.slice(0, 40).map((b, i) => `<tr><td>${i + 1}</td><td>${fmtNum(b.tIn)}</td><td>${fmtNum(b.width)}</td></tr>`).join('')}</tbody></table></details>`);
+  for (const w of r.warnings) lines.push(`<p class="problem">${icon('warning', 16)} ${esc(w)}</p>`);
+  $('gate-body').innerHTML = lines.join('');
+  $<HTMLButtonElement>('gate-take-interval').disabled = !iv;
+  $<HTMLButtonElement>('gate-take-period').disabled = !pe;
+}
+function takeGate(kind: 'intervals' | 'periods'): void {
+  varMsg('');
+  const st = gateLast?.[kind];
+  const p = parseNum($<HTMLInputElement>('var-p').value);
+  if (!st) return;
+  if (!Number.isFinite(p) || $<HTMLInputElement>('var-p').value.trim() === '') return varMsg('Bitte unten in der Parameterreihe zuerst den Wert des Parameters eintippen.');
+  const res = gateLast!.r.frameDt / Math.sqrt(12);
+  if (!variation.vname) { variation.vname = kind === 'periods' ? 'Periodendauer T' : 'Zeitabstand'; variation.vunit = 's'; }
+  variation.rows.push({ p, v: st.mean, s: Math.hypot(st.sem ?? 0, res) });
+  $<HTMLInputElement>('var-p').value = '';
+  varChanged();
+}
+$('gate-take-interval').onclick = () => takeGate('intervals');
+$('gate-take-period').onclick = () => takeGate('periods');
 
 function renderRuns(): void {
   const host = $('runs');
@@ -1895,7 +2001,7 @@ function saveNow(): void {
   saveTimer = 0;
   const state: SavedState = {
     version: 1, channels: chans.map(toSaved), nextId, hz: Number($<HTMLSelectElement>('hz').value), theme: themeSel.value,
-    smoothing: session.smoothing, variation, template: { id: tplId, inputs: tplInputs }, track: trackSt, prediction: prediction ? { ...prediction, range: predRange } : null, session: { channels: session.channels, samples: session.samples, runs: session.runs },
+    smoothing: session.smoothing, variation, template: { id: tplId, inputs: tplInputs }, track: trackSt, gate: gateSt, prediction: prediction ? { ...prediction, range: predRange } : null, session: { channels: session.channels, samples: session.samples, runs: session.runs },
   };
   try { localStorage.setItem(STORAGE_KEY, serialize(state)); } catch {
     if (!saveWarned) { saveWarned = true; showError('Automatisches Speichern ist nicht möglich (Speicher voll oder gesperrt). Exportiere deine Daten rechtzeitig.'); }
@@ -1925,18 +2031,20 @@ function restore(): void {
   if (tp?.id && templateById(tp.id)) { tplId = tp.id; tplInputs = tp.inputs ?? {}; }
   const tk = s.track as TrackState | undefined;
   if (tk?.cfg?.template && Array.isArray(tk.cfg.template.data) && tk.cfg.template.data.length === tk.cfg.template.w * tk.cfg.template.h) trackSt = { ...freshTrack(), ...tk };
+  const gt = s.gate as GateState | undefined;
+  if (gt?.rect && gt.rect.w > 0 && gt.rect.h > 0) gateSt = { ...freshGate(), ...gt };
   const pr = s.prediction as (Prediction & { range?: typeof predRange }) | null | undefined;
   if (pr && Array.isArray(pr.points) && pr.points.length >= 2) { prediction = { xKey: pr.xKey, yId: pr.yId, points: pr.points }; if (pr.range) Object.assign(predRange, pr.range); }
   if (s.variation && typeof s.variation === 'object') variation = { ...freshVariation(), ...(s.variation as Partial<VarState>) };
   $<HTMLInputElement>('smooth').checked = session.smoothing >= 3;
-  if (chans.length || session.samples.length || session.runs.length || variation.rows.length || trackSt.cfg) {
+  if (chans.length || session.samples.length || session.runs.length || variation.rows.length || trackSt.cfg || gateSt.rect) {
     const n = $('restore');
     n.hidden = false;
     n.innerHTML = `<span>${icon('info')} Letzte Sitzung wiederhergestellt: ${chans.length} Gerät(e), ${session.samples.length} Messpunkte${session.runs.length ? `, ${session.runs.length} gesicherte Reihe(n)` : ''}. Die Kalibrierung gilt nur bei gleichem Kamerabild.</span>
       <button type="button" id="restore-reset">Neu beginnen</button><button type="button" class="ghost" id="restore-ok">OK</button>`;
     $('restore-ok').onclick = () => { n.hidden = true; };
     $('restore-reset').onclick = () => {
-      chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1; variation = freshVariation(); tplId = ''; tplInputs = {}; prediction = null; trackSt = freshTrack();
+      chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1; variation = freshVariation(); tplId = ''; tplInputs = {}; prediction = null; trackSt = freshTrack(); gateSt = freshGate();
       n.hidden = true;
       try { localStorage.removeItem(STORAGE_KEY); } catch { /* egal */ }
       renderChannels(); renderLive(); updateButtons(); renderResults();
@@ -1991,6 +2099,7 @@ updateButtons();
 applyStep();
 renderTemplateCard();
 renderTrackStatus();
+renderGateStatus();
 syncPredInputs();
 renderPredState();
 drawPredCanvas();

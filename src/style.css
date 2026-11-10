@@ -326,3 +326,11 @@ th .sym { color: var(--c); margin-right: .3rem; }
 /* Markerverfolgung */
 .trackbox { margin: 1rem 0; border: 1.5px solid var(--line); border-radius: 12px; padding: .5rem 1rem 1rem; }
 .trackbox legend { font-weight: 700; padding: 0 .4rem; }
+
+/* Lichtschranke */
+.gatecard { margin: .75rem 0; padding: .75rem 1rem; border: 1.5px solid var(--ink); border-radius: 12px; background: var(--surface); }
+.gatecard h3 { margin: 0 0 .4rem; }
+.gatecard table { border-collapse: collapse; margin: .4rem 0; }
+.gatecard th { position: static; }
+.gatecard th, .gatecard td { padding: .2rem .8rem .2rem 0; text-align: left; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; }
+.gatecard .big { font-family: "JetBrains Mono Variable", "JetBrains Mono", monospace; font-size: 1.1rem; font-weight: 700; }

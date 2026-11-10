@@ -12,6 +12,8 @@ export const DEMO = {
   display: { x: 380, y: 140, w: 220, h: 90, digits: 4 },
 };
 /** Pendelkugel zum Ausprobieren der Markerverfolgung: waagerechte Schwingung, Periode 4 s, Amplitude 80 Bildpunkte. */
+/** Zone der Demo-Lichtschranke: in der Mitte der Pendelbahn, die Kugel läuft alle 2 s hindurch. */
+export const DEMO_GATE = { x: 494, y: 276, w: 12, h: 32 };
 export const DEMO_BOB = { cx: 500, cy: 292, amplitude: 80, period: 4, r: 12 };
 export const demoBobX = (t: number): number => DEMO_BOB.cx + DEMO_BOB.amplitude * Math.sin((2 * Math.PI * t) / DEMO_BOB.period);
 export const demoBobY = (t: number): number => DEMO_BOB.cy + 8 * Math.cos((2 * Math.PI * t) / DEMO_BOB.period);

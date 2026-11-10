@@ -3,6 +3,8 @@ import { readChannel } from './readers';
 import type { Session } from './session/session';
 import type { FrameSource } from './source/types';
 import type { Tracker } from './readers/track';
+import type { Frame, Rect } from './core/types';
+import { luminance } from './core/types';
 
 /**
  * Ein aktiver Kanal ist entweder ein abgelesenes Gerät (`cal`) oder eine Markerverfolgung (`track`).
@@ -12,6 +14,17 @@ export interface ActiveChannel {
   id: string;
   cal?: Calibration;
   track?: Tracker;
+  /** Lichtschranke: mittlere Helligkeit (0..1) dieser Bildzone. */
+  gate?: Rect;
+}
+
+/** Mittlere Helligkeit einer Bildzone, 0 (schwarz) bis 1 (weiß). */
+export function meanBrightness(frame: Frame, r: Rect): number {
+  const x0 = Math.max(0, Math.floor(r.x)), y0 = Math.max(0, Math.floor(r.y));
+  const x1 = Math.min(frame.width, Math.ceil(r.x + r.w)), y1 = Math.min(frame.height, Math.ceil(r.y + r.h));
+  let sum = 0, n = 0;
+  for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) { sum += luminance(frame, x, y); n++; }
+  return n ? sum / n / 255 : 0;
 }
 
 function sampleOnce(src: FrameSource, channels: ActiveChannel[], session: Session, t: number): void {
@@ -22,6 +35,8 @@ function sampleOnce(src: FrameSource, channels: ActiveChannel[], session: Sessio
       const r = ch.track.update(frame, t);
       values[`${ch.id}x`] = { v: r.x, c: r.confidence };
       values[`${ch.id}y`] = { v: r.y, c: r.confidence };
+    } else if (ch.gate) {
+      values[ch.id] = { v: meanBrightness(frame, ch.gate), c: 1 };
     } else if (ch.cal) {
       const r = readChannel(frame, ch.cal);
       values[ch.id] = { v: r.value, c: r.confidence };
