@@ -2,6 +2,8 @@ import type { Frame } from '../core/types';
 import type { FrameSource } from './types';
 
 const MAX_WIDTH = 960;
+/** Hochformat: Höhe begrenzen, sonst werden 1080×1920-Bilder zu 960×1707 und die Verarbeitung zu langsam. */
+const MAX_HEIGHT = 1280;
 
 class VideoSource implements FrameSource {
   width: number;
@@ -15,12 +17,10 @@ class VideoSource implements FrameSource {
     public duration: number | null,
     private onStop: () => void,
   ) {
-    const scale = Math.min(1, MAX_WIDTH / video.videoWidth);
-    this.width = Math.round(video.videoWidth * scale);
-    this.height = Math.round(video.videoHeight * scale);
-    this.canvas.width = this.width;
-    this.canvas.height = this.height;
+    this.width = 0;
+    this.height = 0;
     this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })!;
+    this.layout();
     if (kind === 'file' && 'requestVideoFrameCallback' in HTMLVideoElement.prototype) {
       this.scan = (hz, onFrame, signal) => new Promise<void>((resolve) => {
         const v = this.video, dt = 1 / hz;
@@ -56,6 +56,24 @@ class VideoSource implements FrameSource {
   }
   seek?: (t: number) => Promise<void>;
 
+  /** Drehung des Bildes in Grad im Uhrzeigersinn (0, 90, 180, 270). */
+  rotation = 0;
+  /** Größe von Bild und Zeichenfläche nach Drehung und Verkleinerung (höchstens MAX_WIDTH breit). */
+  private layout(): void {
+    const turned = this.rotation % 180 !== 0;
+    const w = turned ? this.video.videoHeight : this.video.videoWidth, h = turned ? this.video.videoWidth : this.video.videoHeight;
+    const scale = Math.min(1, MAX_WIDTH / w, MAX_HEIGHT / h);
+    this.width = Math.round(w * scale);
+    this.height = Math.round(h * scale);
+    this.canvas.width = this.width;
+    this.canvas.height = this.height;
+  }
+  /** Um 90° weiterdrehen (1 = im Uhrzeigersinn, −1 dagegen). */
+  rotate(turns: 1 | -1 = 1): void {
+    this.rotation = (this.rotation + 90 * turns + 360) % 360;
+    this.layout();
+  }
+
   /**
    * Abspielen und dabei Bilder abtasten (requestVideoFrameCallback). Springen kostet je Bild ein Dekodieren ab dem
    * letzten Schlüsselbild (hier etwa 180 ms); beim Abspielen kommt jedes Bild nach etwa 35 ms. Bleibt die Verarbeitung
@@ -69,7 +87,17 @@ class VideoSource implements FrameSource {
   }
 
   grab(): Frame {
-    this.ctx.drawImage(this.video, 0, 0, this.width, this.height);
+    if (this.rotation === 0) this.ctx.drawImage(this.video, 0, 0, this.width, this.height);
+    else {
+      // Quelle (unverdreht) auf die gedrehte Zeichenfläche abbilden: Mittelpunkt verschieben, drehen, Quelle zentriert zeichnen
+      const turned = this.rotation % 180 !== 0;
+      const dw = turned ? this.height : this.width, dh = turned ? this.width : this.height;
+      this.ctx.save();
+      this.ctx.translate(this.width / 2, this.height / 2);
+      this.ctx.rotate((this.rotation * Math.PI) / 180);
+      this.ctx.drawImage(this.video, -dw / 2, -dh / 2, dw, dh);
+      this.ctx.restore();
+    }
     return this.ctx.getImageData(0, 0, this.width, this.height);
   }
 

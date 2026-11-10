@@ -72,6 +72,11 @@
       <div class="viewwrap"><canvas id="view" width="640" height="360" aria-label="Kamerabild mit Messgeräten – Kalibrierpunkte per Klick setzen und ziehen"></canvas></div>
       <div id="hint" class="hint" role="status"></div>
       <div id="error" class="error" role="alert" hidden></div>
+      <div id="rotatebar" class="bar" hidden>
+        <button id="btn-rotate-ccw" type="button" class="ghost" title="Liegt das Gerät im Bild quer oder auf dem Kopf? Dann das Bild drehen, damit die Ziffern aufrecht stehen."><span data-icon="reset"></span>Bild nach links drehen</button>
+        <button id="btn-rotate" type="button" class="ghost" title="Bild um 90° im Uhrzeigersinn drehen"><span data-icon="reset"></span>Bild nach rechts drehen</button>
+        <span id="rotate-state" class="note"></span>
+      </div>
       <div id="scrub" class="bar" hidden>
         <label for="scrub-range">Zeit im Video</label>
         <input id="scrub-range" type="range" min="0" max="1" step="0.01" value="0" />

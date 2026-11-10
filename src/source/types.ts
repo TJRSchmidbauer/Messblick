@@ -16,5 +16,9 @@ export interface FrameSource {
    * t = echte Zeit des Bildes. Etwa fünfmal schneller als je Bild zu springen. null, wenn der Browser es nicht kann.
    */
   scan?: ((hz: number, onFrame: (t: number) => void, signal: AbortSignal) => Promise<void>) | null;
+  /** Bild um 90° drehen (1 = im Uhrzeigersinn, −1 dagegen), für Geräte, die im Bild quer liegen. Danach ändern sich width und height. */
+  rotate?(turns?: 1 | -1): void;
+  /** Aktuelle Drehung in Grad (0, 90, 180, 270). */
+  rotation?: number;
   stop(): void;
 }

@@ -16,6 +16,7 @@ PATTERNS.set('cdefg'.split('').sort().join(''), '6');
 
 /** Unterhalb dieser Sicherheit setzt sich im Modus 'auto' bei Widerspruch die Segmentabtastung durch. */
 const GLYPH_TRUSTED_FROM = 0.4;
+const SEGMENT_SURE = 0.95;
 
 /**
  * Liest eine Digitalanzeige nach dem eingestellten Verfahren (Standard ohne Angabe: Segmentabtastung).
@@ -31,6 +32,13 @@ export function readDigital(frame: Frame, cal: DigitalCalibration): ReadResult {
   if (glyph.value === null) return seg;
   if (seg.value === null) return glyph;
   if (seg.value === glyph.value) return { value: seg.value, confidence: Math.max(seg.confidence, glyph.confidence) };
+  // Gleiche Ziffern, nur der Dezimalpunkt fehlt einem der beiden Verfahren (kleine Punkte gehen leicht unter): der Wert mit Punkt gilt
+  if (seg.value !== 0 && glyph.value !== 0) {
+    const big = Math.max(Math.abs(seg.value), Math.abs(glyph.value)), small = Math.min(Math.abs(seg.value), Math.abs(glyph.value)), q = big / small;
+    if ([10, 100, 1000].some((k) => Math.abs(q - k) < 1e-6 * k)) return Math.abs(seg.value) < Math.abs(glyph.value) ? seg : glyph;
+  }
+  // Die Segmentabtastung ist sich bei sauberen 7-Segment-Ziffern ganz sicher (jedes Segment klar an oder aus): dann gilt sie
+  if (seg.confidence >= SEGMENT_SURE) return seg;
   return glyph.confidence >= GLYPH_TRUSTED_FROM ? glyph : seg;
 }
 

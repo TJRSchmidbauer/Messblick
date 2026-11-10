@@ -15,6 +15,8 @@ export interface SavedChannel {
   pointerDark: boolean;
   /** Drehpunkt aus drei Skalenpunkten berechnet (fehlt in älteren Dateien). */
   pivotHidden?: boolean;
+  /** Roter Zeiger, nach Farbe gelesen (fehlt in älteren Dateien). */
+  pointerRed?: boolean;
   roi: unknown;
   digits: number;
   decimals: string;

@@ -77,3 +77,69 @@ describe('Verdeckter Drehpunkt', () => {
     expect(pivotMismatch({ pivot: { x: PIV.x - 60, y: PIV.y - 40 }, p1: on(A0), v1: 0, p2: on(A1), v2: 10 })).toBeGreaterThan(0.15);
   });
 });
+
+describe('Roter Zeiger zwischen schwarzer Beschriftung (Schulmessgerät)', () => {
+  /** Weißes Skalenblatt, schwarzer Buchstabe „V“ und Skalenstriche, dünner roter Zeiger, Drehpunkt unter dem Fenster. */
+  const redMeter = (value: number): Frame => {
+    const f = createFrame(640, 400, 235);
+    for (let i = 0; i <= 50; i++) {
+      const a = A0 + ((A1 - A0) * i) / 50, long = i % 10 === 0;
+      drawLine(f, PIV.x + Math.cos(a) * R * (long ? 0.93 : 0.96), PIV.y + Math.sin(a) * R * (long ? 0.93 : 0.96), PIV.x + Math.cos(a) * R * 1.02, PIV.y + Math.sin(a) * R * 1.02, long ? 3 : 1.3, 20);
+    }
+    // dicker schwarzer Buchstabe mitten im Zeigerbereich (senkrecht über dem Drehpunkt, etwa bei der Skalenmitte)
+    fillRect(f, PIV.x - 14, PIV.y - 0.62 * R, 8, 70, 15); fillRect(f, PIV.x + 6, PIV.y - 0.62 * R, 8, 70, 15); drawLine(f, PIV.x - 12, PIV.y - 0.62 * R + 60, PIV.x, PIV.y - 0.62 * R + 72, 8, 15);
+    const th = A0 + ((A1 - A0) * value) / 10;
+    // roter Zeiger: Farbe schreiben
+    for (let r = 0.3 * R; r <= 0.95 * R; r += 0.5) {
+      for (const w of [-0.6, 0, 0.6]) {
+        const x = Math.round(PIV.x + Math.cos(th) * r - Math.sin(th) * w), y = Math.round(PIV.y + Math.sin(th) * r + Math.cos(th) * w);
+        const i = (y * f.width + x) * 4; f.data[i] = 230; f.data[i + 1] = 50; f.data[i + 2] = 50;
+      }
+    }
+    return f;
+  };
+  it('nach Helligkeit rastet der Leser auf den Buchstaben ein, nach Farbe liest er den Zeiger', async () => {
+    const { guessRedPointer } = await import('../src/readers/analog');
+    const dark = buildAnalogCalibration(raw, false, true, false), red = buildAnalogCalibration(raw, false, true, true);
+    for (const v of [1, 2.5, 7, 9]) {
+      const f = redMeter(v);
+      const rr = readAnalog(f, red);
+      expect(Math.abs((rr.value ?? NaN) - v), `rot ${v}`).toBeLessThan(0.15);
+      expect(rr.confidence).toBeGreaterThan(0.6);
+      expect(guessRedPointer(f, dark)).toBe(true);
+    }
+    // Zeiger auf der Skalenmitte würde den Buchstaben verdecken: dann sieht der Helligkeitsleser den Buchstaben, nicht den Zeiger
+    const away = redMeter(2);
+    expect(Math.abs((readAnalog(away, dark).value ?? 0) - 2)).toBeGreaterThan(0.5);
+    // schwarzer Zeiger ohne Rot: kein roter Zeiger erkannt
+    expect(guessRedPointer(realMeter(5), dark)).toBe(false);
+  });
+});
+
+describe('Drehpunkt aus den Zeigerlinien (roter Zeiger, Drehpunkt hinter der Frontplatte)', () => {
+  it('findet den Drehpunkt auf wenige Bildpunkte genau, wenn der Zeiger über einen Bereich läuft; warnt bei zu kleinem Bereich', async () => {
+    const { needleLineRed, pivotFromLines } = await import('../src/readers/analog');
+    // Drehpunkt weit von der Skalenmitte entfernt (wie bei den Schulmessgeräten: Skalenbogen nicht konzentrisch)
+    const pivot = { x: 330, y: 340 };
+    const frameAt = (deg: number): Frame => {
+      const f = createFrame(640, 400, 236); const th = deg * Math.PI / 180;
+      for (let r = 120; r <= 230; r += 0.4) for (const w of [-0.7, 0, 0.7]) {
+        const x = Math.round(pivot.x + Math.cos(th) * r - Math.sin(th) * w), y = Math.round(pivot.y + Math.sin(th) * r + Math.cos(th) * w);
+        const i = (y * f.width + x) * 4; f.data[i] = 225; f.data[i + 1] = 60; f.data[i + 2] = 60;
+      }
+      // schwarze Beschriftung im selben Fenster stört nicht
+      fillRect(f, 300, 150, 12, 60, 10);
+      return f;
+    };
+    const box = { x: 150, y: 80, w: 340, h: 280 };
+    const wide = [-110, -104, -98, -92, -86, -80, -74].map((d) => needleLineRed(frameAt(d), box)!);
+    expect(wide.every(Boolean)).toBe(true);
+    const r = pivotFromLines(wide)!;
+    expect(Math.hypot(r.pivot.x - pivot.x, r.pivot.y - pivot.y)).toBeLessThan(2);
+    expect(r.spread).toBeGreaterThan(30);
+    const narrow = [-91, -90.6, -90.2, -89.8].map((d) => needleLineRed(frameAt(d), box)!);
+    expect(pivotFromLines(narrow)!.spread).toBeLessThan(3);
+    // ohne Rot keine Gerade
+    expect(needleLineRed(createFrame(640, 400, 236), box)).toBeNull();
+  });
+});

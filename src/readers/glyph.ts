@@ -148,6 +148,189 @@ export function foregroundMask(lum: Uint8Array, w: number, h: number, fgDark: bo
   return mask;
 }
 
+/**
+ * Rahmen des Anzeigefensters entfernen: Eine Zeile mit einem durchgehenden Strich, der länger ist als eine Ziffer breit
+ * (mehr als 1,3 Zellbreiten), und eine Spalte mit einem durchgehenden Strich über fast die ganze Höhe sind Rahmen, keine Ziffern
+ * (einzelne Balken der Ziffern sind kürzer und durch Lücken getrennt).
+ */
+export function dropBorders(mask: Uint8Array, w: number, h: number, digits: number): Uint8Array {
+  const out = Uint8Array.from(mask);
+  const maxRun = 1.3 * (w / digits);
+  for (let y = 0; y < h; y++) {
+    let run = 0, longest = 0;
+    for (let x = 0; x < w; x++) { run = mask[y * w + x] ? run + 1 : 0; if (run > longest) longest = run; }
+    if (longest > maxRun) for (let x = 0; x < w; x++) out[y * w + x] = 0;
+  }
+  for (let x = 0; x < w; x++) {
+    let run = 0, longest = 0;
+    for (let y = 0; y < h; y++) { run = mask[y * w + x] ? run + 1 : 0; if (run > longest) longest = run; }
+    if (longest >= 0.9 * h) for (let y = 0; y < h; y++) out[y * w + x] = 0;
+  }
+  return out;
+}
+
+/**
+ * Verdrehte Anzeige geradeziehen (das Gerät liegt leicht schief im Bild): Die waagerechten Striche stehen dann in einer Zeile.
+ * Gesucht wird die Steigung der Grundlinie, bei der die Zeilensummen am spitzesten sind; danach wird jede Spalte verschoben.
+ */
+export function deskew(mask: Uint8Array, w: number, h: number): Uint8Array {
+  const half = w / 2;
+  let best = 0, bestScore = -1;
+  const row = new Float64Array(h);
+  for (let k = -16; k <= 16; k++) {
+    const s = k * 0.01; // 0,01 ≈ 0,6°
+    row.fill(0);
+    for (let x = 0; x < w; x++) {
+      const dy = Math.round(s * (x - half));
+      for (let y = 0; y < h; y++) { const yo = y + dy; if (yo >= 0 && yo < h && mask[yo * w + x]) row[y]++; }
+    }
+    let score = 0;
+    for (let y = 0; y < h; y++) score += row[y] * row[y];
+    score *= 1 - 0.0005 * Math.abs(k);
+    if (score > bestScore) { bestScore = score; best = s; }
+  }
+  if (best === 0) return mask;
+  const out = new Uint8Array(w * h);
+  for (let x = 0; x < w; x++) {
+    const dy = Math.round(best * (x - half));
+    for (let y = 0; y < h; y++) { const yo = y + dy; if (yo >= 0 && yo < h) out[y * w + x] = mask[yo * w + x]; }
+  }
+  return out;
+}
+
+/**
+ * Schräge Schrift (Kursivziffern vieler LCD-Multimeter) aufrichten: Die senkrechten Striche stehen dann in einer Spalte.
+ * Gesucht wird die Scherung mit den spitzesten Spaltensummen; danach wird jede Zeile zurückgeschoben.
+ */
+export function deslant(mask: Uint8Array, w: number, h: number): Uint8Array {
+  const half = h / 2;
+  let best = 0, bestScore = -1;
+  const col = new Float64Array(w);
+  for (let k = -20; k <= 20; k++) {
+    const s = k * 0.02;
+    col.fill(0);
+    for (let y = 0; y < h; y++) {
+      const dx = Math.round(s * (half - y));
+      for (let x = 0; x < w; x++) { const xo = x + dx; if (xo >= 0 && xo < w && mask[y * w + xo]) col[x]++; }
+    }
+    let score = 0;
+    for (let x = 0; x < w; x++) score += col[x] * col[x];
+    score *= 1 - 0.0005 * Math.abs(k);
+    if (score > bestScore) { bestScore = score; best = s; }
+  }
+  if (best === 0) return mask;
+  const out = new Uint8Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const dx = Math.round(best * (half - y));
+    for (let x = 0; x < w; x++) { const xo = x + dx; if (xo >= 0 && xo < w) out[y * w + x] = mask[y * w + xo]; }
+  }
+  return out;
+}
+
+/**
+ * Senkrechter Bereich, in dem die Ziffern stehen, unabhängig davon, wie weit der Ausschnitt ist. Zählt nur Spalten mit
+ * langen senkrechten Strichen (Ziffern), damit Beschriftungen wie „Auto“ oder „DC“ über den Ziffern nicht mitzählen.
+ */
+export function inkRows(mask: Uint8Array, w: number, h: number): { top: number; bottom: number } | null {
+  const col = new Uint16Array(w);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (mask[y * w + x]) col[x]++;
+  let colMax = 0;
+  for (const c of col) if (c > colMax) colMax = c;
+  const strong = new Uint8Array(w);
+  for (let x = 0; x < w; x++) strong[x] = col[x] >= 0.5 * colMax ? 1 : 0;
+  const row = new Uint16Array(h);
+  let max = 0;
+  for (let y = 0; y < h; y++) {
+    let n = 0;
+    for (let x = 0; x < w; x++) if (strong[x] && mask[y * w + x]) n++;
+    row[y] = n; if (n > max) max = n;
+  }
+  if (max < 4) return null;
+  const lim = Math.max(2, max * 0.3);
+  // Die Ziffern sind der zusammenhängende Zeilenblock mit der meisten Tinte; Rahmenreste oben und unten sind durch Lücken getrennt
+  let top = 0, bottom = -1, bestSum = -1, y = 0;
+  while (y < h) {
+    if (row[y] < lim) { y++; continue; }
+    let y1 = y, gap = 0, sum = 0;
+    for (let k = y; k < h; k++) { if (row[k] >= lim) { y1 = k; gap = 0; sum += row[k]; } else if (++gap >= 3) break; }
+    if (sum > bestSum) { bestSum = sum; top = y; bottom = y1; }
+    y = y1 + 1;
+  }
+  if (bottom < 0) return null;
+  const span = bottom + 1 - top;
+  if (span < h * 0.2) return null;
+  // Die senkrechten Striche (b, c, e, f) füllen etwa 18 % bis 82 % der Ziffernhöhe; die waagerechten Balken oben und unten kommen dazu
+  return { top: Math.max(0, Math.round(top - 0.25 * span)), bottom: Math.min(h, Math.round(bottom + 1 + 0.25 * span)) };
+}
+
+/**
+ * Ziffernzellen aus der Maske bestimmen statt den Ausschnitt starr zu teilen. 7-Segment-Ziffern haben senkrechte Striche
+ * links (f, e) und rechts (b, c) in der Zelle und dazwischen Lücken an den Zellgrenzen. Gesucht werden Zellbreite und Lage
+ * der rechten Kante, bei denen viel Tinte an den Strichspalten und wenig an den Grenzen liegt. Das verträgt Einheiten, Rand und
+ * Dezimalpunkte neben den Ziffern, ohne dass man den Ausschnitt genau treffen muss. null, wenn nichts Passendes gefunden wird.
+ */
+export function digitCells(mask: Uint8Array, w: number, h: number, digits: number, rank = 0): { right: number; pitch: number } | null {
+  const col = new Float64Array(w);
+  for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (mask[y * w + x]) col[x]++;
+  const at = (x: number): number => { const i = Math.round(x); return i >= 0 && i < w ? col[i] : 0; };
+  const nominal = w / digits;
+  const all: { right: number; pitch: number; score: number }[] = [];
+  for (let pitch = 0.55 * nominal; pitch <= 1.45 * nominal; pitch += 0.5) {
+    for (let right = 0.55 * w; right <= w + 0.3 * pitch; right += 1) {
+      let strokes = 0, bounds = 0;
+      for (let k = 0; k < digits; k++) {
+        const x0 = right - (digits - k) * pitch;
+        strokes += Math.max(at(x0 + 0.14 * pitch), at(x0 + 0.17 * pitch)) + Math.max(at(x0 + 0.83 * pitch), at(x0 + 0.86 * pitch));
+      }
+      for (let k = 0; k <= digits; k++) {
+        const xb = right - (digits - k) * pitch;
+        bounds += Math.min(at(xb - 1.5), at(xb), at(xb + 1.5));
+      }
+      all.push({ right, pitch, score: strokes - 2 * bounds });
+    }
+  }
+  all.sort((a, b) => b.score - a.score);
+  // die besten, deutlich verschiedenen Annahmen; `rank` wählt die (rank+1)-beste
+  const picks: typeof all = [];
+  for (const c of all) {
+    if (picks.length > rank) break;
+    if (picks.every((p) => Math.abs(p.right - c.right) > 0.12 * c.pitch || Math.abs(p.pitch - c.pitch) > 0.05 * c.pitch)) picks.push(c);
+  }
+  const best = picks[rank];
+  if (!best || best.score < digits * h * 0.25) return null;
+  return { right: best.right, pitch: best.pitch };
+}
+
+/**
+ * Dezimalpunkt als kleine, für sich stehende Fläche unten zwischen zwei Ziffern finden (Zusammenhangskomponenten der Maske).
+ * Liefert die Mitte (x, y) oder null.
+ */
+export function findDot(mask: Uint8Array, w: number, h: number, y0: number, hh: number, pitch: number): { x: number; y: number }[] {
+  const seen = new Uint8Array(w * h);
+  const out: { x: number; y: number }[] = [];
+  const stack: number[] = [];
+  for (let start = 0; start < w * h; start++) {
+    if (!mask[start] || seen[start]) continue;
+    let minX = w, maxX = 0, minY = h, maxY = 0, n = 0;
+    stack.length = 0; stack.push(start); seen[start] = 1;
+    while (stack.length) {
+      const p = stack.pop()!, x = p % w, y = (p - x) / w;
+      n++; if (x < minX) minX = x; if (x > maxX) maxX = x; if (y < minY) minY = y; if (y > maxY) maxY = y;
+      for (const q of [p - 1, p + 1, p - w, p + w]) {
+        if (q < 0 || q >= w * h || seen[q] || !mask[q]) continue;
+        const qx = q % w;
+        if (Math.abs(qx - x) > 1) continue; // nicht über den Zeilenrand springen
+        seen[q] = 1; stack.push(q);
+      }
+    }
+    const bw = maxX - minX + 1, bh = maxY - minY + 1;
+    if (bh >= 0.05 * hh && bh <= 0.25 * hh && bw >= 0.05 * pitch && bw <= 0.35 * pitch && minY >= y0 + 0.78 * hh && n >= 0.4 * bw * bh) out.push({ x: (minX + maxX) / 2, y: (minY + maxY) / 2 });
+  }
+  return out;
+}
+
+export type CellMode = 'roi' | 'ink';
+
 export interface Cells {
   /** Je Ziffernzelle ein 12×14-Raster mit Füllgraden. */
   grids: Float32Array[];
@@ -156,34 +339,50 @@ export interface Cells {
 }
 
 /** Zerlegt den Ausschnitt in Ziffernzellen. null, wenn er nicht lesbar ist (zu klein, zu wenig Kontrast). */
-export function cellGrids(frame: Frame, cal: DigitalCalibration): Cells | null {
+export function cellGrids(frame: Frame, cal: DigitalCalibration, mode: CellMode = 'roi', rank = 0): Cells | null {
   const px = extractRoi(frame, cal.roi, cal.digits);
   if (!px) return null;
   const { w, h, lum } = px;
   const fgDark = foregroundIsDark(lum, otsu(lum), cal.polarity);
-  const mask = foregroundMask(lum, w, h, fgDark);
-  if (!mask) return null;
-  const cw = w / cal.digits;
+  const raw = foregroundMask(lum, w, h, fgDark);
+  if (!raw) return null;
+  // 'ink': verdrehte und schräge Anzeigen aufrichten und Zellen aus den Ziffern selbst bestimmen (Ausschnitt darf großzügig sein)
+  const mask = mode === 'ink' ? deslant(dropBorders(deskew(raw, w, h), w, h, cal.digits), w, h) : raw;
+  const cells = mode === 'ink' ? digitCells(mask, w, h, cal.digits, rank) : null;
+  if (mode === 'ink' && !cells) return null;
+  const rows = mode === 'ink' ? inkRows(mask, w, h) : null;
+  if (mode === 'ink' && !rows) return null;
+  const cw = cells ? cells.pitch : w / cal.digits;
+  const x0 = cells ? cells.right - cal.digits * cw : 0;
+  const y0 = rows ? rows.top : 0, hh = rows ? rows.bottom - rows.top : h;
   const grids: Float32Array[] = [];
   const dp: number[] = [];
+  let dotPositions: { x: number; y: number }[] | null = null;
   for (let i = 0; i < cal.digits; i++) {
     const g = new Float32Array(GRID_W * GRID_H);
     {
-      // Punktecke [0,80..1,0) × [0,84..1,0) der Zelle
-      const xa = Math.floor(i * cw + 0.8 * cw), xb = Math.max(xa + 1, Math.floor((i + 1) * cw));
-      const ya = Math.floor(0.84 * h), yb = h;
-      let n = 0, c = 0;
-      for (let y = ya; y < yb; y++) for (let x = xa; x < Math.min(w, xb); x++) { c++; n += mask[y * w + x]; }
-      dp.push(c ? n / c : 0);
+      if (mode === 'ink') {
+        // Dezimalpunkt: eigene kleine Fläche unten, rechts neben einer Ziffernzelle (nicht hinter der letzten: dort steht die Einheit)
+        const dots = dotPositions ??= findDot(mask, w, h, y0, hh, cw);
+        const hit = dots.some((d) => i < cal.digits - 1 && d.x >= x0 + (i + 0.85) * cw && d.x <= x0 + (i + 1.3) * cw);
+        dp.push(hit ? 1 : 0);
+      } else {
+        // Punktecke [0,80..1,0) × [0,84..1,0) der Zelle
+        const xa = Math.floor(i * cw + 0.8 * cw), xb = Math.max(xa + 1, Math.floor((i + 1) * cw));
+        const ya = Math.floor(0.84 * h), yb = h;
+        let n = 0, c = 0;
+        for (let y = ya; y < yb; y++) for (let x = xa; x < Math.min(w, xb); x++) { c++; n += mask[y * w + x]; }
+        dp.push(c ? n / c : 0);
+      }
     }
     for (let gy = 0; gy < GRID_H; gy++) {
-      const ya = Math.floor((gy * h) / GRID_H), yb = Math.max(ya + 1, Math.ceil(((gy + 1) * h) / GRID_H));
+      const ya = Math.floor(y0 + (gy * hh) / GRID_H), yb = Math.max(ya + 1, Math.ceil(y0 + ((gy + 1) * hh) / GRID_H));
       for (let gx = 0; gx < GRID_W; gx++) {
-        const xa = Math.floor(i * cw + (gx * cw) / GRID_W);
-        const xb = Math.max(xa + 1, Math.ceil(i * cw + ((gx + 1) * cw) / GRID_W));
+        const xa = Math.floor(x0 + i * cw + (gx * cw) / GRID_W);
+        const xb = Math.max(xa + 1, Math.ceil(x0 + i * cw + ((gx + 1) * cw) / GRID_W));
         let n = 0, c = 0;
         for (let y = ya; y < Math.min(h, yb); y++)
-          for (let x = xa; x < Math.min(w, xb); x++) { c++; n += mask[y * w + x]; }
+          for (let x = Math.max(0, xa); x < Math.min(w, xb); x++) { c++; n += mask[y * w + x]; }
         g[gy * GRID_W + gx] = c ? n / c : 0;
       }
     }
@@ -248,9 +447,7 @@ export function matchCell(g: Float32Array, templates: Template[]): CellMatch {
   return { ch: best.ch, family: best.family, distance: d1, confidence: quality * margin };
 }
 
-export function readGlyph(frame: Frame, cal: DigitalCalibration): ReadResult {
-  const found = cellGrids(frame, cal);
-  if (!found) return NO_READING;
+function readCells(found: Cells, cal: DigitalCalibration): ReadResult {
   const cells = found.grids;
   const templates = [...learnedTemplates(cal.learned), ...builtIn()];
   let text = '';
@@ -270,6 +467,96 @@ export function readGlyph(frame: Frame, cal: DigitalCalibration): ReadResult {
   if (value === null) return NO_READING;
   return { value, confidence: Math.max(0, Math.min(1, 0.5 * (sum / cells.length) + 0.5 * min)) };
 }
+
+/**
+ * Liest die Anzeige auf zwei Arten und nimmt das bessere Ergebnis: Ausschnitt starr in Zellen geteilt (passt, wenn der
+ * Ausschnitt eng und gerade sitzt) oder aufgerichtet nach den Ziffern selbst (verdrehtes Gerät, Kursivschrift, weiter Ausschnitt).
+ */
+export function readGlyph(frame: Frame, cal: DigitalCalibration): ReadResult {
+  // 1. 7-Segment-Schrift: aufgerichtet und nach Segmenten gelesen. Bei Misserfolg die nächstbesten Annahmen zur Zellaufteilung versuchen.
+  const inks: Cells[] = [];
+  for (let rank = 0; rank < 3; rank++) {
+    const ink = cellGrids(frame, cal, 'ink', rank);
+    if (!ink) break;
+    inks.push(ink);
+    const r = readCellSegments(ink, cal);
+    if (r.value !== null && r.confidence >= SEGMENT_MIN_CONFIDENCE) return r;
+  }
+  // 2. Vorlagenvergleich (Punktmatrix, eigene Schriften, angelernte Zeichen): starr geteilter Ausschnitt oder aufgerichtete Zellen
+  let best: ReadResult = NO_READING;
+  const roi = cellGrids(frame, cal, 'roi');
+  for (const cells of roi ? [roi, ...inks.slice(0, 1)] : inks.slice(0, 1)) {
+    const r = readCells(cells, cal);
+    if (r.value !== null && (best.value === null || r.confidence > best.confidence)) best = r;
+  }
+  return best;
+}
+
+/* ----------------------------- Segmente im aufgerichteten Raster ----------------------------- */
+
+/** Füllgrad, ab dem ein Segment als an gilt (die Suche im Fenster füllt auch Nachbarstriche etwas auf). */
+const SEG_ON = 0.55;
+/** Waagerechte Segmente (a, d, g): Ein senkrechter Strich, der durch das Fenster läuft, füllt es bis etwa 0,6; echte Balken füllen über 0,8. */
+const SEG_ON_HORIZONTAL = 0.62;
+/** Mindestsicherheit für eine Ablesung nach Segmenten im aufgerichteten Raster (darunter: Vorlagenvergleich). */
+const SEGMENT_MIN_CONFIDENCE = 0.3;
+const SEGMENT_PATTERNS = new Map<string, string>(Object.entries(DIGIT_SEGMENTS).map(([ch, segs]) => [[...segs].sort().join(''), ch]));
+// gängige Varianten (6/7/9 mit oder ohne Zusatzsegment)
+for (const [segs, ch] of [['abcdfg', '9'], ['bcdfg', '9'], ['abcf', '7'], ['cdefg', '6']] as const) SEGMENT_PATTERNS.set([...segs].sort().join(''), ch);
+
+/**
+ * Füllgrad eines Segments im 12×14-Raster, tolerant gegen kleine Verschiebungen der Zelle: Bei waagerechten Segmenten (a, d, g)
+ * zählt die beste Zeile im Fenster ±1,5 Rasterzeilen, bei senkrechten (b, c, e, f) die beste Spalte ±1,5 Rasterspalten.
+ * Entlang des Segments wird nur der mittlere Teil ausgewertet (Ecken gehören den Nachbarsegmenten).
+ */
+function boxFill(g: Float32Array, box: [number, number, number, number]): number {
+  const horizontal = box[2] - box[0] > box[3] - box[1];
+  const cx = ((box[0] + box[2]) / 2) * GRID_W, cy = ((box[1] + box[3]) / 2) * GRID_H;
+  let best = 0;
+  if (horizontal) {
+    const xa = Math.max(0, Math.round(cx - 0.25 * (box[2] - box[0]) * GRID_W)), xb = Math.min(GRID_W, Math.round(cx + 0.25 * (box[2] - box[0]) * GRID_W) + 1);
+    for (let y = Math.max(0, Math.floor(cy - 1.5)); y <= Math.min(GRID_H - 1, Math.ceil(cy + 1.5)); y++) {
+      let s = 0, n = 0;
+      for (let x = xa; x < xb; x++) { s += g[y * GRID_W + x]; n++; }
+      if (n && s / n > best) best = s / n;
+    }
+  } else {
+    const ya = Math.max(0, Math.round(cy - 0.25 * (box[3] - box[1]) * GRID_H)), yb = Math.min(GRID_H, Math.round(cy + 0.25 * (box[3] - box[1]) * GRID_H) + 1);
+    for (let x = Math.max(0, Math.floor(cx - 1.5)); x <= Math.min(GRID_W - 1, Math.ceil(cx + 1.5)); x++) {
+      let s = 0, n = 0;
+      for (let y = ya; y < yb; y++) { s += g[y * GRID_W + x]; n++; }
+      if (n && s / n > best) best = s / n;
+    }
+  }
+  return best;
+}
+
+/**
+ * Liest die aufgerichteten Zellen nach Segmenten (7 Boxen je Ziffer) statt nach Vorlagen: unabhängig von der genauen
+ * Schriftform, solange die Zelle stimmt. null, wenn eine Zelle kein bekanntes Segmentmuster ergibt.
+ */
+function readCellSegments(found: Cells, cal: DigitalCalibration): ReadResult {
+  let text = '', dpCount = 0, marginSum = 0, marginMin = 1, n = 0;
+  for (const [i, g] of found.grids.entries()) {
+    if (coverage(g) < EMPTY_BELOW) { text += ' '; continue; }
+    let key = '';
+    for (const sg of 'abcdefg') {
+      const f = boxFill(g, SEGMENT_BOXES[sg]);
+      const on = sg === 'a' || sg === 'd' || sg === 'g' ? SEG_ON_HORIZONTAL : SEG_ON;
+      const m = Math.min(1, Math.abs(f - on) / on);
+      marginSum += m; marginMin = Math.min(marginMin, m); n++;
+      if (f > on) key += sg;
+    }
+    const ch = SEGMENT_PATTERNS.get([...key].sort().join(''));
+    if (ch === undefined) return NO_READING;
+    text += ch;
+    if (found.dp[i] > DP_FILL) { text += '.'; dpCount++; }
+  }
+  const value = textToValue(text, dpCount, cal.decimals);
+  if (value === null || n === 0) return NO_READING;
+  return { value, confidence: Math.max(0, Math.min(1, 0.5 * (marginSum / n) + 0.5 * marginMin)) };
+}
+
 
 /* ----------------------------- Anlernen ----------------------------- */
 

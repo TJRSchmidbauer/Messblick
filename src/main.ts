@@ -1,5 +1,5 @@
 import type { Frame, Point, Rect } from './core/types';
-import { buildAnalogCalibration, guessBigArc, pivotFromScale, pivotMismatch, type AnalogRaw } from './readers/analog';
+import { angleOf, buildAnalogCalibration, guessBigArc, needleLineRed, pivotFromLines, pivotFromScale, pivotMismatch, type AnalogRaw, type NeedleLine } from './readers/analog';
 import { readChannel, type Calibration, type DigitalCalibration, type LearnedGlyph } from './readers';
 import { learnGlyphs } from './readers/glyph';
 import { Session, TIME_KEY, seriesOf, tableOf, type ChannelDef } from './session/session';
@@ -51,6 +51,8 @@ interface Chan {
   raw: Partial<AnalogRaw>;
   bigArc: boolean;
   pointerDark: boolean;
+  /** Roter Zeiger: nach Farbe lesen (siehe analog.ts). */
+  pointerRed: boolean;
   /** Drehpunkt verdeckt: wird aus drei Skalenpunkten berechnet statt angeklickt. */
   pivotHidden: boolean;
   roi?: Rect;
@@ -182,7 +184,7 @@ function rebuildCal(c: Chan): void {
       if (pv) r.pivot = pv; else delete r.pivot;
     }
     c.cal = r.pivot && r.p1 && r.p2 && r.v1 !== undefined && r.v2 !== undefined && r.v1 !== r.v2
-      ? buildAnalogCalibration(r as AnalogRaw, c.bigArc, c.pointerDark)
+      ? buildAnalogCalibration(r as AnalogRaw, c.bigArc, c.pointerDark, c.pointerRed, c.pivotHidden)
       : null;
   } else {
     const dec = c.decimals === '' ? null : Math.max(0, parseInt(c.decimals, 10) || 0);
@@ -290,6 +292,31 @@ function setBeamer(on: boolean): void {
 
 /* ============================== Quelle ============================== */
 
+function renderRotateState(): void {
+  $('rotate-state').textContent = source?.rotation ? `gedreht um ${source.rotation}°` : '';
+}
+/** Bild drehen: Alle Punkte und Rechtecke gelten nur für die aktuelle Lage, deshalb werden Geräte, Marker, Zone und Anker verworfen. */
+function rotateImage(turns: 1 | -1): void {
+  if (!source?.rotate) return;
+  const used = chans.length > 0 || !!trackSt.cfg || !!gateSt.rect || !!anchorCfg || session.samples.length > 0;
+  if (used && !window.confirm('Beim Drehen des Bildes gehen Kalibrierungen, Marker, Lichtschranke, Anker und die bisherigen Messpunkte verloren. Fortfahren?')) return;
+  stopRecording();
+  if (used) {
+    chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1;
+    trackSt = freshTrack(); gateSt = freshGate(); anchorCfg = null; loopStab = null; recStab = null; calib = null; sel = null;
+    renderChannels(); renderAnchorStatus(); renderTrackStatus(); renderGateStatus(); renderLive();
+  }
+  source.rotate(turns);
+  view.width = source.width;
+  view.height = source.height;
+  renderRotateState();
+  updateButtons();
+  scheduleSave();
+  setHint(`Bild gedreht (${source.rotation}°). Lege die Geräte jetzt im gedrehten Bild an.`);
+}
+$('btn-rotate').onclick = () => rotateImage(1);
+$('btn-rotate-ccw').onclick = () => rotateImage(-1);
+
 function setSource(src: FrameSource): void {
   stopRecording();
   source?.stop();
@@ -298,6 +325,8 @@ function setSource(src: FrameSource): void {
   view.height = src.height;
   const isFile = !!src.seek && src.duration !== null;
   $('scrub').hidden = !isFile;
+  $('rotatebar').hidden = !src.rotate;
+  renderRotateState();
   if (isFile) {
     const r = $<HTMLInputElement>('scrub-range');
     r.max = String(src.duration);
@@ -444,7 +473,7 @@ function addChannel(type: 'analog' | 'digital'): void {
   const slot = [0, 1, 2, 3].find((s) => !used.has(s))!;
   const id = `k${nextId++}`;
   chans.push({
-    id, slot, type, name: `Gerät ${chans.length + 1}`, unit: type === 'analog' ? 'V' : 'A', raw: {}, bigArc: false, pivotHidden: false,
+    id, slot, type, name: `Gerät ${chans.length + 1}`, unit: type === 'analog' ? 'V' : 'A', raw: {}, bigArc: false, pivotHidden: false, pointerRed: false,
     pointerDark: true, digits: 4, decimals: '', polarity: 'auto', style: 'auto', learned: [], unc: { mode: 'none', a: '', b: '', c: '' }, cal: null, live: null, issues: [], hist: [],
   });
   startCalibration(id);
@@ -531,10 +560,82 @@ function cancelCalibration(): void {
 }
 
 /** Kurzer oder langer Bogen? Zwei Skalenpunkte allein sagen das nicht; der Zeiger im Bild entscheidet. */
+function bigArcFromThird(pivot: Point, p1: Point, p2: Point, p3: Point): boolean {
+  const a1 = angleOf(pivot, p1), a2 = angleOf(pivot, p2), a3 = angleOf(pivot, p3);
+  const wrap = (a: number): number => { const t = Math.PI * 2, m = ((a % t) + t) % t; return m > Math.PI ? m - t : m; };
+  const sweep = wrap(a2 - a1), mid = wrap(a3 - a1);
+  return !(Math.sign(mid) === Math.sign(sweep) && Math.abs(mid) < Math.abs(sweep));
+}
 function guessArc(c: Chan): void {
   rebuildCal(c);
   if (!c.raw.pivot || !c.raw.p1 || !c.raw.p2) return;
-  try { c.bigArc = guessBigArc(grabStable(), c.raw as AnalogRaw, c.pointerDark); } catch { /* ohne Bild: Einstellung bleibt */ }
+  // Verdeckter Drehpunkt: Der dritte Skalenstrich liegt auf der Skala und legt den Bogen eindeutig fest (liegt er zwischen den
+  // beiden anderen auf dem kurzen Weg, ist die Skala kleiner als 180°, sonst größer).
+  if (c.pivotHidden && c.raw.p3) {
+    c.bigArc = bigArcFromThird(c.raw.pivot, c.raw.p1, c.raw.p2, c.raw.p3);
+    return;
+  }
+  try { c.bigArc = guessBigArc(grabStable(), c.raw as AnalogRaw, c.pointerDark, c.pointerRed, c.pivotHidden); } catch { /* ohne Bild: Einstellung bleibt */ }
+}
+/** Bildbereich, in dem der Zeiger zu sehen sein kann: über den Skalenpunkten und ein Stück darunter (die Zeigermitte). */
+function needleBox(c: Chan): { x: number; y: number; w: number; h: number } | null {
+  if (c.cal?.type !== 'analog' || !c.raw.p1 || !c.raw.p2) return null;
+  const pts = [c.raw.p1, c.raw.p2, ...(c.raw.p3 ? [c.raw.p3] : [])];
+  const x0 = Math.min(...pts.map((q) => q.x)) - 30, x1 = Math.max(...pts.map((q) => q.x)) + 30;
+  const y0 = Math.min(...pts.map((q) => q.y)) - 60, y1 = Math.max(...pts.map((q) => q.y)) + 0.4 * c.cal.radius;
+  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
+}
+/** Roten Zeiger erkennen (Farbe statt Helligkeit), sobald die Kalibrierung steht: ein roter, dünner Strich im Zeigerbereich. */
+async function guessPointerKind(c: Chan): Promise<void> {
+  rebuildCal(c);
+  const box = needleBox(c);
+  if (!box || !source) return;
+  try {
+    let found = !!needleLineRed(grabStable(), box);
+    // Hand, Spiegelung oder Abdeckung können den Zeiger im aktuellen Bild verdecken: bei Videodateien ein paar andere Zeitpunkte versuchen
+    if (!found && source.seek && source.duration !== null) {
+      const back = source.time();
+      for (const f of [0.25, 0.5, 0.75]) {
+        await source.seek(source.duration * f);
+        if (needleLineRed(grabStable(), box)) { found = true; break; }
+      }
+      await source.seek(back);
+    }
+    c.pointerRed = found;
+  } catch { /* ohne Bild: Einstellung bleibt */ }
+  rebuildCal(c);
+}
+
+/**
+ * Drehpunkt eines Instruments mit rotem Zeiger aus dem Video bestimmen: Der Zeiger wird in vielen Bildern als Gerade gesucht,
+ * der Drehpunkt ist ihr Schnittpunkt. Das ist genauer als drei Skalenstriche, weil der Skalenbogen bei vielen Schulmessgeräten
+ * nicht konzentrisch zur Zeigerachse liegt.
+ */
+async function pivotFromVideo(c: Chan): Promise<void> {
+  if (!source?.seek || source.duration === null || c.cal?.type !== 'analog' || !c.raw.p1 || !c.raw.p2) return;
+  const box = needleBox(c);
+  if (!box) return;
+  const back = source.time(), N = 40, lines: NeedleLine[] = [];
+  stopRecording();
+  for (let i = 0; i < N; i++) {
+    setHint(`Zeiger wird gesucht … ${Math.round((100 * i) / N)} %`);
+    await source.seek((source.duration * i) / (N - 1));
+    const l = needleLineRed(grabStable(), box);
+    if (l) lines.push(l);
+  }
+  await source.seek(back);
+  const r = pivotFromLines(lines);
+  if (!r || lines.length < 8) return setHint(`Der rote Zeiger wurde nur in ${lines.length} von ${N} Bildern gefunden. Prüfe, ob „Zeiger rot“ angekreuzt ist und der Zeiger zu sehen ist.`);
+  if (r.spread < 3) return setHint(`Der Zeiger bewegt sich im Video nur um ${de(r.spread, 1)}° (nötig: mindestens 3°). Daraus lässt sich der Drehpunkt nicht bestimmen; die bisherige Kalibrierung bleibt.`);
+  pushHist(c);
+  c.pivotHidden = false;
+  c.raw.pivot = r.pivot;
+  // Der dritte Skalenstrich legt auch mit dem neuen Drehpunkt eindeutig fest, ob der Bogen kleiner oder größer als 180° ist
+  if (c.raw.p3) c.bigArc = bigArcFromThird(r.pivot, c.raw.p1!, c.raw.p2!, c.raw.p3);
+  delete c.raw.p3;
+  rebuildCal(c);
+  renderChannels(); renderLive(); updateButtons(); scheduleSave();
+  setHint(`Drehpunkt aus ${lines.length} Bildern bestimmt: x ${de(r.pivot.x, 0)}, y ${de(r.pivot.y, 0)} (Winkelbereich des Zeigers ${de(r.spread, 1)}°, mittlerer Abstand der Geraden vom Punkt ${de(r.residual, 1)} Bildpunkte).`);
 }
 
 async function onCalibClick(p: Point): Promise<void> {
@@ -558,14 +659,14 @@ async function onCalibClick(p: Point): Promise<void> {
       if (v === c.raw.v1) return setHint('Beide Skalenwerte sind gleich – wähle einen anderen Skalenstrich.');
       c.raw.p2 = p; c.raw.v2 = v;
       if (c.pivotHidden) calib.step = 'ref3';
-      else { calib = null; guessArc(c); }
+      else { calib = null; guessArc(c); await guessPointerKind(c); }
     }
   } else if (step === 'ref3') {
     if (!pivotFromScale(c.raw.p1!, p, c.raw.p2!)) return setHint('Die drei Punkte liegen fast auf einer Geraden. Klicke einen Skalenstrich weiter in der Mitte des Bogens an.');
     c.raw.p3 = p;
     calib = null;
     rebuildCal(c);
-    guessArc(c);
+    guessArc(c); await guessPointerKind(c);
   }
   rebuildCal(c);
   if (!calib) {
@@ -575,7 +676,7 @@ async function onCalibClick(p: Point): Promise<void> {
       ? 'Kalibrierung fertig. Stimmt die Zahl oben? Sonst Punkte ziehen.'
       : off > 0.15
         ? `Achtung: Der Drehpunkt passt nicht zu den Skalenstrichen (ihre Abstände zum Drehpunkt weichen um ${Math.round(off * 100)} % ab). Ist der Drehpunkt verdeckt? Dann in der Gerätekarte „Drehpunkt verdeckt“ ankreuzen und neu kalibrieren.`
-        : `Kalibrierung fertig. Erkannt: Skala ${c.bigArc ? 'größer' : 'kleiner'} als 180°. Stimmt die Zahl oben? Sonst Punkte ziehen oder „Skala größer als 180°“ umschalten.`);
+        : `Kalibrierung fertig. Erkannt: Skala ${c.bigArc ? 'größer' : 'kleiner'} als 180°${c.pointerRed ? ', roter Zeiger (Ablesung nach Farbe)' : ''}. Stimmt die Zahl oben? Sonst Punkte ziehen oder „Skala größer als 180°“ umschalten.`);
   }
   else explain();
   renderChannels();
@@ -686,6 +787,7 @@ function renderChannels(): void {
       <div class="opts">
         ${c.type === 'analog'
           ? `<label><input type="checkbox" data-f="bigArc" ${c.bigArc ? 'checked' : ''}/> Skala größer als 180°</label>
+             <label><input type="checkbox" data-f="pointerRed" ${c.pointerRed ? 'checked' : ''}/> Zeiger rot (nach Farbe lesen)</label>
              <label><input type="checkbox" data-f="pointerDark" ${c.pointerDark ? 'checked' : ''}/> Zeiger dunkel auf hellem Grund</label>
              <label title="Für Geräte, bei denen der Drehpunkt hinter dem Gehäuse liegt: drei Skalenstriche statt Drehpunkt anklicken"><input type="checkbox" data-f="pivotHidden" ${c.pivotHidden ? 'checked' : ''}/> Drehpunkt verdeckt (drei Skalenstriche)</label>`
           : `<label class="field">Ziffern <input type="number" data-f="digits" min="1" max="8" value="${c.digits}" style="width:4.5em"/></label>
@@ -712,6 +814,7 @@ function renderChannels(): void {
         <button type="button" data-act="calib">${icon(c.type === 'analog' ? 'gauge' : 'digits', 18)}${c.cal ? 'Neu kalibrieren' : 'Kalibrieren'}</button>
         ${c.type === 'digital' ? `<button type="button" data-act="learn" ${c.cal ? '' : 'disabled'} title="Das Gerät zeigt gerade Ziffern an: eintippen, damit die App sie wiedererkennt">${icon('digits', 18)}Ziffern anlernen${c.learned.length ? ` (${c.learned.length})` : ''}</button>
         ${c.learned.length ? `<button type="button" class="ghost" data-act="unlearn">${icon('reset', 18)}Angelernte löschen</button>` : ''}` : ''}
+        ${c.type === 'analog' && source?.seek && source.duration !== null ? `<button type="button" class="ghost" data-act="pivot-video" ${c.cal && c.pointerRed ? '' : 'disabled'} title="Nur bei Videodatei und rotem Zeiger: Die App sucht den Zeiger in vielen Bildern und bestimmt den Drehpunkt als Schnittpunkt seiner Geraden. Der Zeiger muss sich dabei bewegen.">${icon('gauge', 18)}Drehpunkt aus Video bestimmen</button>` : ''}
         <button type="button" class="ghost" data-act="undo" ${c.hist.length ? '' : 'disabled'}>${icon('undo', 18)}Rückgängig</button>
         <button type="button" class="ghost" data-act="remove" aria-label="${esc(c.name)} entfernen">${icon('trash', 18)}Entfernen</button>
       </div>
@@ -731,6 +834,7 @@ function onFieldChange(el: HTMLInputElement | HTMLSelectElement): void {
   else if (f === 'unit') c.unit = String(val);
   else if (f === 'bigArc') c.bigArc = val as boolean;
   else if (f === 'pointerDark') c.pointerDark = val as boolean;
+  else if (f === 'pointerRed') c.pointerRed = val as boolean;
   else if (f === 'pivotHidden') {
     c.pivotHidden = val as boolean;
     // Ablauf ändert sich: neu kalibrieren (alte Punkte bleiben über „Rückgängig“ erreichbar)
@@ -769,6 +873,7 @@ $('channels').addEventListener('click', (e) => {
     renderChannels();
     scheduleSave();
   }
+  else if (btn.dataset.act === 'pivot-video') void pivotFromVideo(chan(id));
   else if (btn.dataset.act === 'undo') { calib = calib ?? null; sel = { id, key: 'p2' }; undo(); }
   else if (btn.dataset.act === 'remove') {
     chans = chans.filter((c) => c.id !== id);
@@ -786,10 +891,10 @@ $('channels').addEventListener('click', (e) => {
 /* ---- Kalibrierung sichern / laden ---- */
 
 function toSaved(c: Chan): SavedChannel {
-  return { id: c.id, type: c.type, name: c.name, unit: c.unit, cal: c.cal, raw: c.raw, bigArc: c.bigArc, pointerDark: c.pointerDark, pivotHidden: c.pivotHidden, roi: c.roi, digits: c.digits, decimals: c.decimals, polarity: c.polarity, style: c.style, learned: c.learned, unc: c.unc };
+  return { id: c.id, type: c.type, name: c.name, unit: c.unit, cal: c.cal, raw: c.raw, bigArc: c.bigArc, pointerDark: c.pointerDark, pointerRed: c.pointerRed, pivotHidden: c.pivotHidden, roi: c.roi, digits: c.digits, decimals: c.decimals, polarity: c.polarity, style: c.style, learned: c.learned, unc: c.unc };
 }
 function fromSaved(s: SavedChannel, slot: number): Chan {
-  return { id: s.id, slot, type: s.type, name: s.name, unit: s.unit, raw: (s.raw as Chan['raw']) ?? {}, bigArc: s.bigArc, pointerDark: s.pointerDark, pivotHidden: !!s.pivotHidden, roi: s.roi as Rect | undefined, digits: s.digits, decimals: s.decimals, polarity: s.polarity as Chan['polarity'], style: (s.style as Chan['style']) ?? 'segment', learned: s.learned ?? [], unc: (s.unc as Chan['unc'] | undefined) ?? { mode: 'none', a: '', b: '', c: '' }, cal: s.cal, live: null, issues: [], hist: [] };
+  return { id: s.id, slot, type: s.type, name: s.name, unit: s.unit, raw: (s.raw as Chan['raw']) ?? {}, bigArc: s.bigArc, pointerDark: s.pointerDark, pointerRed: !!s.pointerRed, pivotHidden: !!s.pivotHidden, roi: s.roi as Rect | undefined, digits: s.digits, decimals: s.decimals, polarity: s.polarity as Chan['polarity'], style: (s.style as Chan['style']) ?? 'segment', learned: s.learned ?? [], unc: (s.unc as Chan['unc'] | undefined) ?? { mode: 'none', a: '', b: '', c: '' }, cal: s.cal, live: null, issues: [], hist: [] };
 }
 $('cal-save').onclick = () => download(new Blob([calibrationFile(chans.filter((c) => c.cal).map(toSaved))], { type: 'application/json' }), `kalibrierung-${stamp()}.json`);
 $<HTMLInputElement>('cal-load').onchange = async (e) => {
