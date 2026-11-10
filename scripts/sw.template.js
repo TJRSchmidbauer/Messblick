@@ -24,12 +24,23 @@ self.addEventListener('fetch', (event) => {
   if (req.method !== 'GET' || url.origin !== self.location.origin) return;
   event.respondWith((async () => {
     const cache = await caches.open(CACHE);
-    // Seitenaufruf: gespeicherte Startseite, auch bei Adressen mit Suchteil oder Anker
+    // Seitenaufruf (HTML): Netz zuerst, damit nach einer Veröffentlichung gleich die neue Version erscheint; ohne Netz
+    // (oder bei langsamer Verbindung nach 3 s) die gespeicherte Seite. Skripte und Bilder haben Hash im Namen und kommen aus dem Speicher.
+    if (req.mode === 'navigate') {
+      try {
+        const res = await Promise.race([
+          fetch(req, { cache: 'no-cache' }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('langsam')), 3000)),
+        ]);
+        if (res.ok) { event.waitUntil(cache.put(req, res.clone())); return res; }
+      } catch { /* offline oder langsam: gespeicherte Seite */ }
+    }
+    // gespeicherte Datei, bei Seitenaufrufen auch mit Suchteil oder Anker
     const hit = await cache.match(req, { ignoreSearch: true, ignoreVary: true }) ?? (req.mode === 'navigate' ? await cache.match('./index.html') : undefined);
     if (hit) return hit;
     try {
       const res = await fetch(req);
-      if (res.ok) cache.put(req, res.clone());
+      if (res.ok) event.waitUntil(cache.put(req, res.clone()));
       return res;
     } catch {
       return new Response('Offline: Diese Datei ist nicht gespeichert.', { status: 503, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });

@@ -2714,15 +2714,22 @@ if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   const show = (): void => { state.hidden = false; state.textContent = 'Offline nutzbar'; };
   const hadController = !!navigator.serviceWorker.controller;
   // Eine neue Version hat die Kontrolle übernommen, die Seite zeigt aber noch die alte: zum Neuladen auffordern
+  const pageLoaded = performance.now();
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     if (!hadController) return;
+    // Noch nichts angefangen (keine Quelle gewählt): gleich neu laden, nichts geht verloren
+    if (!source && performance.now() - pageLoaded < 60000) { location.reload(); return; }
     const n = $('update-note');
     n.hidden = false;
     n.innerHTML = `<span>${icon('info')} Es gibt eine neue Version von Messblick.</span> <button type="button" id="update-reload" class="primary">Jetzt neu laden</button>`;
     $('update-reload').onclick = () => location.reload();
   });
   navigator.serviceWorker.register('./sw.js').then(
-    (reg) => { if (navigator.serviceWorker.controller) show(); else navigator.serviceWorker.ready.then(show); void reg; },
+    (reg) => {
+      if (navigator.serviceWorker.controller) show(); else navigator.serviceWorker.ready.then(show);
+      // Bei jedem Start nach einer neuen Version suchen (Browser prüfen nicht verlässlich bei jedem Seitenaufruf)
+      reg.update().catch(() => { /* offline: egal */ });
+    },
     () => { /* ohne Service Worker (z. B. privates Fenster): App läuft online wie bisher */ },
   );
 }
