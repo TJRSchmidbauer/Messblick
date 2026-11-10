@@ -221,6 +221,7 @@ body.beamer .live .name { font-size: 1.4rem; }
 body.beamer .livecards { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); }
 body.beamer .chartwrap { height: min(52vh, 560px); }
 body.beamer #panel-4 .grid-controls, body.beamer #panel-4 fieldset, body.beamer #panel-4 details { display: none; }
+body.beamer #panel-3 .predict, body.beamer .gatecard .bar, body.beamer #gate-card details { display: none; }
 
 /* ---------- Handy / Tablet ---------- */
 @media (max-width: 900px) {

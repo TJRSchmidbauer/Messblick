@@ -7,6 +7,9 @@ Alles läuft **lokal im Browser**: kein Server, kein Konto, keine Übertragung v
 
 ![Quelle wählen](docs/screenshots/01-quelle.png)
 
+## Anleitung
+Eine Schritt-für-Schritt-Anleitung mit Bildern aus der App steht in der App selbst (Knopf „Anleitung“ oben rechts, Datei `anleitung.html`) und funktioniert auch offline. Sie führt von der Demo über Kalibrierung, Messen und Auswertung bis zu Versuchsvorlagen und Protokoll und enthält eine Hilfe bei typischen Problemen. Die Bilder erzeugt `tests/guide-screenshots.mjs` aus der laufenden App; die Tabelle der Versuchsvorlagen kommt direkt aus dem Code.
+
 ## Funktionen
 - **Quellen:** Kamera (live), Videodatei (Frame-genau, schneller als Echtzeit auswertbar) oder Demo zum Ausprobieren.
 - **Zwei Gerätetypen, bis zu vier gleichzeitig:** Zeigerinstrument (Zeigerwinkel auf Skala abgebildet) und Digitalanzeige (7-Segment-Ziffern). Jedes Gerät hat eine feste Farbe und ein Symbol, in Bild, Live-Zahl, Graph und Tabelle.
@@ -63,6 +66,7 @@ npm test                  # Unit-Tests (Reader, Session, Export, Bildhinweise, S
 npm run build             # Produktionsbuild nach dist/
 node tests/e2e-demo.mjs   # E2E mit Demo-Quelle (Dev-Server auf :5173 nötig, Playwright installiert); prüft u. a., dass keine externe Anfrage stattfindet
 node tests/screenshots.mjs  # erzeugt die Bilder in docs/screenshots
+node tests/guide-screenshots.mjs  # erzeugt die Bilder der Anleitung in public/anleitung-bilder
 npm run build && npx vite preview --port 4173 && node tests/e2e-offline.mjs   # Offline-Test: Neuladen ohne Netz, Demo liest weiter
 ```
 

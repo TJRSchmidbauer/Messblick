@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['src/**', 'index.html', 'tests/screenshots.mjs']
+    paths: ['src/**', 'index.html', 'tests/screenshots.mjs', 'tests/guide-screenshots.mjs']
 permissions:
   contents: write
 jobs:
@@ -21,10 +21,11 @@ jobs:
           npx vite --port 5173 > vite.log 2>&1 &
           for i in $(seq 1 30); do curl -sf http://localhost:5173/ >/dev/null && break; sleep 1; done
           node tests/screenshots.mjs
+          node tests/guide-screenshots.mjs
           kill %1 || true
       - name: Bilder committen
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/screenshots
+          git add docs/screenshots public/anleitung-bilder
           git diff --cached --quiet || (git commit -m "Screenshots aktualisiert" && git push)

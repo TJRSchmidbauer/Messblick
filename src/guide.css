@@ -1,0 +1,30 @@
+/* Anleitung: Lesetext mit Bildern und nummerierten Legenden (Markierungen wie in den Bildern) */
+body.guide .doc { display: grid; grid-template-columns: 15rem minmax(0, 1fr); gap: 2rem; max-width: 76rem; margin: 0 auto; padding: 1.25rem; align-items: start; }
+.guide .toc { position: sticky; top: 1rem; font-size: .95rem; }
+.guide .toc ol { margin: .4rem 0 0; padding-left: 1.2rem; }
+.guide .toc li { margin: .25rem 0; }
+.guide .toc a { color: var(--link); text-underline-offset: .2em; }
+.guide article { max-width: 46rem; line-height: 1.6; }
+.guide .lead { font-size: 1.15rem; }
+.guide h2 { font-family: 'Space Grotesk', sans-serif; font-size: 1.6rem; margin: 2.4rem 0 .6rem; padding-top: .8rem; border-top: 2px solid var(--ink); }
+.guide h3 { font-family: 'Space Grotesk', sans-serif; font-size: 1.2rem; margin: 1.6rem 0 .4rem; }
+.guide p, .guide li { max-width: 68ch; }
+.guide .steps { padding-left: 1.3rem; }
+.guide figure { margin: 1rem 0 1.4rem; }
+.guide figure img { display: block; max-width: 100%; height: auto; border: 1.5px solid var(--line-strong); border-radius: 10px; background: var(--surface); }
+.guide figure.narrow img { max-width: 30rem; }
+.guide figcaption { margin-top: .5rem; }
+.guide ol.legend { list-style: none; counter-reset: legend; margin: 0; padding: 0; display: grid; gap: .35rem; }
+.guide ol.legend li { counter-increment: legend; display: grid; grid-template-columns: 1.9rem 1fr; gap: .6rem; align-items: start; }
+.guide ol.legend li::before { content: counter(legend); display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border-radius: 50%; background: var(--brand-ziegel); color: var(--brand-kohle); border: 2px solid var(--brand-kohle); font: 700 .9rem system-ui, sans-serif; margin-top: .1rem; }
+.guide kbd { font-family: "JetBrains Mono Variable", "JetBrains Mono", monospace; font-size: .9em; padding: .05rem .4rem; border: 1.5px solid var(--line-strong); border-radius: 5px; background: var(--surface); }
+.guide code { font-family: "JetBrains Mono Variable", "JetBrains Mono", monospace; font-size: .92em; background: var(--surface-2); padding: .05rem .3rem; border-radius: 4px; }
+.guide table.plain { border-collapse: collapse; width: 100%; margin: .8rem 0 1.2rem; font-size: .98rem; }
+.guide table.plain th, .guide table.plain td { text-align: left; vertical-align: top; padding: .45rem .7rem; border-bottom: 1px solid var(--line); position: static; }
+.guide table.plain th { background: var(--surface-2); }
+.guide .note { color: var(--ink-2); }
+@media (max-width: 900px) {
+  body.guide .doc { grid-template-columns: 1fr; }
+  .guide .toc { position: static; border: 1.5px solid var(--line); border-radius: 10px; padding: .6rem 1rem; }
+}
+@media print { .guide .toc, .guide header .tools { display: none; } body.guide .doc { display: block; } .guide figure { break-inside: avoid; } }

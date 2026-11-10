@@ -32,5 +32,6 @@ function offlineWorker(): Plugin {
 export default defineConfig({
   base: './',
   plugins: [offlineWorker()],
+  build: { rollupOptions: { input: { main: 'index.html', anleitung: 'anleitung.html' } } },
   test: { environment: 'node', include: ['tests/**/*.test.ts'] },
 });

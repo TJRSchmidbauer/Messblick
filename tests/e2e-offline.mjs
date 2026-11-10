@@ -29,6 +29,14 @@ await page.waitForTimeout(700);
 const live = await page.locator('.live-value').allTextContents();
 console.log('Offline gelesen:', live);
 if (!live.length || live.some((t) => t.startsWith('–'))) throw new Error('Offline: keine Ablesung');
+// Anleitung offline: Seite und alle Bilder kommen aus dem Speicher
+await page.goto(new URL('anleitung.html', url).href);
+await page.waitForSelector('h2');
+await page.waitForTimeout(500);
+const imgs = await page.evaluate(() => [...document.images].map((i) => ({ src: i.getAttribute('src'), ok: i.complete && i.naturalWidth > 0 })));
+console.log('Anleitung offline:', imgs.length, 'Bilder, defekt:', imgs.filter((i) => !i.ok).map((i) => i.src));
+if (imgs.length < 15 || imgs.some((i) => !i.ok)) throw new Error('Anleitung offline unvollständig');
+if ((await page.locator('#tpl-table tbody tr').count()) < 10) throw new Error('Vorlagen-Tabelle fehlt offline');
 const manifest = await (await page.request.get(new URL('manifest.webmanifest', url).href)).json();
 if (manifest.display !== 'standalone' || manifest.icons.length < 3) throw new Error('Manifest unvollständig');
 if (errors.length) throw new Error('Konsolenfehler: ' + errors.join(' | '));

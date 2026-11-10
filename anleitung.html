@@ -1,0 +1,277 @@
+<!doctype html>
+<html lang="de" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="color-scheme" content="light dark" />
+  <title>Anleitung · Physik-Messwerterfassung</title>
+  <meta name="description" content="Schritt für Schritt: Messgeräte abfilmen, Werte ablesen, Graph, Fit und Protokoll. Mit Bildern aus der App." />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+  <link rel="stylesheet" href="/src/style.css" />
+  <link rel="stylesheet" href="/src/guide.css" />
+</head>
+<body class="guide">
+  <header class="shell">
+    <div class="brand">
+      <span class="wortmarke" aria-hidden="true">ts<i>.</i></span>
+      <h1>Anleitung</h1>
+    </div>
+    <div class="tools">
+      <a class="btn" href="./">Zur App</a>
+    </div>
+  </header>
+
+  <main class="doc">
+    <nav class="toc" aria-label="Inhalt">
+      <b>Inhalt</b>
+      <ol>
+        <li><a href="#schnellstart">In zwei Minuten ausprobieren</a></li>
+        <li><a href="#vorbereiten">Aufnahme vorbereiten</a></li>
+        <li><a href="#quelle">Schritt 1: Quelle</a></li>
+        <li><a href="#geraete">Schritt 2: Geräte festlegen</a></li>
+        <li><a href="#bewegung">Bewegung und Lichtschranke</a></li>
+        <li><a href="#messen">Schritt 3: Messen</a></li>
+        <li><a href="#auswertung">Schritt 4: Auswertung</a></li>
+        <li><a href="#vorlagen">Versuchsvorlagen</a></li>
+        <li><a href="#export">Export und Protokoll</a></li>
+        <li><a href="#unterricht">Im Unterricht</a></li>
+        <li><a href="#hilfe">Wenn etwas nicht klappt</a></li>
+        <li><a href="#grenzen">Datenschutz und Grenzen</a></li>
+      </ol>
+    </nav>
+
+    <article>
+      <p class="lead">Die App liest Messgeräte aus einem Kamerabild oder Video ab und macht daraus Messreihen, Graphen, Fits und ein Protokoll. Alles läuft lokal in deinem Browser. Diese Anleitung geht den Weg vom ersten Versuch bis zum Protokoll. Die Bilder stammen aus der App mit der eingebauten Demo.</p>
+
+      <section id="schnellstart">
+        <h2>In zwei Minuten ausprobieren</h2>
+        <p>Ohne Kamera und ohne Gerät: Die Demo bringt ein Zeigerinstrument, eine Digitalanzeige und eine Pendelkugel mit.</p>
+        <ol class="steps">
+          <li>Öffne die App und wähle <b>Demo</b> (Markierung 3 im Bild).</li>
+          <li>Wähle <b>Zeigerinstrument</b>, klicke den Drehpunkt an, dann zwei Skalenstriche (0 und 10).</li>
+          <li>Wähle <b>Digitalanzeige</b> und ziehe ein Rechteck um die Ziffern.</li>
+          <li>Gehe zu <b>Messen</b>, wähle 5 pro Sekunde und <b>Video auswerten</b>.</li>
+          <li>In <b>Auswertung</b> siehst du den Graphen. Wähle unter „Fit und Größen“ das Modell „Sinus mit Offset“.</li>
+        </ol>
+        <figure>
+          <img src="/anleitung-bilder/01-quelle.jpg" alt="Schritt 1: Quelle wählen mit Kamera, Videodatei und Demo" />
+          <figcaption><ol class="legend"><li>Kamera: Live-Aufnahme mit Handy oder Webcam.</li><li>Videodatei: vorher gefilmt, wird Bild für Bild ausgewertet.</li><li>Demo: zum Ausprobieren.</li><li>Versuchsvorlage: stellt alles für einen Standardversuch ein (siehe <a href="#vorlagen">Versuchsvorlagen</a>).</li></ol></figcaption>
+        </figure>
+      </section>
+
+      <section id="vorbereiten">
+        <h2>Aufnahme vorbereiten</h2>
+        <p>Die Qualität der Messwerte hängt vor allem vom Bild ab.</p>
+        <ul>
+          <li><b>Ruhiges Bild:</b> Kamera aufs Stativ oder fest aufstützen. Verrutscht die Kamera, stimmt die Kalibrierung nicht mehr.</li>
+          <li><b>Frontal filmen:</b> Das Gerät gerade von vorn aufnehmen, ohne Spiegelung vom Fenster oder von der Deckenlampe.</li>
+          <li><b>Groß genug:</b> Skala oder Ziffern sollen mindestens ein Drittel der Bildhöhe füllen. Die App warnt bei Unschärfe, Spiegelung, zu wenig Kontrast und zu kleiner Darstellung.</li>
+          <li><b>Gleichmäßiges Licht:</b> Bei der Lichtschranke und der Markerverfolgung stört wechselndes Licht im Raum.</li>
+          <li><b>Videodatei:</b> Wer ein Video aufnimmt, kann es danach schneller als in Echtzeit auswerten und beliebig oft wiederholen.</li>
+        </ul>
+      </section>
+
+      <section id="quelle">
+        <h2>Schritt 1: Quelle wählen</h2>
+        <p><b>Kamera</b> nimmt live auf (der Browser fragt nach Erlaubnis; auf einer Webseite nur über HTTPS). <b>Videodatei</b> öffnet ein gefilmtes Video. Bei Videos bewegst du den Regler „Zeit im Video“, um eine Stelle zu finden. <b>Demo</b> braucht nichts.</p>
+      </section>
+
+      <section id="geraete">
+        <h2>Schritt 2: Geräte festlegen</h2>
+        <p>Bis zu vier Größen gleichzeitig: Zeigerinstrumente, Digitalanzeigen, eine Markerverfolgung (zählt als zwei: x und y), eine Lichtschranke und abgeleitete Größen. Jedes Gerät hat eine feste Farbe und ein Symbol, damit man es auch ohne Farbsehen im Bild, in der Tabelle und im Graphen wiederfindet.</p>
+
+        <h3>Zeigerinstrument</h3>
+        <figure>
+          <img src="/anleitung-bilder/02-zeigerinstrument.jpg" alt="Kalibriertes Zeigerinstrument mit drei Markierungen" />
+          <figcaption><ol class="legend"><li>Drehpunkt des Zeigers anklicken.</li><li>Einen Skalenstrich mit bekanntem Wert anklicken und den Wert eintippen, z. B. 0.</li><li>Einen zweiten Skalenstrich möglichst weit vom ersten anklicken und den Wert eintippen, z. B. 10.</li></ol></figcaption>
+        </figure>
+        <p>Die große Zahl oben zeigt sofort, ob die Ablesung stimmt. Stimmt sie nicht, ziehe die Punkte mit der Maus, verschiebe sie mit den Pfeiltasten (<kbd>Umschalt</kbd> = 5 Bildpunkte) oder nimm den letzten Schritt mit <kbd>Strg</kbd>+<kbd>Z</kbd> zurück. Hat die Skala mehr als 180°, schalte „Skala größer als 180°“ ein.</p>
+
+        <h3>Digitalanzeige</h3>
+        <figure>
+          <img src="/anleitung-bilder/03-digital.jpg" alt="Digitalanzeige mit Rechteck um die Ziffern" />
+          <figcaption><ol class="legend"><li>Ein Rechteck eng um die Ziffern ziehen. Das Rechteck lässt sich später verschieben.</li></ol></figcaption>
+        </figure>
+        <p>Stelle <b>Ziffern</b> (Anzahl der Stellen) und bei Bedarf <b>Dezimalstellen</b> ein, wenn die Anzeige keinen Punkt zeigt. Beim Wechsel des Messbereichs am Multimeter müssen Einheit und Dezimalstellen hier angepasst werden.</p>
+
+        <h3>Gerätekarte: Schrift, Unsicherheit, Ziffern anlernen</h3>
+        <figure>
+          <img src="/anleitung-bilder/04-geraetekarte.jpg" alt="Gerätekarte einer Digitalanzeige" />
+          <figcaption><ol class="legend"><li><b>Schrift:</b> „automatisch“ liest 7-Segment-Ziffern und fällt bei Unsicherheit auf den Zeichenvergleich zurück. „LCD / Punktmatrix“ erzwingt den Zeichenvergleich für LCD mit schwachem Kontrast, Schrägschrift und Punktmatrix-Anzeigen.</li><li><b>Messunsicherheit:</b> siehe unten.</li><li><b>Ziffern anlernen:</b> Zeigt die App deine Anzeige nur unsicher, tippe einmal ein, was das Gerät gerade zeigt. Die App merkt sich diese Ziffern und liest danach sicherer.</li></ol></figcaption>
+        </figure>
+
+        <h3>Messunsicherheit angeben</h3>
+        <figure>
+          <img src="/anleitung-bilder/05-unsicherheit.jpg" alt="Messunsicherheit Güteklasse mit Klasse und Messbereich" />
+          <figcaption><ol class="legend"><li>Art wählen: Güteklasse, Ziffernschritte, fester Wert oder Zählrate (√N).</li><li>Güteklasse eintragen, z. B. 1,5.</li><li>Messbereich (Endwert) eintragen, z. B. 10. Daraus folgt σ = 1,5 % von 10 V = 0,15 V.</li></ol></figcaption>
+        </figure>
+        <p>Mit Unsicherheit zeigt der Graph Fehlerbalken, und der Fit wird gewichtet. Ohne Angabe schätzt die App die Fehler der Parameter aus der Streuung der Punkte und weist darauf hin.</p>
+      </section>
+
+      <section id="bewegung">
+        <h2>Bewegung verfolgen und Lichtschranke</h2>
+        <p>Beide Werkzeuge sitzen unter den Geräten in Schritt 2 und brauchen nur die Kamera. Zum Üben liefert die Demo eine Pendelkugel.</p>
+
+        <h3>Bewegung verfolgen (Marker)</h3>
+        <figure>
+          <img src="/anleitung-bilder/06-marker.jpg" alt="Marker um die Pendelkugel und Maßstab" />
+          <figcaption><ol class="legend"><li>Rechteck eng um den Marker ziehen (dunkle Kugel, farbiger Klebepunkt). Bei einer Videodatei vorher den Regler auf den Anfang der Bewegung stellen.</li><li>Maßstab, erster Punkt.</li><li>Maßstab, zweiter Punkt: Danach den echten Abstand in Metern eintippen. Ohne Maßstab kommt das Ergebnis in Bildpunkten.</li></ol></figcaption>
+        </figure>
+        <p>Die App findet den Marker in jedem Bild wieder und liefert Ort <b>x</b> und <b>y</b> in Metern, mit dem Startpunkt als Nullpunkt und y nach oben. Geschwindigkeit und Beschleunigung ergeben sich in der Auswertung über „Neue Größe“ (Ableitung nach der Zeit). Verlässt der Marker das Bild, fehlen die Werte, bis er wieder auftaucht.</p>
+        <figure class="narrow">
+          <img src="/anleitung-bilder/07-trackbox.jpg" alt="Bedienfeld Bewegung verfolgen" />
+          <figcaption><ol class="legend"><li>Marker wählen.</li><li>Maßstab setzen.</li></ol></figcaption>
+        </figure>
+
+        <h3>Lichtschranke aus der Kamera</h3>
+        <figure>
+          <img src="/anleitung-bilder/06b-lichtschranke.jpg" alt="Schmale Zone in der Mitte der Pendelbahn" />
+          <figcaption><ol class="legend"><li>Eine schmale Zone dorthin ziehen, wo der Körper durchläuft, z. B. in die Mitte der Pendelbahn.</li></ol></figcaption>
+        </figure>
+        <p>Die App misst die Helligkeit der Zone. Läuft etwas hindurch, erkennt sie den Durchgang auf unter einen Bildabstand genau und liefert in der Auswertung die Zeit zwischen den Durchgängen, die Periodendauer und mit der Breite des Körpers die Geschwindigkeit, jeweils mit Unsicherheit. Wähle in Schritt 3 für schnelle Vorgänge eine hohe Messrate (bei Videos 30 oder 60 pro Sekunde).</p>
+        <figure class="narrow">
+          <img src="/anleitung-bilder/07b-gatebox.jpg" alt="Bedienfeld Lichtschranke" />
+          <figcaption><ol class="legend"><li>Zone wählen.</li></ol></figcaption>
+        </figure>
+      </section>
+
+      <section id="messen">
+        <h2>Schritt 3: Messen</h2>
+        <figure>
+          <img src="/anleitung-bilder/08-messen.jpg" alt="Schritt 3: Messrate, Aufnahme und Vorhersage" />
+          <figcaption><ol class="legend"><li><b>Messrate:</b> wie oft pro Sekunde ein Wert gelesen wird.</li><li><b>Aufnahme starten</b> (live) oder <b>Video auswerten</b> (Videodatei, Demo). Die Leertaste startet und stoppt die Aufnahme.</li><li><b>Vorhersage:</b> Zeichne vor der Messung die erwartete Kurve. In der Auswertung liegt sie gepunktet über der Messung, dazu gibt es eine Rückmeldung.</li></ol></figcaption>
+        </figure>
+        <table class="plain">
+          <thead><tr><th>Vorgang</th><th>Messrate</th></tr></thead>
+          <tbody>
+            <tr><td>langsame Zeigerbewegung, Abkühlung</td><td>1 bis 2 pro Sekunde</td></tr>
+            <tr><td>Entladekurven, Pendel mit mehreren Sekunden Periode</td><td>5 bis 10 pro Sekunde</td></tr>
+            <tr><td>Marker verfolgen, schnelle Vorgänge</td><td>25 bis 30 pro Sekunde</td></tr>
+            <tr><td>Lichtschranke bei kurzen Durchgängen</td><td>30 bis 60 pro Sekunde (Video)</td></tr>
+          </tbody>
+        </table>
+        <p><b>Reihe sichern</b> legt die aktuelle Messung beiseite, damit du eine zweite aufnehmen und im Graphen vergleichen kannst. Deine Sitzung wird im Browser automatisch gespeichert.</p>
+      </section>
+
+      <section id="auswertung">
+        <h2>Schritt 4: Auswertung</h2>
+        <figure>
+          <img src="/anleitung-bilder/09-auswertung.jpg" alt="Graph mit Messung, Vorhersage und Fit, darunter die Ergebnisbox" />
+          <figcaption><ol class="legend"><li>Achsen wählen: x ist die Zeit oder ein anderes Messgerät. Eine zweite y-Achse ist möglich.</li><li>Fit-Modell wählen: Gerade, Proportional, Zerfall, Sättigung, Potenz, Sinus, gedämpfter Sinus.</li><li>Ergebnis: Parameter ± Unsicherheit, dazu R² (wie gut das Modell passt) und χ² je Freiheitsgrad. Darunter zeigt der Residuen-Graph, ob die Abweichungen zufällig streuen.</li><li>Graph: Messpunkte mit Fehlerbalken, die gestrichelte Fitkurve und die gepunktete Vorhersage. Mausrad oder Pinch zoomt, Ziehen verschiebt.</li></ol></figcaption>
+        </figure>
+        <ul>
+          <li><b>Fitbereich wählen:</b> Mit „Fitbereich wählen“ im Graphen über den gewünschten Bereich ziehen. So fittet man nur einen Teil der Kurve.</li>
+          <li><b>Nicht belastbar:</b> Meldet die App das, ist der Fit nicht sauber konvergiert. Dann anderes Modell oder anderen Bereich wählen.</li>
+          <li><b>Glätten:</b> Ein Median über 3 Werte beruhigt einzelne Ausreißer.</li>
+          <li><b>Hinweise zu Sprüngen:</b> Springt ein Wert um genau eine Zehnerpotenz (Bereichswechsel am Multimeter), markiert die App die Stelle und bietet an, die Werte ab dort umzurechnen. Du kannst das zurücknehmen.</li>
+          <li><b>Wertetabelle:</b> Einzelne Werte lassen sich unten in der Tabelle korrigieren.</li>
+        </ul>
+
+        <h3>Neue Größe</h3>
+        <figure class="narrow">
+          <img src="/anleitung-bilder/10-neue-groesse.jpg" alt="Dialog Neue Größe mit Formel Gerät_1*Gerät_2" />
+          <figcaption><ol class="legend"><li>Art: Formel, Ableitung oder Integral nach der Zeit.</li><li>Formel mit den Namen der Geräte, Leerzeichen als Unterstrich, z. B. <code>Gerät_1*Gerät_2</code>. Erlaubt sind + − * / ^ ( ) und sqrt, ln, exp, sin, cos, abs sowie pi.</li><li>Name und Einheit der neuen Größe. Die Unsicherheit wird fortgepflanzt.</li></ol></figcaption>
+        </figure>
+
+        <h3>Parameterreihe: eine Größe variieren</h3>
+        <p>Für Versuche mit mehreren Durchgängen (andere Masse, andere Spannung, andere Länge): Parameter eintippen, Messwert aus der Live-Ablesung oder einen Fitparameter übernehmen. Die App schlägt Auftragungen vor, in denen der Zusammenhang zur Geraden wird (z. B. T² über m beim Federpendel), und zeichnet sie mit Fit.</p>
+      </section>
+
+      <section id="vorlagen">
+        <h2>Versuchsvorlagen</h2>
+        <p>Eine Vorlage stellt Geräte, Achsen und Fitmodell für einen Standardversuch ein, zeigt den Ablauf und rechnet die gesuchte Größe samt Unsicherheit aus. Ergebnisse mit Literatur-, Nenn- oder Theoriewert werden beurteilt: „verträglich“ bis 2σ, sonst „nicht verträglich“ mit Hinweis auf mögliche systematische Fehler.</p>
+        <figure class="narrow">
+          <img src="/anleitung-bilder/11-vorlage-waehlen.jpg" alt="Versuchsvorlage wählen und anwenden" />
+          <figcaption><ol class="legend"><li>Versuch wählen.</li><li>Vorlage anwenden.</li></ol></figcaption>
+        </figure>
+        <figure class="narrow">
+          <img src="/anleitung-bilder/12-vorlage-ergebnis.jpg" alt="Vorlage Ohmsches Gesetz mit Ergebnis" />
+          <figcaption><ol class="legend"><li>Die Karte oben in Schritt 4 zeigt Ablauf und Eingaben (z. B. R, L, C mit Unsicherheit in %).</li><li>Das Ergebnis mit Unsicherheit. Bei mehreren Unsicherheitsquellen zeigt ein aufklappbares Budget, welche Eingabe wie viel ausmacht. Das Beispiel nutzt die Demo-Daten, kein echtes Experiment.</li></ol></figcaption>
+        </figure>
+        <table class="plain" id="tpl-table">
+          <thead><tr><th>Versuch</th><th>Themenbereich</th><th>Ergebnis</th></tr></thead>
+          <tbody></tbody>
+        </table>
+        <p class="note">Die Themenbereiche sind zur Orientierung genannt. Die Zuordnung zu Jahrgangsstufe und LehrplanPLUS bitte vor dem Einsatz prüfen.</p>
+      </section>
+
+      <section id="export">
+        <h2>Export und Protokoll</h2>
+        <figure>
+          <img src="/anleitung-bilder/13-export.jpg" alt="Beschriftung und Exportknöpfe" />
+          <figcaption><ol class="legend"><li>Versuchstitel und Namen für Graph und Protokoll.</li><li><b>CSV</b> und <b>XLSX</b>: Messwerte (XLSX mit eigenem Blatt für jede gesicherte Reihe, den Fit und das Ergebnis). Die Auswahl „deutsches Excel“ nutzt Semikolon und Komma.</li><li><b>Graph (PNG):</b> mit Titel, Namen, Datum und den Ergebniszeilen, in hellen Farben fürs Heft.</li><li><b>Protokoll:</b> eine druckfertige Seite (siehe unten).</li></ol></figcaption>
+        </figure>
+        <h3>Protokoll</h3>
+        <p>Das Protokoll hat sieben Abschnitte: Fragestellung, Aufbau (mit Kamerabild), Durchführung, Messwerte, Auswertung (Graph, Fit, Ergebnis), Fehlerbetrachtung und Fazit. Die Textfelder bleiben bewusst leer, damit Schülerinnen und Schüler selbst formulieren. Du kannst sie im geöffneten Protokoll beschriften und danach drucken oder als PDF speichern („Protokoll drucken“).</p>
+        <figure class="narrow">
+          <img src="/anleitung-bilder/14-protokoll.jpg" alt="Protokoll in der Druckansicht" />
+          <figcaption><ol class="legend"><li>Erste Seite eines Protokolls aus der Demo. Die Datei ist eigenständig, ohne Skripte und ohne externe Inhalte.</li></ol></figcaption>
+        </figure>
+      </section>
+
+      <section id="unterricht">
+        <h2>Im Unterricht</h2>
+        <h3>Beamer-Modus</h3>
+        <figure>
+          <img src="/anleitung-bilder/16-beamer.jpg" alt="Beamer-Modus mit großen Live-Zahlen" />
+          <figcaption><ol class="legend"><li>Mit <kbd>B</kbd> oder dem Knopf „Beamer-Modus“: große Live-Zahlen, größere Schrift, nur Messen und Graph. Zum Beenden nochmal <kbd>B</kbd>.</li></ol></figcaption>
+        </figure>
+        <h3>Handy und Tablet</h3>
+        <figure class="narrow">
+          <img src="/anleitung-bilder/15-handy.jpg" alt="Handy-Ansicht mit Kamerabild oben und Bedienfeldern darunter" />
+          <figcaption><ol class="legend"><li>Das Kamerabild bleibt oben stehen, die Schritte liegen in Daumenreichweite unten. Für Schülerexperimente in Gruppen.</li></ol></figcaption>
+        </figure>
+        <h3>Darstellung und Tastenkürzel</h3>
+        <p>Oben rechts wählst du Hell, Dunkel oder Hoher Kontrast. Mit <kbd>?</kbd> öffnest du die Tastenkürzel:</p>
+        <table class="plain">
+          <tbody>
+            <tr><td><kbd>1</kbd> bis <kbd>4</kbd></td><td>Schritt wechseln</td></tr>
+            <tr><td><kbd>Leertaste</kbd></td><td>Aufnahme starten und beenden (Schritt 3)</td></tr>
+            <tr><td><kbd>Esc</kbd></td><td>Kalibrierung, Auswahl oder Auswertung abbrechen</td></tr>
+            <tr><td>Pfeiltasten</td><td>gewählten Kalibrierpunkt um 1 Bildpunkt verschieben (<kbd>Umschalt</kbd> = 5)</td></tr>
+            <tr><td><kbd>Strg</kbd>+<kbd>Z</kbd></td><td>letzte Kalibrieränderung zurücknehmen</td></tr>
+            <tr><td><kbd>B</kbd></td><td>Beamer-Modus an und aus</td></tr>
+          </tbody>
+        </table>
+        <p>Die Kalibrierung lässt sich als Datei speichern und wieder laden („Kalibrierung speichern“ in Schritt 2), z. B. für denselben Aufbau in der nächsten Stunde.</p>
+      </section>
+
+      <section id="hilfe">
+        <h2>Wenn etwas nicht klappt</h2>
+        <table class="plain help">
+          <thead><tr><th>Problem</th><th>Was hilft</th></tr></thead>
+          <tbody>
+            <tr><td>Die Zahl oben stimmt nicht oder steht auf „unsicher“.</td><td>Skalenwerte und Punkte prüfen und mit der Maus nachziehen. Bei Digitalanzeigen die Schrift auf „LCD / Punktmatrix“ stellen oder Ziffern anlernen. Auf Unschärfe, Spiegelung und Kontrast achten (die App warnt).</td></tr>
+            <tr><td>Der Wert springt um den Faktor 10.</td><td>Messbereich am Multimeter gewechselt: Einheit und Dezimalstellen in der Gerätekarte anpassen. In der Auswertung die markierte Stelle umrechnen.</td></tr>
+            <tr><td>Die Kamera startet nicht.</td><td>Der Browser braucht die Erlaubnis für die Kamera, und die Seite muss über HTTPS oder localhost laufen. Als Ausweg das Video aufnehmen und als Videodatei öffnen.</td></tr>
+            <tr><td>Der Fit ist „nicht belastbar“.</td><td>Anderes Modell wählen, den Fitbereich einengen oder prüfen, ob genug Punkte vorhanden sind. Das Modell muss zur Kurve passen.</td></tr>
+            <tr><td>Der Marker geht verloren.</td><td>Mehr Kontrast, ruhige Kamera, weniger Bewegungsunschärfe (kürzere Belichtung, mehr Licht). Marker so wählen, dass er sich kaum dreht.</td></tr>
+            <tr><td>Die Lichtschranke findet keine Durchgänge.</td><td>Zone schmaler und genau auf die Bahn setzen, höhere Messrate wählen, für Kontrast zwischen Körper und Hintergrund sorgen.</td></tr>
+            <tr><td>Nichts speichert mehr.</td><td>Der Browserspeicher ist voll oder gesperrt (z. B. privates Fenster). Daten rechtzeitig als CSV oder XLSX exportieren.</td></tr>
+          </tbody>
+        </table>
+      </section>
+
+      <section id="grenzen">
+        <h2>Datenschutz und Grenzen</h2>
+        <ul>
+          <li><b>Lokal:</b> Video, Bilder und Messwerte verlassen dein Gerät nicht. Es gibt kein Konto und keinen Server. Nach dem ersten Laden funktioniert die App auch ohne Netz, und sie lässt sich als App installieren.</li>
+          <li><b>Noch nicht an echten Geräten getestet:</b> Die Ablesung wurde mit synthetischen Bildern und der Demo geprüft, noch nicht an PHYWE-Geräten oder Multimetern im Unterricht. Prüfe die Live-Zahl immer gegen das Gerät.</li>
+          <li><b>Kamera:</b> Das Bild muss ruhig stehen. Verrutschen, Linsenverzerrung und Bewegung auf die Kamera zu werden nicht ausgeglichen.</li>
+          <li><b>Lichtschranke und Marker:</b> Die Zeitauflösung ist ein Bildabstand (interpoliert deutlich besser). Wechselndes Raumlicht kann Durchgänge vortäuschen.</li>
+        </ul>
+      </section>
+    </article>
+  </main>
+
+  <footer class="site-foot">
+    <b>Verstehen<span class="dot">.</span> Bauen<span class="dot">.</span> Teilen<span class="dot">.</span></b>
+    <span>Läuft lokal in deinem Browser: kein Konto, keine Übertragung von Video oder Messwerten.</span>
+    <nav class="legal" aria-label="Rechtliches">
+      <a href="https://schmidbauer.io/impressum" target="_blank" rel="noopener noreferrer">Impressum</a>
+      <a href="https://schmidbauer.io/datenschutz" target="_blank" rel="noopener noreferrer">Datenschutz</a>
+    </nav>
+  </footer>
+  <script type="module" src="/src/guide.ts"></script>
+</body>
+</html>
