@@ -35,6 +35,10 @@ export class DemoSource implements FrameSource {
     this.fixed = t;
   }
   stop(): void {}
+  /** Läuft die Demo gerade mit eigener Uhr (wie eine Kamera) und nicht auf einer festen Zeit (Auswertung)? */
+  isLive(): boolean {
+    return this.fixed === null;
+  }
   /** Zurück auf Uhrzeit-Betrieb (Livemodus). */
   live(): void {
     if (this.fixed !== null) {

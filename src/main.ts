@@ -18,6 +18,7 @@ import { detectGate, stats as gateStats, type GateResult } from './analysis/gate
 import { announcePoint, describeSeries, sonificationSchedule, type DescribeOptions } from './analysis/describe';
 import { Sonifier, localGermanVoice } from './ui/sonify';
 import { Tracker, makeTemplate, type TrackConfig } from './readers/track';
+import type { TrackResult } from './readers/track';
 import { TEMPLATES, evalTemplateResults, templateById, type Template, type TplResultLine } from './templates';
 import { describeUncertainty, type UncertaintyConfig } from './analysis/uncertainty';
 import { icon, symbol, SYMBOLS } from './ui/icons';
@@ -108,6 +109,9 @@ let gateLast: { r: GateResult; intervals: ReturnType<typeof gateStats>; periods:
 const usedChannelCount = (): number => chans.length + session.channels.filter((c) => c.derived).length + (trackSt.cfg ? 2 : 0) + (gateSt.rect ? 1 : 0) + audioChannelCount();
 let trkDraw: { start: Point; cur: Point } | null = null;
 let trackerCache: { cfg: TrackConfig; tracker: Tracker } | null = null;
+/** Vorschau der Markerverfolgung in jedem Anzeigebild (eigener Tracker, unabhängig von der Aufnahme): sonst hinkt das Fadenkreuz der Messrate hinterher. */
+let previewCache: { cfg: TrackConfig; tracker: Tracker } | null = null;
+let previewRes: TrackResult | null = null;
 const predRange = { xmin: 0, xmax: 30, ymin: 0, ymax: 10 };
 let stopLive: (() => void) | null = null;
 let abort: AbortController | null = null;
@@ -851,6 +855,7 @@ function loop(now: number): void {
     try {
       const frame = source.grab();
       vctx.putImageData(new ImageData(frame.data as Uint8ClampedArray<ArrayBuffer>, frame.width, frame.height), 0, 0);
+      updateTrackPreview(frame);
       drawOverlay();
       if (now - lastRead > 250) {
         lastRead = now;
@@ -1824,6 +1829,17 @@ function finishMarker(r: Rect): void {
   renderTrackStatus(); updateButtons(); scheduleSave();
 }
 
+/** Läuft die Quelle mit eigener Uhr (Kamera, Demo)? Dann lässt sich der Marker in jedem Anzeigebild verfolgen. */
+function isLiveClock(): boolean {
+  return !!source && (source.kind === 'camera' || (source.kind === 'demo' && (source as DemoSource).isLive()));
+}
+function updateTrackPreview(frame: Frame): void {
+  const cfg = trackSt.cfg;
+  if (!cfg || !source || !isLiveClock()) { previewRes = null; return; }
+  if (previewCache?.cfg !== cfg) previewCache = { cfg, tracker: new Tracker(cfg) };
+  previewRes = previewCache.tracker.update(frame, source.time());
+}
+
 function drawTrackOverlay(scale: number): void {
   if (source?.kind === 'audio') { drawAudioLabels(scale); return; }
   const c = trackSt.cfg;
@@ -1838,9 +1854,10 @@ function drawTrackOverlay(scale: number): void {
   if (trkDraw) strokeHalo(() => { vctx.beginPath(); vctx.rect(Math.min(trkDraw!.start.x, trkDraw!.cur.x), Math.min(trkDraw!.start.y, trkDraw!.cur.y), Math.abs(trkDraw!.cur.x - trkDraw!.start.x), Math.abs(trkDraw!.cur.y - trkDraw!.start.y)); }, col, 2);
   if (!c) return;
   const recording = !!stopLive || !!abort;
-  const pos = recording ? trackerCache?.tracker.position ?? null : null;
+  // Live (Kamera, Demo): Position aus der Vorschau in jedem Bild; bei Videodateien während der Auswertung aus der Aufnahme
+  const pos: Point | null = previewRes?.px != null ? { x: previewRes.px, y: previewRes.py! } : recording && !isLiveClock() ? trackerCache?.tracker.position ?? null : null;
   const t = c.template;
-  if (!recording) {
+  if (!pos && !recording) {
     strokeHalo(() => { vctx.beginPath(); vctx.rect(t.x, t.y, t.w, t.h); vctx.setLineDash([5 * scale, 4 * scale]); }, col, 2);
     vctx.setLineDash([]);
   }
@@ -1849,9 +1866,12 @@ function drawTrackOverlay(scale: number): void {
   for (const q of sp) strokeHalo(() => { vctx.beginPath(); vctx.arc(q.x, q.y, 5 * scale, 0, 7); }, col, 2);
   if (sp.length === 2) strokeHalo(() => { vctx.beginPath(); vctx.moveTo(sp[0].x, sp[0].y); vctx.lineTo(sp[1].x, sp[1].y); }, col, 2);
   vctx.fillStyle = 'rgb(0 0 0 / .72)';
-  const label = `${trackSt.name}${c.scale ? '' : ' (px)'}`;
-  vctx.fillRect(t.x, t.y - 22 * scale, vctx.measureText(label).width + 16 * scale, 20 * scale);
-  vctx.fillStyle = '#fff'; vctx.fillText(label, t.x + 8 * scale, t.y - 7 * scale);
+  const unit = c.scale ? ' m' : ' px';
+  const live = previewRes && previewRes.x !== null ? `  x ${de(previewRes.x, c.scale ? 3 : 0)}${unit}  y ${de(previewRes.y!, c.scale ? 3 : 0)}${unit}` : previewRes ? '  (verloren)' : '';
+  const label = `${trackSt.name}${live}`;
+  const lx = pos ? pos.x - t.w / 2 : t.x, ly = pos ? pos.y - t.h / 2 : t.y; // Beschriftung folgt dem Marker
+  vctx.fillRect(lx, ly - 22 * scale, vctx.measureText(label).width + 16 * scale, 20 * scale);
+  vctx.fillStyle = '#fff'; vctx.fillText(label, lx + 8 * scale, ly - 7 * scale);
 }
 
 /* ---- Lichtschranke ---- */

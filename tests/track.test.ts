@@ -94,3 +94,56 @@ describe('Markerverfolgung', () => {
     expect('template' in makeTemplate(f, { x: 86, y: 86, w: 28, h: 28 })).toBe(true);
   });
 });
+
+describe('Markerverfolgung: Geschwindigkeit und gleichmäßiger Lauf', () => {
+  const big = (x: number, y = 200): Frame => {
+    const f = createFrame(640, 360, 205);
+    fillDisc(f, x, y, 14, 40);
+    fillDisc(f, x + 4, y - 4, 5, 235);
+    return f;
+  };
+  const cfg = (): TrackConfig => {
+    const t = makeTemplate(big(320), { x: 296, y: 176, w: 48, h: 48 });
+    if ('error' in t) throw new Error(t.error);
+    return { template: t.template, t0: 0, scale: null };
+  };
+
+  it('Pendelbewegung mit 60 Bildern je Sekunde: Fehler unter 0,7 Bildpunkten, jedes Bild gefunden', () => {
+    const tr = new Tracker(cfg());
+    let worst = 0;
+    for (let i = 0; i < 180; i++) {
+      const t = i / 60, x = 320 + 80 * Math.sin((2 * Math.PI * t) / 4);
+      const r = tr.update(big(x), t);
+      expect(r.px, `Bild ${i}`).not.toBeNull();
+      worst = Math.max(worst, Math.abs(r.px! - x));
+    }
+    expect(worst).toBeLessThan(0.7);
+  });
+
+  it('Rechenzeit je Bild: im Mittel unter 6 ms bei 640 × 360 und 48 × 48 Bildpunkten (vorher etwa 30 ms)', () => {
+    const tr = new Tracker(cfg());
+    const frames = Array.from({ length: 60 }, (_, i) => big(320 + 80 * Math.sin((2 * Math.PI * i) / 240)));
+    tr.update(frames[0], 0); // Aufwärmen
+    const t0 = performance.now();
+    frames.forEach((f, i) => tr.update(f, (i + 1) / 60));
+    const per = (performance.now() - t0) / frames.length;
+    console.log(`Rechenzeit je Bild: ${per.toFixed(2)} ms`);
+    expect(per).toBeLessThan(6);
+  });
+
+  it('plötzlicher Sprung um 80 Bildpunkte: wird mit großem Fenster wiedergefunden', () => {
+    const tr = new Tracker(cfg());
+    tr.update(big(320), 0); tr.update(big(321), 1 / 30);
+    const r = tr.update(big(401, 230), 2 / 30);
+    expect(r.px).not.toBeNull();
+    expect(Math.abs(r.px! - 401)).toBeLessThan(1);
+    expect(Math.abs(r.py! - 230)).toBeLessThan(1);
+  });
+
+  it('Video zurückgespult: Suche beginnt wieder am Startort', () => {
+    const tr = new Tracker(cfg());
+    tr.update(big(320), 0); tr.update(big(330), 0.5); tr.update(big(340), 1);
+    const r = tr.update(big(322), 0.1); // Zeit läuft zurück
+    expect(Math.abs(r.px! - 322)).toBeLessThan(1);
+  });
+});

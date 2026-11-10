@@ -41,6 +41,17 @@ await page.fill('#valdlg-input', '0,6'); await page.click('#valdlg button[value=
 await page.waitForTimeout(200);
 if (!/= 5 mm/.test(await page.locator('#trk-status').textContent())) throw new Error('Maßstab nicht übernommen: ' + await page.locator('#trk-status').textContent());
 
+// Gleichmäßiger Lauf: Anzeigebilder im Abstand (rAF) während die Vorschau den Marker in jedem Bild verfolgt
+const frames = await page.evaluate(() => new Promise((resolve) => {
+  const dts = []; let last = performance.now(); const end = last + 2500;
+  const tick = (now) => { dts.push(now - last); last = now; if (now < end) requestAnimationFrame(tick); else resolve(dts); };
+  requestAnimationFrame(tick);
+}));
+frames.sort((a, b) => a - b);
+const med = frames[Math.floor(frames.length / 2)], p95 = frames[Math.floor(frames.length * 0.95)];
+console.log(`Anzeigebilder: ${frames.length}, Median ${med.toFixed(1)} ms, 95 % unter ${p95.toFixed(1)} ms`);
+if (p95 > 45) throw new Error('Die Anzeige ruckelt: 95 % der Bilder brauchen bis ' + p95.toFixed(1) + ' ms');
+
 // Video auswerten (5 Hz)
 await page.click('#tab-3');
 await page.selectOption('#hz', '5');
