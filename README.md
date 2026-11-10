@@ -24,7 +24,7 @@ Beispiel für die Quellenangabe:
 Bei einer Abwandlung zusätzlich angeben, dass es eine Abwandlung ist und was geändert wurde. Weitere Beispiele (auch HTML für die Fußzeile),
 die Zusammenfassung und die Hinweise zu Bausteinen anderer Urheber stehen in [`NOTICE.md`](NOTICE.md); der Volltext in [`LICENSE`](LICENSE).
 
-## Version 2.0: übersichtlichere Oberfläche (Branch `V2.0`)
+## Version 2.0: übersichtlichere Oberfläche (jetzt `main`; die Version davor liegt im Branch `v1.0`)
 
 - Schritt 1 beginnt mit der Frage „Wie möchtest du messen?“ (Frei messen, Standardversuch, Aufgabe der Lehrkraft); danach folgen Bildquellen und Ton getrennt.
 - Schritt 2 heißt „Was willst du messen?“: Zeiger und Ziffern vorn, Marker, Lichtschranke und Bildanker eingeklappt unter „Weitere Werkzeuge“ (klappen von selbst auf, sobald benutzt), kürzere Texte.
