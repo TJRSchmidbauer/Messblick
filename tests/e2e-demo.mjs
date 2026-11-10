@@ -2,6 +2,7 @@
 import { chromium } from 'playwright';
 import * as XLSX from 'xlsx';
 import fs from 'node:fs';
+import { keepUnfolded } from './helpers.mjs';
 
 const url = process.env.URL ?? 'http://localhost:5173/';
 const shots = process.env.SHOTS ?? '/tmp/shots';
@@ -9,6 +10,7 @@ fs.mkdirSync(shots, { recursive: true });
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const ctx = await browser.newContext({ acceptDownloads: true, permissions: ['clipboard-read', 'clipboard-write'], viewport: { width: 1360, height: 900 }, reducedMotion: 'reduce' });
 const page = await ctx.newPage();
+await keepUnfolded(page);
 const errors = [];
 page.on('pageerror', (e) => { errors.push(e.message); console.error('PAGEERROR', e.message); });
 page.on('console', (m) => { if (m.type() === 'error') { errors.push(m.text()); console.error('CONSOLE', m.text()); } });

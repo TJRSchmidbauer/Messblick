@@ -224,6 +224,16 @@ themeSel.onchange = () => { applyTheme(); scheduleSave(); };
 dark.addEventListener('change', applyTheme);
 contrast.addEventListener('change', applyTheme);
 
+
+/* ---- Startweg in Schritt 1 ---- */
+type Route = 'free' | 'tpl' | 'task';
+function setRoute(r: Route): void {
+  for (const k of ['free', 'tpl', 'task'] as const) $(`route-${k}`).setAttribute('aria-pressed', String(k === r));
+  $('tplbox').hidden = r !== 'tpl';
+  $('taskpick').hidden = r !== 'task';
+}
+for (const k of ['free', 'tpl', 'task'] as const) $(`route-${k}`).addEventListener('click', () => setRoute(k));
+
 /* ============================== Schritte ============================== */
 
 const readyForMeasure = (): boolean => !!source && active().length > 0;
@@ -233,6 +243,7 @@ function goStep(n: number): void {
   applyStep();
 }
 function applyStep(): void {
+  document.body.dataset.step = String(currentStep);
   for (let i = 1; i <= 4; i++) {
     const tab = $(`tab-${i}`);
     tab.setAttribute('aria-selected', String(i === currentStep));
@@ -958,6 +969,35 @@ function updateButtons(): void {
   const hasAny = has || session.runs.length > 0;
   for (const id of ['dl-csv', 'dl-xlsx', 'dl-png', 'dl-protocol', 'print-protocol']) $<HTMLButtonElement>(id).disabled = !hasAny;
   updateStatus();
+  renderOrientation({ ready, recording, has, hasAny });
+}
+
+/** Warum ist ein Knopf grau? Ein Satz daneben, dazu Statusleiste und Häkchen an den Reitern. */
+function renderOrientation(st: { ready: boolean; recording: boolean; has: boolean; hasAny: boolean }): void {
+  const why = (id: string, text: string): void => { $(id).textContent = text; };
+  why('why-next-1', source ? '' : 'Wähle zuerst eine Quelle.');
+  why('why-next-2', st.ready ? '' : source ? 'Lege zuerst ein Gerät an und kalibriere es (oder wähle Marker oder Lichtschranke).' : 'Wähle zuerst eine Quelle.');
+  why('why-next-3', st.has || session.runs.length ? '' : 'Es gibt noch keine Messwerte. Miss zuerst in Schritt 3.');
+  why('why-live', st.ready || stopLive ? '' : source ? 'Zum Messen erst in Schritt 2 ein Gerät kalibrieren.' : 'Zum Messen erst in Schritt 1 eine Quelle wählen.');
+  why('why-export', st.hasAny ? '' : 'Exportieren geht, sobald es Messwerte gibt.');
+  $('chart-empty').hidden = st.hasAny;
+  if (trackSt.cfg || gateSt.rect || anchorCfg) $<HTMLDetailsElement>('moretools').open = true;
+  if (variation.rows.length) $<HTMLDetailsElement>('varbox').open = true;
+  const names = ['Quelle', 'Geräte', 'Messen', 'Auswertung'];
+  const done = [!!source, st.ready, st.has || session.runs.length > 0, false];
+  names.forEach((n, i) => {
+    const tab = $(`tab-${i + 1}`);
+    tab.classList.toggle('done', done[i]);
+    tab.setAttribute('aria-label', `Schritt ${i + 1}: ${n}${done[i] ? ', erledigt' : ''}`);
+  });
+  const kinds: Record<string, string> = { camera: 'Kamera', file: 'Videodatei', demo: 'Demo', audio: source instanceof ToneDemoSource ? 'Demo-Ton' : 'Mikrofon' };
+  const parts = [`Quelle: ${source ? kinds[source.kind] : 'noch keine'}`];
+  const n = active().length;
+  parts.push(n === 1 ? '1 Größe' : `${n} Größen`);
+  parts.push(`${session.samples.length} Messpunkte`);
+  const t = templateById(tplId);
+  if (t) parts.push(`Versuch: ${t.title}`);
+  $('statusbar').textContent = parts.join(' · ');
 }
 
 const liveBtn = $<HTMLButtonElement>('btn-live');
@@ -1496,6 +1536,8 @@ function applyTplAxes(): void {
 
 function renderTemplateCard(): void {
   const t = templateById(tplId);
+  if (t && !task) setRoute('tpl');
+  if (t?.mode === 'series') $<HTMLDetailsElement>('varbox').open = true;
   $('tpl-card').hidden = !t;
   if (!t) { $('tpl-results').innerHTML = ''; return; }
   $('tpl-title').textContent = `Versuch: ${t.title}`;
@@ -2117,8 +2159,8 @@ function takeGate(kind: 'intervals' | 'periods'): void {
   $<HTMLInputElement>('var-p').value = '';
   varChanged();
 }
-$('gate-take-interval').onclick = () => takeGate('intervals');
-$('gate-take-period').onclick = () => takeGate('periods');
+$('gate-take-interval').onclick = () => { $<HTMLDetailsElement>('varbox').open = true; takeGate('intervals'); };
+$('gate-take-period').onclick = () => { $<HTMLDetailsElement>('varbox').open = true; takeGate('periods'); };
 
 /* ---- Barrierefreiheit: Beschreibung, Hören, Tastatur, Ansagen ---- */
 
@@ -2258,6 +2300,7 @@ function renderAudioLive(): void {
 
 function renderTaskCard(): void {
   const card = $('task-card');
+  if (task) setRoute('task');
   card.hidden = !task;
   if (!task) return;
   $('task-title-view').textContent = task.title;

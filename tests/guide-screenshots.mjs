@@ -2,6 +2,7 @@
 // Aufruf: node tests/guide-screenshots.mjs   (Vite-Dev-Server auf :5173 nötig; CHROMIUM_PATH optional)
 import { chromium } from 'playwright';
 import fs from 'node:fs';
+import { keepUnfolded } from './helpers.mjs';
 
 const url = process.env.URL ?? 'http://localhost:5173/';
 const out = new URL('../public/anleitung-bilder/', import.meta.url).pathname;
@@ -12,6 +13,7 @@ const pt = (deg) => [(d.cx + Math.cos((deg * Math.PI) / 180) * d.r), (d.cy + Mat
 
 const ctx = await browser.newContext({ viewport: { width: 1360, height: 900 }, deviceScaleFactor: 1, reducedMotion: 'reduce' });
 const page = await ctx.newPage();
+await keepUnfolded(page);
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 
@@ -56,9 +58,12 @@ const shotRect = async (name, x, y, w, h) => {
 
 // ---- 1 Quelle -------------------------------------------------------------------------
 await page.goto(url); await page.evaluate(() => localStorage.clear()); await page.reload();
-await badge('#btn-camera', 1); await badge('#file + *, label.choice:nth-of-type(1)', 2).catch(() => {});
-await badge('#btn-demo', 3); await badge('#tpl-select', 4);
+// So, wie es ein Nutzer sieht: Bereiche eingeklappt, Standardversuch gewählt
+await page.evaluate(() => { window.__noUnfold = true; document.querySelectorAll('details').forEach((d) => { d.open = false; }); });
+await page.click('#route-tpl');
+await badge('#route-free', 1, -4, -8); await badge('#route-tpl', 2, -4, -8); await badge('#tpl-select', 3, -4, -8); await badge('#btn-camera', 4);
 await shot('01-quelle', '#panel-1', 12);
+await page.evaluate(() => { window.__noUnfold = false; });
 
 // ---- 2 Zeigerinstrument -----------------------------------------------------------------
 await page.click('#btn-demo');
@@ -178,6 +183,7 @@ await page.selectOption('#fit-model', '');
 {
   const ctx2 = await browser.newContext({ viewport: { width: 1360, height: 900 }, deviceScaleFactor: 1, reducedMotion: 'reduce' }); // eigener Speicher: kein Zustand von der ersten Seite
   const p2 = await ctx2.newPage();
+  await keepUnfolded(p2);
   const m2 = async (x, y) => { const b2 = await p2.locator('#view').boundingBox(); return [b2.x + (x / W) * b2.width, b2.y + (y / H) * b2.height]; };
   await p2.goto(url); await p2.evaluate(() => localStorage.clear()); await p2.reload();
   await p2.click('#btn-demo'); await p2.waitForSelector('#panel-2:not([hidden])');
@@ -217,7 +223,7 @@ await page.click('#tab-4');
 await page.fill('#exp-title', 'Demo: Spannung und Strom'); await page.fill('#exp-name', 'Gruppe A');
 await badge('#exp-title', 1, -4, -8); await badge('#dl-csv', 2); await badge('#dl-png', 3); await badge('#dl-protocol', 4);
 {
-  const r = await page.evaluate(() => { const a = document.querySelector('.fieldset.export, fieldset.export').getBoundingClientRect(), b = document.querySelector('#german').getBoundingClientRect(); const p = document.querySelector('#panel-4').getBoundingClientRect(); return { x: p.left + scrollX, w: p.width, y: a.top + scrollY, bottom: b.bottom + scrollY }; });
+  const r = await page.evaluate(() => { const a = document.querySelector('details.export').getBoundingClientRect(), b = document.querySelector('#german').getBoundingClientRect(); const p = document.querySelector('.p4-side').getBoundingClientRect(); return { x: p.left + scrollX, w: p.width, y: a.top + scrollY, bottom: b.bottom + scrollY }; });
   await shotRect('13-export', r.x, r.y - 20, r.w, r.bottom - r.y + 40);
 }
 
@@ -226,6 +232,7 @@ await badge('#exp-title', 1, -4, -8); await badge('#dl-csv', 2); await badge('#d
   const [dl] = await Promise.all([page.waitForEvent('download'), page.click('#dl-protocol')]);
   const html = fs.readFileSync(await dl.path(), 'utf8');
   const pp = await ctx.newPage();
+  await keepUnfolded(pp);
   await pp.setViewportSize({ width: 794, height: 1123 });
   await pp.setContent(html);
   await pp.emulateMedia({ media: 'print' });
@@ -238,6 +245,7 @@ await badge('#exp-title', 1, -4, -8); await badge('#dl-csv', 2); await badge('#d
 {
   const m = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, reducedMotion: 'reduce' });
   const mp = await m.newPage();
+  await keepUnfolded(mp);
   await mp.goto(url); await mp.evaluate(() => localStorage.clear()); await mp.reload();
   await mp.click('#btn-demo');
   await mp.click('#add-analog');

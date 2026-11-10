@@ -7,6 +7,16 @@ Alles läuft **lokal im Browser**: kein Server, kein Konto, keine Übertragung v
 
 ![Quelle wählen](docs/screenshots/01-quelle.png)
 
+
+## Version 2.0: übersichtlichere Oberfläche (Branch `V2.0`)
+
+- Schritt 1 beginnt mit der Frage „Wie möchtest du messen?“ (Frei messen, Standardversuch, Aufgabe der Lehrkraft); danach folgen Bildquellen und Ton getrennt.
+- Schritt 2 heißt „Was willst du messen?“: Zeiger und Ziffern vorn, Marker, Lichtschranke und Bildanker eingeklappt unter „Weitere Werkzeuge“ (klappen von selbst auf, sobald benutzt), kürzere Texte.
+- Statusleiste und Häkchen an den Reitern; neben grauen Knöpfen steht, was noch fehlt.
+- Schritt 4: großer Graph links, Fit, Parameterreihe (eingeklappt), Beschriftung und Export rechts, Exportleiste bleibt sichtbar, Klassenansicht darunter; auf dem Handy einspaltig. Leerer Graph erklärt sich selbst.
+- Fragezeichen neben den Überschriften führen zum passenden Abschnitt der Anleitung; die Anleitung hat ein Glossar.
+- Tests: `tests/e2e-ui.mjs` prüft die neuen Elemente; die anderen E2E-Tests halten eingeklappte Bereiche über `tests/helpers.mjs` offen. Mit echten Geräten und Screenreadern nicht geprüft.
+
 ## Anleitung
 Eine Schritt-für-Schritt-Anleitung mit Bildern aus der App steht in der App selbst (Knopf „Anleitung“ oben rechts, Datei `anleitung.html`) und funktioniert auch offline. Sie führt von der Demo über Kalibrierung, Messen und Auswertung bis zu Versuchsvorlagen und Protokoll und enthält eine Hilfe bei typischen Problemen. Die Bilder erzeugt `tests/guide-screenshots.mjs` aus der laufenden App; die Tabelle der Versuchsvorlagen kommt direkt aus dem Code.
 

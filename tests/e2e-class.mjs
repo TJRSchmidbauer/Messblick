@@ -1,9 +1,11 @@
 // Klassenansicht: Code aus einer Vorlage erzeugen, mehrere Gruppen einfügen, Link öffnen. node tests/e2e-class.mjs (Vite :5173)
 import { chromium } from 'playwright';
+import { keepUnfolded } from './helpers.mjs';
 const url = process.env.URL ?? 'http://localhost:5173/';
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const ctx = await browser.newContext({ viewport: { width: 1360, height: 1000 }, permissions: ['clipboard-read', 'clipboard-write'] });
 const page = await ctx.newPage();
+await keepUnfolded(page);
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });

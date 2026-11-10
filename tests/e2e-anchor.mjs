@@ -1,11 +1,13 @@
 // Bildanker: Demo-Kamera wackelt, Zeigerablesung mit und ohne Anker. node tests/e2e-anchor.mjs (Vite-Server :5173)
 import { chromium } from 'playwright';
 import fs from 'node:fs';
+import { keepUnfolded } from './helpers.mjs';
 
 const url = process.env.URL ?? 'http://localhost:5173/';
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const ctx = await browser.newContext({ viewport: { width: 1360, height: 1000 }, acceptDownloads: true, reducedMotion: 'reduce' });
 const page = await ctx.newPage();
+await keepUnfolded(page);
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
@@ -17,9 +19,10 @@ await page.waitForSelector('#panel-2:not([hidden])');
 
 const W = 640, H = 360, d = { cx: 190, cy: 220, r: 120 };
 const pt = (deg) => [d.cx + Math.cos((deg * Math.PI) / 180) * d.r, d.cy + Math.sin((deg * Math.PI) / 180) * d.r];
+await page.waitForTimeout(300); // Bereiche klappen auf, das Layout setzt sich
 let box = await page.locator('#view').boundingBox();
 const at = (x, y) => [box.x + (x / W) * box.width, box.y + (y / H) * box.height];
-const click = async (x, y) => { const [px, py] = at(x, y); await page.mouse.click(px, py); };
+const click = async (x, y) => { box = await page.locator('#view').boundingBox(); const [px, py] = at(x, y); await page.mouse.click(px, py); };
 const answer = async (v) => { await page.locator('#valdlg-input').fill(v); await page.click('#valdlg button[value=ok]'); };
 
 // Kalibrieren (Kamera ruhig)

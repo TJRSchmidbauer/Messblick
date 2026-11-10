@@ -23,7 +23,7 @@ async function prepare(p, { calibrate = true } = {}) {
 async function run(p) {
   await p.keyboard.press('3'); await p.selectOption('#hz', '5'); await p.click('#btn-analyze');
   await p.waitForSelector('#panel-4:not([hidden])', { timeout: 60000 });
-  await p.fill('#exp-title', 'Demo: Spannung und Strom'); await p.waitForTimeout(400);
+  await p.evaluate(() => { document.querySelector('details.export').open = true; }); await p.fill('#exp-title', 'Demo: Spannung und Strom'); await p.waitForTimeout(400);
 }
 
 const ctx = await b.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2, reducedMotion: 'reduce' });

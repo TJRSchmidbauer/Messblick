@@ -57,7 +57,7 @@
         </ol>
         <figure>
           <img src="/anleitung-bilder/01-quelle.jpg" alt="Schritt 1: Quelle wählen mit Kamera, Videodatei und Demo" />
-          <figcaption><ol class="legend"><li>Kamera: Live-Aufnahme mit Handy oder Webcam.</li><li>Videodatei: vorher gefilmt, wird Bild für Bild ausgewertet.</li><li>Demo: zum Ausprobieren.</li><li>Versuchsvorlage: stellt alles für einen Standardversuch ein (siehe <a href="#vorlagen">Versuchsvorlagen</a>).</li></ol></figcaption>
+          <figcaption><ol class="legend"><li>Frei messen: eigener Aufbau, du stellst alles selbst ein.</li><li>Standardversuch: eine Vorlage stellt Geräte, Achsen und Auswertung ein (siehe <a href="#vorlagen">Versuchsvorlagen</a>). Daneben steht „Aufgabe der Lehrkraft“ für eine geladene Aufgabendatei.</li><li>Bei „Standardversuch“ erscheint hier die Auswahl der Vorlage.</li><li>Bildquelle: Kamera (Live-Aufnahme mit Handy oder Webcam), Videodatei (vorher gefilmt) oder Demo. Darunter stehen Mikrofon und Demo-Ton.</li></ol></figcaption>
         </figure>
       </section>
 
@@ -75,12 +75,29 @@
 
       <section id="quelle">
         <h2>Schritt 1: Quelle wählen</h2>
+        <p>Wähle oben, wie du messen möchtest: <b>Frei messen</b>, mit einem <b>Standardversuch</b> oder mit einer <b>Aufgabe der Lehrkraft</b>. Danach wählst du die Quelle der Messwerte.</p>
         <p><b>Kamera</b> nimmt live auf (der Browser fragt nach Erlaubnis; auf einer Webseite nur über HTTPS). <b>Videodatei</b> öffnet ein gefilmtes Video. Bei Videos bewegst du den Regler „Zeit im Video“, um eine Stelle zu finden. <b>Demo</b> braucht nichts.</p>
+        <h3>Orientierung in der App</h3>
+        <ul>
+          <li><b>Statusleiste</b> unter den Reitern: Quelle, Anzahl der Größen, Messpunkte und gewählter Versuch auf einen Blick.</li>
+          <li><b>Häkchen</b> an den Reitern zeigen, welche Schritte erledigt sind.</li>
+          <li><b>Graue Knöpfe</b> haben einen Satz daneben, der sagt, was noch fehlt.</li>
+          <li><b>Fragezeichen</b> neben den Überschriften öffnen den passenden Abschnitt dieser Anleitung.</li>
+        </ul>
+        <table class="plain">
+          <thead><tr><th>Begriff</th><th>Bedeutung</th></tr></thead>
+          <tbody>
+            <tr><td>Gerät, Größe</td><td>Alles, was die App misst: ein abgelesenes Instrument, ein Marker (x und y), eine Lichtschranke, ein Ton oder eine abgeleitete Größe.</td></tr>
+            <tr><td>Messreihe</td><td>Die Messpunkte einer Aufnahme über der Zeit. „Reihe sichern“ legt sie zum Vergleichen beiseite.</td></tr>
+            <tr><td>Parameterreihe</td><td>Mehrere Aufnahmen mit je einem anderen Parameter (z. B. Masse); je Aufnahme ein Wert in der Tabelle.</td></tr>
+            <tr><td>Marker, Zone, Anker</td><td>Marker: Körper, dessen Ort verfolgt wird. Zone: Bildbereich der Lichtschranke. Anker: ruhender Punkt, der Kamerawackeln ausgleicht.</td></tr>
+          </tbody>
+        </table>
       </section>
 
       <section id="geraete">
-        <h2>Schritt 2: Geräte festlegen</h2>
-        <p>Bis zu vier Größen gleichzeitig: Zeigerinstrumente, Digitalanzeigen, eine Markerverfolgung (zählt als zwei: x und y), eine Lichtschranke und abgeleitete Größen. Jedes Gerät hat eine feste Farbe und ein Symbol, damit man es auch ohne Farbsehen im Bild, in der Tabelle und im Graphen wiederfindet.</p>
+        <h2>Schritt 2: Was willst du messen?</h2>
+        <p>Mit „Zeigerinstrument ablesen“ und „Digitalanzeige ablesen“ legst du ein Gerät an und kalibrierst es im Bild. Marker, Lichtschranke und Bildanker stehen eingeklappt unter „Weitere Werkzeuge“ und klappen von selbst auf, sobald du eines benutzt. Bis zu vier Größen gleichzeitig: Zeigerinstrumente, Digitalanzeigen, eine Markerverfolgung (zählt als zwei: x und y), eine Lichtschranke und abgeleitete Größen. Jedes Gerät hat eine feste Farbe und ein Symbol, damit man es auch ohne Farbsehen im Bild, in der Tabelle und im Graphen wiederfindet.</p>
 
         <h3>Zeigerinstrument</h3>
         <figure>
@@ -174,6 +191,7 @@
 
       <section id="auswertung">
         <h2>Schritt 4: Auswertung</h2>
+        <p>Auf großen Bildschirmen steht links der Graph, rechts stehen Fit, Parameterreihe (eingeklappt), Beschriftung und die Exportknöpfe, die beim Scrollen unten sichtbar bleiben. Die Klassenansicht liegt darunter. Auf dem Handy folgt alles untereinander.</p>
         <figure>
           <img src="/anleitung-bilder/09-auswertung.jpg" alt="Graph mit Messung, Vorhersage und Fit, darunter die Ergebnisbox" />
           <figcaption><ol class="legend"><li>Achsen wählen: x ist die Zeit oder ein anderes Messgerät. Eine zweite y-Achse ist möglich.</li><li>Fit-Modell wählen: Gerade, Proportional, Zerfall, Sättigung, Potenz, Sinus, gedämpfter Sinus.</li><li>Ergebnis: Parameter ± Unsicherheit, dazu R² (wie gut das Modell passt) und χ² je Freiheitsgrad. Darunter zeigt der Residuen-Graph, ob die Abweichungen zufällig streuen.</li><li>Graph: Messpunkte mit Fehlerbalken, die gestrichelte Fitkurve und die gepunktete Vorhersage. Mausrad oder Pinch zoomt, Ziehen verschiebt.</li></ol></figcaption>

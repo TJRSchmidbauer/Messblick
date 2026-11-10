@@ -1,12 +1,14 @@
 // Aufgabenmodus: Lehrkraft speichert eine Aufgabe, ein neuer Browser lädt sie. node tests/e2e-task.mjs (Vite-Server :5173)
 import { chromium } from 'playwright';
 import fs from 'node:fs';
+import { keepUnfolded } from './helpers.mjs';
 
 const url = process.env.URL ?? 'http://localhost:5173/';
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || undefined });
 const mk = async () => {
   const ctx = await browser.newContext({ viewport: { width: 1360, height: 1000 }, acceptDownloads: true, reducedMotion: 'reduce' });
   const page = await ctx.newPage();
+  await keepUnfolded(page);
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
