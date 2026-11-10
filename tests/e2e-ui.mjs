@@ -14,6 +14,14 @@ await page.goto(url);
 await page.evaluate(() => localStorage.clear());
 await page.reload();
 
+// 0) Lizenz: Name und Lizenz stehen auf der Startseite sichtbar, der Lizenztext ist abrufbar
+const credit = page.locator('.site-foot .credit');
+check(await credit.isVisible(), 'Namensnennung in der Fußzeile nicht sichtbar');
+const ct = await credit.textContent();
+check(/Tobias Schmidbauer/.test(ct) && /CC BY-NC 4\.0/.test(ct), 'Namensnennung unvollständig: ' + ct);
+const lic = await page.evaluate(async () => (await fetch('LICENSE.txt')).text());
+check(/Attribution-NonCommercial 4\.0 International/.test(lic) && lic.length > 15000, 'LICENSE.txt fehlt oder ist unvollständig');
+
 // 1) Startwege: Standard ist „Frei messen“, Vorlage und Aufgabe erst auf Wunsch
 check(!(await vis('#tplbox')) && !(await vis('#taskpick')), 'Vorlage und Aufgabe sollten zunächst verborgen sein');
 check((await page.getAttribute('#route-free', 'aria-pressed')) === 'true', 'Frei messen nicht vorgewählt');

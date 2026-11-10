@@ -4,6 +4,8 @@
   "private": true,
   "type": "module",
   "description": "Messgeräte im Physikunterricht abfilmen, Werte ablesen, CSV/XLSX und Graphen exportieren – komplett im Browser.",
+  "license": "CC-BY-NC-4.0",
+  "author": "Tobias Schmidbauer (https://schmidbauer.io)",
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",

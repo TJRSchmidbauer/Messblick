@@ -416,3 +416,5 @@ body.beamer .moreopts, body.beamer .moretools, body.beamer .help { display: none
 .howto > summary { cursor: pointer; font-weight: 600; }
 #scandlg { max-width: min(34rem, 94vw); }
 #scan-video { width: 100%; max-height: 50vh; background: #000; border-radius: 8px; }
+.site-foot .credit { flex-basis: 100%; color: var(--ink); }
+.site-foot .credit a { color: var(--link); text-underline-offset: .2em; }

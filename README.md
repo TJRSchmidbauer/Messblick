@@ -8,6 +8,20 @@ Alles läuft **lokal im Browser**: kein Server, kein Konto, keine Übertragung v
 ![Quelle wählen](docs/screenshots/01-quelle.png)
 
 
+
+## Lizenz
+
+**CC BY-NC 4.0** (Creative Commons Namensnennung – Nicht kommerziell 4.0 International), © 2026 Tobias Schmidbauer.
+Nutzen, kopieren, weitergeben und verändern ist erlaubt, auch im Unterricht, aber **nicht kommerziell** und **mit Namensnennung**.
+**In jeder Kopie oder Abwandlung muss der Name „Tobias Schmidbauer“ mit der Lizenzangabe klar sichtbar auf der Startseite des Programms bzw. der Webseite stehen.**
+
+Beispiel für die Quellenangabe:
+
+> „Physik-Messwerterfassung“ von Tobias Schmidbauer (schmidbauer.io), https://github.com/TJRSchmidbauer/Physikmesswererfassung, Lizenz CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/deed.de)
+
+Bei einer Abwandlung zusätzlich angeben, dass es eine Abwandlung ist und was geändert wurde. Weitere Beispiele (auch HTML für die Fußzeile),
+die Zusammenfassung und die Hinweise zu Bausteinen anderer Urheber stehen in [`NOTICE.md`](NOTICE.md); der Volltext in [`LICENSE`](LICENSE).
+
 ## Version 2.0: übersichtlichere Oberfläche (Branch `V2.0`)
 
 - Schritt 1 beginnt mit der Frage „Wie möchtest du messen?“ (Frei messen, Standardversuch, Aufgabe der Lehrkraft); danach folgen Bildquellen und Ton getrennt.
