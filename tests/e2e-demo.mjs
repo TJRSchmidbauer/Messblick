@@ -223,6 +223,8 @@ await page.fill('#tpl-in-R', '1000'); await page.fill('#tpl-in-Cnenn', '4700'); 
   if (!/^PMW1\./.test(code)) throw new Error('Kein Gruppencode erzeugt');
   await page.fill('#class-text', code);
   if (!/Gruppe Demo/.test(await page.locator('#class-out').innerText())) throw new Error('Eigener Code wird nicht gelesen');
+  await page.click('#class-qr');
+  if (!(await page.locator('#class-qr-out svg path').count())) throw new Error('QR-Code fehlt');
   await page.fill('#class-text', '');
 }
 const tpl2 = await page.locator('#tpl-results').innerText();

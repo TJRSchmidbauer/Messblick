@@ -370,3 +370,5 @@ body.beamer .taskedit { display: none; }
 .classbox table { border-collapse: collapse; width: 100%; }
 .classbox th, .classbox td { padding: .3rem .6rem; border-bottom: 1px solid var(--line); text-align: left; }
 .classbox td.num { font-variant-numeric: tabular-nums; }
+.qrbox { margin: .6rem 0; }
+.qrbox svg { width: min(18rem, 100%); height: auto; display: block; border: 1px solid var(--line-strong); border-radius: 6px; background: #fff; }

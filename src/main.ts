@@ -21,6 +21,7 @@ import { Tracker, makeTemplate, type TrackConfig } from './readers/track';
 import { parseTask, serializeTask, type TaskFile } from './task';
 import { Stabilizer } from './readers/stabilize';
 import type { TrackResult } from './readers/track';
+import { encodeQr, qrSvg } from './ui/qr';
 import { encodeShare, parseShares, summarize } from './analysis/classview';
 import { TEMPLATES, evalTemplateResults, templateById, type Template, type TplResultLine } from './templates';
 import { describeUncertainty, type UncertaintyConfig } from './analysis/uncertainty';
@@ -1564,10 +1565,20 @@ function currentShareCode(): string | null {
   const group = $<HTMLInputElement>('class-group').value.trim() || 'Gruppe';
   return encodeShare({ tpl: t.id, group, lines: lines.map((l) => ({ label: l.label, unit: l.unit, value: l.value!, sigma: l.sigma !== null && Number.isFinite(l.sigma) ? l.sigma : null })) });
 }
+$('class-qr').onclick = () => {
+  const c = currentShareCode(), host = $('class-qr-out');
+  if (!c) return;
+  try {
+    host.innerHTML = `${qrSvg(encodeQr(classUrl(c)), 'QR-Code mit dem Link zum Ergebnis dieser Gruppe')}<p class="note">Die Lehrkraft scannt den Code mit der Handykamera und öffnet den Link in dem Browser, in dem sie sammelt. Der Code ist nur dann einlösbar, wenn die App unter dieser Adresse erreichbar ist.</p>`;
+    host.hidden = false;
+  } catch { host.hidden = true; $('class-share-msg').textContent = 'Der Link ist für einen QR-Code zu lang. Bitte „Code kopieren“ verwenden.'; }
+};
 function renderClassShare(): void {
   const ok = currentShareCode() !== null;
   $<HTMLButtonElement>('class-copy-code').disabled = !ok;
   $<HTMLButtonElement>('class-copy-link').disabled = !ok;
+  $<HTMLButtonElement>('class-qr').disabled = !ok;
+  if (!ok) $('class-qr-out').hidden = true;
   $('class-share-msg').textContent = ok ? 'Bereit: Code oder Link kopieren und der Lehrkraft schicken (Chat, Mail, Tafelbild).' : 'Das Ergebnis einer Vorlage steht erst nach dem Fit zum Teilen bereit.';
 }
 async function copyText(text: string, what: string): Promise<void> {
@@ -1595,7 +1606,7 @@ function renderClassView(): void {
   host.innerHTML = `<div class="tablewrap"><table><thead><tr><th>Gruppe</th>${head}</tr></thead><tbody>${rows}</tbody></table></div>${sumHtml}<p class="note">Nur Gruppen mit gleicher Vorlage vergleichen. Systematische Fehler, die alle gleich machen, mittelt man nicht weg.</p>`;
 }
 $('class-text').addEventListener('input', renderClassView);
-$('class-group').addEventListener('input', renderClassShare);
+$('class-group').addEventListener('input', () => { renderClassShare(); });
 (() => {
   let saved = '';
   try { saved = localStorage.getItem('pmw-class') ?? ''; } catch { /* egal */ }
