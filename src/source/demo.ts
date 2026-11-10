@@ -1,4 +1,4 @@
-import { createFrame, drawAnalogDial, drawSevenSegment } from '../core/synth';
+import { createFrame, drawAnalogDial, drawSevenSegment, fillDisc } from '../core/synth';
 import type { Frame } from '../core/types';
 import type { FrameSource } from './types';
 
@@ -11,6 +11,10 @@ export const DEMO = {
   dial: { cx: 190, cy: 220, r: 120, a0: 135, a1: 405, vmax: 10 },
   display: { x: 380, y: 140, w: 220, h: 90, digits: 4 },
 };
+/** Pendelkugel zum Ausprobieren der Markerverfolgung: waagerechte Schwingung, Periode 4 s, Amplitude 80 Bildpunkte. */
+export const DEMO_BOB = { cx: 500, cy: 292, amplitude: 80, period: 4, r: 12 };
+export const demoBobX = (t: number): number => DEMO_BOB.cx + DEMO_BOB.amplitude * Math.sin((2 * Math.PI * t) / DEMO_BOB.period);
+export const demoBobY = (t: number): number => DEMO_BOB.cy + 8 * Math.cos((2 * Math.PI * t) / DEMO_BOB.period);
 export const demoVoltage = (t: number): number => 5 + 4 * Math.sin(t / 3);
 export const demoCurrent = (t: number): number => Math.round(demoVoltage(t) * 0.2 * 100) / 100 + 0.1;
 
@@ -46,6 +50,9 @@ export class DemoSource implements FrameSource {
     drawAnalogDial(f, d.cx, d.cy, d.r, theta, { ticks: { from: rad(d.a0), to: rad(d.a1), count: 10 } });
     const s = DEMO.display;
     drawSevenSegment(f, s.x, s.y, s.w, s.h, demoCurrent(t).toFixed(2), s.digits, { fg: 25, bg: 190 });
+    const b = DEMO_BOB, bx = demoBobX(t), by = demoBobY(t);
+    fillDisc(f, bx, by, b.r, 40);
+    fillDisc(f, bx + 3, by - 3, 4.5, 235);
     return f;
   }
 }

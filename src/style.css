@@ -322,3 +322,7 @@ th .sym { color: var(--c); margin-right: .3rem; }
 .predict summary { font-weight: 700; cursor: pointer; }
 #pred-canvas { width: 100%; max-width: 560px; height: auto; aspect-ratio: 2 / 1; touch-action: none; cursor: crosshair; background: var(--surface); border: 1.5px solid var(--ink); border-radius: 8px; margin-top: .6rem; }
 .predfeedback { margin: .5rem 0; padding: .55rem .8rem; border-left: 4px solid var(--accent); background: var(--surface); }
+
+/* Markerverfolgung */
+.trackbox { margin: 1rem 0; border: 1.5px solid var(--line); border-radius: 12px; padding: .5rem 1rem 1rem; }
+.trackbox legend { font-weight: 700; padding: 0 .4rem; }

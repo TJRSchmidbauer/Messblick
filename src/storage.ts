@@ -38,6 +38,8 @@ export interface SavedState {
   template?: unknown;
   /** Gezeichnete Vorhersage (siehe analysis/prediction.ts); fehlt in älteren Sitzungen. */
   prediction?: unknown;
+  /** Markerverfolgung (Vorlage, Startzeit, Maßstab); fehlt in älteren Sitzungen. */
+  track?: unknown;
   session: { channels: ChannelDef[]; samples: Sample[]; runs: Run[] };
 }
 

@@ -93,6 +93,17 @@
           <button id="add-digital" type="button"><span data-icon="digits"></span>Digitalanzeige</button>
         </div>
         <div id="channels"></div>
+        <fieldset class="trackbox" id="trackbox">
+          <legend>Bewegung verfolgen (Marker)</legend>
+          <p class="note">Für Wagen, Pendel, fallende Körper: Die App findet einen Marker in jedem Bild wieder und liefert Ort x und y über der Zeit. Geschwindigkeit und Beschleunigung folgen später über „Neue Größe“ (Ableitung).</p>
+          <div class="bar">
+            <label class="field">Name <input id="trk-name" autocomplete="off" value="Marker" style="width:9em" /></label>
+            <button id="trk-marker" type="button"><span data-icon="expand"></span>Marker wählen</button>
+            <button id="trk-scale" type="button" disabled><span data-icon="arrow"></span>Maßstab setzen</button>
+            <button id="trk-remove" type="button" class="ghost" disabled><span data-icon="trash"></span>Entfernen</button>
+          </div>
+          <p id="trk-status" class="note" aria-live="polite">Noch kein Marker gewählt.</p>
+        </fieldset>
         <div class="bar secondary">
           <button id="cal-save" type="button" class="ghost" disabled><span data-icon="download"></span>Kalibrierung speichern</button>
           <label class="btn ghost"><span data-icon="upload"></span>Kalibrierung laden<input id="cal-load" type="file" accept="application/json,.json" hidden /></label>

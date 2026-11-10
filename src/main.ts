@@ -14,6 +14,7 @@ import { TRANSFORMS, averageReadings, suggestPlots, toPoints, transformLabel, ty
 import { sigmaOf } from './analysis/uncertainty';
 import { detectScaleJumps, factorLabel } from './analysis/jumps';
 import { cleanPath, comparePrediction, type Prediction } from './analysis/prediction';
+import { Tracker, makeTemplate, type TrackConfig } from './readers/track';
 import { TEMPLATES, evalTemplateResults, templateById, type Template, type TplResultLine } from './templates';
 import { describeUncertainty, type UncertaintyConfig } from './analysis/uncertainty';
 import { icon, symbol, SYMBOLS } from './ui/icons';
@@ -87,6 +88,13 @@ let lastRescale: { id: string; from: number; to: number; factor: number } | null
 const jumpWarnAt = new Map<string, number>();
 /** Vorhersage: gezeichnete Kurve und Achsenbereiche des Zeichenfelds. */
 let prediction: Prediction | null = null;
+/** Markerverfolgung: gewählter Marker samt Startzeit und Maßstab; Zeichenmodus und laufende Auswahl. */
+interface TrackState { name: string; cfg: TrackConfig | null; scaleP: Point[]; meters: number | null }
+const freshTrack = (): TrackState => ({ name: 'Marker', cfg: null, scaleP: [], meters: null });
+let trackSt: TrackState = freshTrack();
+let trackMode: 'marker' | 'scale1' | 'scale2' | null = null;
+let trkDraw: { start: Point; cur: Point } | null = null;
+let trackerCache: { cfg: TrackConfig; tracker: Tracker } | null = null;
 const predRange = { xmin: 0, xmax: 30, ymin: 0, ymax: 10 };
 let stopLive: (() => void) | null = null;
 let abort: AbortController | null = null;
@@ -158,7 +166,15 @@ function uncOf(c: Chan): UncertaintyConfig {
   return { mode: 'none' };
 }
 
-const active = (): ActiveChannel[] => chans.filter((c) => c.cal).map((c) => ({ id: c.id, cal: c.cal! }));
+const active = (): ActiveChannel[] => [
+  ...chans.filter((c) => c.cal).map((c) => ({ id: c.id, cal: c.cal! })),
+  ...(trackSt.cfg ? [{ id: 'trk-', track: trackerOf(trackSt.cfg) }] : []),
+];
+/** Ein Tracker je Marker-Konfiguration; der Sampler setzt ihn beim Start einer Aufnahme zurück. */
+function trackerOf(cfg: TrackConfig): Tracker {
+  if (trackerCache?.cfg !== cfg) trackerCache = { cfg, tracker: new Tracker(cfg) };
+  return trackerCache.tracker;
+}
 
 /* ============================== Thema ============================== */
 
@@ -363,7 +379,7 @@ $('helpdlg-close').onclick = () => helpdlg.close();
 /* ============================== Kanäle ============================== */
 
 function addChannel(type: 'analog' | 'digital'): void {
-  if (chans.length + session.channels.filter((c) => c.derived).length >= MAX_CHANNELS) return showError('Mehr als vier Größen gleichzeitig (Messgeräte und abgeleitete Größen zusammen) werden nicht unterstützt.');
+  if (chans.length + session.channels.filter((c) => c.derived).length + (trackSt.cfg ? 2 : 0) >= MAX_CHANNELS) return showError('Mehr als vier Größen gleichzeitig (Messgeräte, Markerverfolgung mit x und y und abgeleitete Größen zusammen) werden nicht unterstützt.');
   const used = new Set(chans.map((c) => c.slot));
   const slot = [0, 1, 2, 3].find((s) => !used.has(s))!;
   const id = `k${nextId++}`;
@@ -516,6 +532,7 @@ function pointer(e: PointerEvent): Point {
 
 view.addEventListener('pointerdown', (e) => {
   const p = pointer(e);
+  if (trackMode) { onTrackPointerDown(e, p); return; }
   if (calib) {
     if (calib.step === 'roi') {
       view.setPointerCapture(e.pointerId);
@@ -533,6 +550,7 @@ view.addEventListener('pointerdown', (e) => {
 });
 view.addEventListener('pointermove', (e) => {
   const p = pointer(e);
+  if (trkDraw) { trkDraw.cur = p; return; }
   if (roiDraw) { roiDraw.cur = p; return; }
   if (dragging) {
     const c = chan(dragging.id);
@@ -545,6 +563,12 @@ view.addEventListener('pointermove', (e) => {
   view.classList.toggle('can-drag', !calib && !!hit(p));
 });
 view.addEventListener('pointerup', () => {
+  if (trkDraw) {
+    const { start, cur } = trkDraw;
+    trkDraw = null;
+    finishMarker({ x: Math.min(start.x, cur.x), y: Math.min(start.y, cur.y), w: Math.abs(cur.x - start.x), h: Math.abs(cur.y - start.y) });
+    return;
+  }
   if (roiDraw) {
     const { start, cur } = roiDraw;
     roiDraw = null;
@@ -768,6 +792,7 @@ function drawOverlay(): void {
       vctx.fillStyle = '#fff'; vctx.fillText(label, anchor.x + 30 * scale, anchor.y - 5 * scale);
     }
   }
+  drawTrackOverlay(scale);
   if (roiDraw) strokeHalo(() => { vctx.beginPath(); vctx.rect(Math.min(roiDraw!.start.x, roiDraw!.cur.x), Math.min(roiDraw!.start.y, roiDraw!.cur.y), Math.abs(roiDraw!.cur.x - roiDraw!.start.x), Math.abs(roiDraw!.cur.y - roiDraw!.start.y)); }, '#F6B48F', 2);
   vctx.restore();
 }
@@ -841,6 +866,14 @@ requestAnimationFrame(loop);
 function syncSessionChannels(): void {
   for (const c of chans) {
     if (c.cal && !session.channels.some((s) => s.id === c.id)) session.addChannel({ id: c.id, name: c.name, unit: c.unit, uncertainty: uncOf(c) });
+  }
+  if (trackSt.cfg) {
+    const unit = trackSt.cfg.scale ? 'm' : 'px';
+    for (const axis of ['x', 'y'] as const) {
+      const id = `trk-${axis}`, name = `${trackSt.name} ${axis}`;
+      const ex = session.channels.find((s) => s.id === id);
+      if (ex) { ex.name = name; ex.unit = unit; } else session.addChannel({ id, name, unit });
+    }
   }
   refreshSelects();
 }
@@ -1667,6 +1700,109 @@ $('print-protocol').onclick = () => {
   document.body.appendChild(frame);
 };
 
+/* ---- Markerverfolgung ---- */
+
+function renderTrackStatus(): void {
+  const c = trackSt.cfg;
+  const lines: string[] = [];
+  if (!c) lines.push('Noch kein Marker gewählt. Eine Videodatei auf den ersten Moment der Bewegung stellen, dann „Marker wählen“.');
+  else {
+    lines.push(`Marker gewählt (${c.template.w} × ${c.template.h} Bildpunkte${source?.duration != null ? `, ab ${de(c.t0, 1)} s` : ''}).`);
+    lines.push(c.scale ? `Maßstab: 1 Bildpunkt = ${de(c.scale * 1000, 2)} mm. Ergebnis in Metern.` : 'Ohne Maßstab: Ergebnis in Bildpunkten. „Maßstab setzen“ rechnet in Meter um.');
+  }
+  $('trk-status').textContent = lines.join(' ');
+  $<HTMLButtonElement>('trk-scale').disabled = !c;
+  $<HTMLButtonElement>('trk-remove').disabled = !c;
+  $<HTMLInputElement>('trk-name').value = trackSt.name;
+}
+
+$('trk-marker').onclick = () => {
+  if (!source) return showError('Bitte zuerst eine Quelle wählen.');
+  trackMode = 'marker';
+  calib = null;
+  setHint('Ziehe ein Rechteck eng um den Marker (z. B. eine dunkle Kugel oder einen farbigen Klebepunkt). Bei einer Videodatei vorher auf den Anfang der Bewegung stellen.');
+};
+$('trk-scale').onclick = () => {
+  trackMode = 'scale1';
+  trackSt.scaleP = [];
+  setHint('Maßstab: Klicke auf den ersten von zwei Punkten, deren Abstand du kennst (z. B. die Enden eines Meterstabs).');
+};
+$('trk-remove').onclick = () => {
+  trackSt = freshTrack(); trackerCache = null; trackMode = null;
+  session.removeChannel('trk-x'); session.removeChannel('trk-y');
+  refreshSelects(); renderTrackStatus(); updateButtons(); renderResults(); scheduleSave();
+};
+$('trk-name').addEventListener('input', (e) => {
+  trackSt.name = (e.target as HTMLInputElement).value || 'Marker';
+  syncSessionChannelsIfAny();
+  scheduleSave();
+});
+function syncSessionChannelsIfAny(): void {
+  if (session.channels.some((c) => c.id === 'trk-x')) { syncSessionChannels(); renderResults(); }
+}
+
+function onTrackPointerDown(e: PointerEvent, p: Point): void {
+  if (trackMode === 'marker') {
+    view.setPointerCapture(e.pointerId);
+    trkDraw = { start: p, cur: p };
+  } else if (trackMode === 'scale1') {
+    trackSt.scaleP = [p];
+    trackMode = 'scale2';
+    setHint('Jetzt der zweite Punkt.');
+  } else if (trackMode === 'scale2') {
+    trackSt.scaleP.push(p);
+    const [a, b] = trackSt.scaleP;
+    const px = Math.hypot(b.x - a.x, b.y - a.y);
+    trackMode = null;
+    if (px < 10) { trackSt.scaleP = []; return setHint('Die Punkte liegen zu nah beieinander. „Maßstab setzen“ und weiter auseinander klicken.'); }
+    void askValue('Maßstab', 'Welchen Abstand haben die beiden Punkte in Wirklichkeit?', 'm', '1').then((m) => {
+      if (m === null || m <= 0 || !trackSt.cfg) { trackSt.scaleP = []; return setHint('Kein Maßstab übernommen.'); }
+      trackSt.meters = m;
+      trackSt.cfg = { ...trackSt.cfg, scale: m / px };
+      trackerCache = null;
+      syncSessionChannelsIfAny();
+      setHint(`Maßstab gesetzt: ${de(m, 3)} m = ${de(px, 0)} Bildpunkte.`);
+      renderTrackStatus(); renderResults(); scheduleSave();
+    });
+  }
+}
+
+function finishMarker(r: Rect): void {
+  if (!source) return;
+  let frame: Frame;
+  try { frame = source.grab(); } catch { return showError('Noch kein Bild verfügbar.'); }
+  const t = makeTemplate(frame, r);
+  trackMode = null;
+  if ('error' in t) return showError(t.error);
+  showError(null);
+  trackSt.cfg = { template: t.template, t0: source.duration !== null ? source.time() : 0, scale: trackSt.cfg?.scale ?? null };
+  trackerCache = null;
+  setHint('Marker gewählt. Optional „Maßstab setzen“; dann in Schritt 3 aufnehmen oder das Video auswerten.');
+  renderTrackStatus(); updateButtons(); scheduleSave();
+}
+
+function drawTrackOverlay(scale: number): void {
+  const c = trackSt.cfg;
+  const col = '#F6B48F';
+  if (trkDraw) strokeHalo(() => { vctx.beginPath(); vctx.rect(Math.min(trkDraw!.start.x, trkDraw!.cur.x), Math.min(trkDraw!.start.y, trkDraw!.cur.y), Math.abs(trkDraw!.cur.x - trkDraw!.start.x), Math.abs(trkDraw!.cur.y - trkDraw!.start.y)); }, col, 2);
+  if (!c) return;
+  const recording = !!stopLive || !!abort;
+  const pos = recording ? trackerCache?.tracker.position ?? null : null;
+  const t = c.template;
+  if (!recording) {
+    strokeHalo(() => { vctx.beginPath(); vctx.rect(t.x, t.y, t.w, t.h); vctx.setLineDash([5 * scale, 4 * scale]); }, col, 2);
+    vctx.setLineDash([]);
+  }
+  if (pos) strokeHalo(() => { vctx.beginPath(); vctx.moveTo(pos.x - 12 * scale, pos.y); vctx.lineTo(pos.x + 12 * scale, pos.y); vctx.moveTo(pos.x, pos.y - 12 * scale); vctx.lineTo(pos.x, pos.y + 12 * scale); vctx.arc(pos.x, pos.y, t.w / 2, 0, 7); }, col, 2);
+  const sp = trackSt.scaleP;
+  for (const q of sp) strokeHalo(() => { vctx.beginPath(); vctx.arc(q.x, q.y, 5 * scale, 0, 7); }, col, 2);
+  if (sp.length === 2) strokeHalo(() => { vctx.beginPath(); vctx.moveTo(sp[0].x, sp[0].y); vctx.lineTo(sp[1].x, sp[1].y); }, col, 2);
+  vctx.fillStyle = 'rgb(0 0 0 / .72)';
+  const label = `${trackSt.name}${c.scale ? '' : ' (px)'}`;
+  vctx.fillRect(t.x, t.y - 22 * scale, vctx.measureText(label).width + 16 * scale, 20 * scale);
+  vctx.fillStyle = '#fff'; vctx.fillText(label, t.x + 8 * scale, t.y - 7 * scale);
+}
+
 function renderRuns(): void {
   const host = $('runs');
   if (!session.runs.length) { host.innerHTML = ''; return; }
@@ -1759,7 +1895,7 @@ function saveNow(): void {
   saveTimer = 0;
   const state: SavedState = {
     version: 1, channels: chans.map(toSaved), nextId, hz: Number($<HTMLSelectElement>('hz').value), theme: themeSel.value,
-    smoothing: session.smoothing, variation, template: { id: tplId, inputs: tplInputs }, prediction: prediction ? { ...prediction, range: predRange } : null, session: { channels: session.channels, samples: session.samples, runs: session.runs },
+    smoothing: session.smoothing, variation, template: { id: tplId, inputs: tplInputs }, track: trackSt, prediction: prediction ? { ...prediction, range: predRange } : null, session: { channels: session.channels, samples: session.samples, runs: session.runs },
   };
   try { localStorage.setItem(STORAGE_KEY, serialize(state)); } catch {
     if (!saveWarned) { saveWarned = true; showError('Automatisches Speichern ist nicht möglich (Speicher voll oder gesperrt). Exportiere deine Daten rechtzeitig.'); }
@@ -1787,18 +1923,20 @@ function restore(): void {
   session.smoothing = s.smoothing ?? 0;
   const tp = s.template as { id?: string; inputs?: typeof tplInputs } | undefined;
   if (tp?.id && templateById(tp.id)) { tplId = tp.id; tplInputs = tp.inputs ?? {}; }
+  const tk = s.track as TrackState | undefined;
+  if (tk?.cfg?.template && Array.isArray(tk.cfg.template.data) && tk.cfg.template.data.length === tk.cfg.template.w * tk.cfg.template.h) trackSt = { ...freshTrack(), ...tk };
   const pr = s.prediction as (Prediction & { range?: typeof predRange }) | null | undefined;
   if (pr && Array.isArray(pr.points) && pr.points.length >= 2) { prediction = { xKey: pr.xKey, yId: pr.yId, points: pr.points }; if (pr.range) Object.assign(predRange, pr.range); }
   if (s.variation && typeof s.variation === 'object') variation = { ...freshVariation(), ...(s.variation as Partial<VarState>) };
   $<HTMLInputElement>('smooth').checked = session.smoothing >= 3;
-  if (chans.length || session.samples.length || session.runs.length || variation.rows.length) {
+  if (chans.length || session.samples.length || session.runs.length || variation.rows.length || trackSt.cfg) {
     const n = $('restore');
     n.hidden = false;
     n.innerHTML = `<span>${icon('info')} Letzte Sitzung wiederhergestellt: ${chans.length} Gerät(e), ${session.samples.length} Messpunkte${session.runs.length ? `, ${session.runs.length} gesicherte Reihe(n)` : ''}. Die Kalibrierung gilt nur bei gleichem Kamerabild.</span>
       <button type="button" id="restore-reset">Neu beginnen</button><button type="button" class="ghost" id="restore-ok">OK</button>`;
     $('restore-ok').onclick = () => { n.hidden = true; };
     $('restore-reset').onclick = () => {
-      chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1; variation = freshVariation(); tplId = ''; tplInputs = {}; prediction = null;
+      chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1; variation = freshVariation(); tplId = ''; tplInputs = {}; prediction = null; trackSt = freshTrack();
       n.hidden = true;
       try { localStorage.removeItem(STORAGE_KEY); } catch { /* egal */ }
       renderChannels(); renderLive(); updateButtons(); renderResults();
@@ -1815,7 +1953,8 @@ document.addEventListener('keydown', (e) => {
   if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'z' && !typing) { e.preventDefault(); undo(); return; }
   if (e.ctrlKey || e.metaKey || e.altKey || typing) return;
   if (e.key === 'Escape') {
-    if (abort) abort.abort(); else if (calib) cancelCalibration();
+    if (trackMode || trkDraw) { trackMode = null; trkDraw = null; setHint('Auswahl abgebrochen.'); }
+    else if (abort) abort.abort(); else if (calib) cancelCalibration();
     else if (sel) sel = null;
     return;
   }
@@ -1851,6 +1990,7 @@ refreshSelects();
 updateButtons();
 applyStep();
 renderTemplateCard();
+renderTrackStatus();
 syncPredInputs();
 renderPredState();
 drawPredCanvas();
