@@ -51,6 +51,14 @@ describe('Vorlagen: Ergebnisse stimmen mit der Physik überein', () => {
     expect(evalTemplateResults(tpl('spule'), P({ τ: [0.002, 0.00002] }), inp({ R: 50 }))[1].budget).toBeUndefined(); // nur eine Quelle: kein Budget
   });
 
+  it('Hooke und Wärmekapazität', () => {
+    expect(evalTemplateResults(tpl('hooke'), P({ a: [25, 0.5] }), inp({ Dnenn: 25 }))[0].lit?.comparison.verdict).toBe('compatible');
+    // 200 W auf 1 kg Wasser: 0,0478 K/s → c = 4184 J/(kg·K)
+    const r = evalTemplateResults(tpl('waermekapazitaet'), P({ a: [0.0478, 0.0005], b: [20, 0.1] }), inp({ P: 200, m: 1 }));
+    expect(r[0].value).toBeCloseTo(4184, 0);
+    expect(r[0].lit?.comparison.verdict).toBe('compatible');
+  });
+
   it('Spule: L = τ·R in mH', () => {
     const r = evalTemplateResults(tpl('spule'), P({ τ: [0.002, 0.0001] }), inp({ R: 50 }));
     expect(r[1].value).toBeCloseTo(100, 8);

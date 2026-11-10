@@ -194,6 +194,22 @@ export const TEMPLATES: Template[] = [
     results: [{ label: 'Widerstand R = U/I', unit: 'Ω', expr: 'a', lit: { label: 'Nennwert', expr: 'Rnenn' } }],
   },
   {
+    id: 'hooke', title: 'Hookesches Gesetz: Federkonstante', topic: 'Mechanik, Kraft, Federkraft, Hookesches Gesetz', mode: 'channels',
+    summary: 'Federkraft über der Dehnung; die Steigung der Ursprungsgeraden ist die Federkonstante D.',
+    steps: ['Zwei Geräte anlegen: erst die Dehnung s (z. B. Marker oder Skala), dann die Kraft F (Federwaage oder Gewichtskraft als Digitalanzeige).', 'Mehrere Gewichte nacheinander anhängen und je Stufe aufnehmen.', 'Die Auftragung F über s mit „Proportional“ ist voreingestellt. Bei Überdehnung die letzten Punkte weglassen.'],
+    channels: [{ name: 'Dehnung s', unit: 'm' }, { name: 'Kraft F', unit: 'N' }], fit: 'prop',
+    inputs: [{ id: 'Dnenn', label: 'Nennwert der Federkonstante', unit: 'N/m', optional: true }],
+    results: [{ label: 'Federkonstante D = F/s', unit: 'N/m', expr: 'a', lit: { label: 'Nennwert', expr: 'Dnenn' } }],
+  },
+  {
+    id: 'waermekapazitaet', title: 'Spezifische Wärmekapazität (Tauchsieder)', topic: 'Wärmelehre, innere Energie, spezifische Wärmekapazität', mode: 'time',
+    summary: 'Temperatur eines erwärmten Wassers über der Zeit; aus der Steigung folgt c = P/(m·Steigung).',
+    steps: ['Ein Thermometer (Digitalanzeige) anlegen und kalibrieren.', 'Wasser mit konstanter Heizleistung erwärmen und mit niedriger Rate aufnehmen (z. B. 1 Punkt je 10 s).', 'Heizleistung P und Masse m eintragen. Wärmeverluste machen den Wert zu groß; nur den Bereich nahe der Raumtemperatur fitten.'],
+    channels: [{ name: 'Temperatur ϑ', unit: '°C' }], fit: 'line',
+    inputs: [{ id: 'P', label: 'Heizleistung P', unit: 'W' }, { id: 'm', label: 'Masse des Wassers m', unit: 'kg' }],
+    results: [{ label: 'Spezifische Wärmekapazität c = P/(m·a)', unit: 'J/(kg·K)', expr: 'P/(m*a)', lit: { label: 'Literaturwert Wasser', value: 4182, source: 'bei 20 °C' } }],
+  },
+  {
     id: 'zerfall', title: 'Radioaktiver Zerfall: Halbwertszeit', topic: 'Kernphysik, Zerfallsgesetz, Halbwertszeit', mode: 'time',
     summary: 'Zählrate über der Zeit mit Nulleffekt; aus der Zerfallskonstante folgt die Halbwertszeit.',
     steps: ['Das Zählgerät anlegen (Zählungen je Messintervall) und kalibrieren; die Unsicherheit √N ist voreingestellt.', 'Aufnehmen, bis die Rate deutlich abgenommen hat.', 'Modell „Zerfall mit Offset“: der Offset C ist der Nulleffekt.'],
