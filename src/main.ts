@@ -38,7 +38,7 @@ import { STORAGE_KEY, calibrationFile, parseCalibrationFile, parseState, seriali
 
 /* ============================== Zustand ============================== */
 
-type PointKey = 'pivot' | 'p1' | 'p2' | 'p3' | 'roi';
+type PointKey = 'pivot' | 'p1' | 'p2' | 'p3' | 'roi' | 'rot';
 type Step = 'pivot' | 'ref1' | 'ref2' | 'ref3' | 'roi';
 
 interface Chan {
@@ -705,12 +705,25 @@ function pointsOf(c: Chan): { key: PointKey; p: Point }[] {
   return [];
 }
 
+/** Abstand des Dreh-Anfassers über der oberen Kante des Rechtecks (Bildpunkte der Ansicht). */
+function rotOffset(): number { return 28 * (view.width / Math.max(1, view.getBoundingClientRect().width || view.width)); }
+/** Punkt in das Koordinatensystem des (gedrehten) Rechtecks umrechnen: Ursprung links oben im Rechteck. */
+function toRoiLocal(roi: NonNullable<Chan['roi']>, p: Point): Point {
+  const a = -((roi.angle ?? 0) * Math.PI) / 180, mx = roi.x + roi.w / 2, my = roi.y + roi.h / 2;
+  const dx = p.x - mx, dy = p.y - my;
+  return { x: roi.w / 2 + dx * Math.cos(a) - dy * Math.sin(a), y: roi.h / 2 + dx * Math.sin(a) + dy * Math.cos(a) };
+}
+
 function hit(p: Point): { id: string; key: PointKey } | null {
   const r = view.getBoundingClientRect();
   const tol = 16 * (view.width / r.width);
   for (const c of chans) {
     for (const q of pointsOf(c)) if (Math.hypot(q.p.x - p.x, q.p.y - p.y) <= tol) return { id: c.id, key: q.key };
-    if (c.roi && p.x >= c.roi.x && p.x <= c.roi.x + c.roi.w && p.y >= c.roi.y && p.y <= c.roi.y + c.roi.h) return { id: c.id, key: 'roi' };
+    if (c.type === 'digital' && c.roi) {
+      const l = toRoiLocal(c.roi, p);
+      if (Math.hypot(l.x - c.roi.w / 2, l.y + rotOffset()) <= tol) return { id: c.id, key: 'rot' };
+      if (l.x >= 0 && l.x <= c.roi.w && l.y >= 0 && l.y <= c.roi.h) return { id: c.id, key: 'roi' };
+    }
   }
   return null;
 }
@@ -735,7 +748,7 @@ view.addEventListener('pointerdown', (e) => {
   const c = chan(h.id);
   sel = h;
   view.setPointerCapture(e.pointerId);
-  const origin = h.key === 'roi' ? c.roi! : c.raw[h.key]!;
+  const origin = h.key === 'roi' ? c.roi! : h.key === 'rot' ? { x: p.x, y: p.y } : c.raw[h.key]!;
   dragging = { ...h, grab: { x: p.x - origin.x, y: p.y - origin.y }, before: JSON.stringify({ raw: c.raw, roi: c.roi }) };
 });
 view.addEventListener('pointermove', (e) => {
@@ -745,6 +758,15 @@ view.addEventListener('pointermove', (e) => {
   if (dragging) {
     const c = chan(dragging.id);
     const x = p.x - dragging.grab.x, y = p.y - dragging.grab.y;
+    if (dragging.key === 'rot') {
+      const roi = c.roi!, deg = (Math.atan2(p.x - (roi.x + roi.w / 2), -(p.y - (roi.y + roi.h / 2))) * 180) / Math.PI;
+      const a = Math.round(Math.max(-45, Math.min(45, deg)) * 2) / 2; // in halben Graden, wie das Zahlenfeld
+      c.roi = { ...roi, angle: Math.abs(a) < 1 ? 0 : a };
+      const inp = document.querySelector<HTMLInputElement>(`.chan[data-id="${c.id}"] input[data-f="angle"]`);
+      if (inp) inp.value = String(c.roi.angle ?? 0);
+      rebuildCal(c);
+      return;
+    }
     if (dragging.key === 'roi') c.roi = { ...c.roi!, x, y };
     else c.raw = { ...c.raw, [dragging.key]: { x, y } };
     rebuildCal(c);
@@ -1010,6 +1032,16 @@ function drawOverlay(): void {
         vctx.setLineDash([3 * scale, 5 * scale]);
         for (let i = 1; i < c.digits; i++) strokeHalo(() => { vctx.beginPath(); vctx.moveTo(c.roi!.x + i * cw, c.roi!.y); vctx.lineTo(c.roi!.x + i * cw, c.roi!.y + c.roi!.h); }, col, 1);
         vctx.setLineDash([]);
+      }
+      {
+        // Anfasser zum Drehen: Knopf über der oberen Kante, mit Strich zum Rechteck
+        const hx = c.roi.x + c.roi.w / 2, hy = c.roi.y - 28 * scale, grabbed = dragging?.id === c.id && dragging.key === 'rot';
+        strokeHalo(() => { vctx.beginPath(); vctx.moveTo(hx, c.roi!.y); vctx.lineTo(hx, hy + 9 * scale); }, col, 1.5);
+        vctx.beginPath(); vctx.arc(hx, hy, 10 * scale, 0, 7); vctx.fillStyle = grabbed ? '#F6B48F' : col; vctx.fill();
+        vctx.lineWidth = 2; vctx.strokeStyle = 'rgb(0 0 0 / .75)'; vctx.stroke();
+        // Drehpfeil im Knopf
+        vctx.beginPath(); vctx.arc(hx, hy, 4.5 * scale, -2.6, 0.9); vctx.lineWidth = 1.8; vctx.strokeStyle = '#fff'; vctx.stroke();
+        vctx.beginPath(); vctx.moveTo(hx + 4.5 * scale * Math.cos(0.9) + 3 * scale, hy + 4.5 * scale * Math.sin(0.9) - 1 * scale); vctx.lineTo(hx + 4.5 * scale * Math.cos(0.9), hy + 4.5 * scale * Math.sin(0.9) + 3.5 * scale); vctx.lineTo(hx + 4.5 * scale * Math.cos(0.9) - 3.5 * scale, hy + 4.5 * scale * Math.sin(0.9) - 0.5 * scale); vctx.stroke();
       }
       vctx.restore();
     }

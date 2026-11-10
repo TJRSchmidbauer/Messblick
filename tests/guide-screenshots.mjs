@@ -224,7 +224,7 @@ await page.fill('#exp-title', 'Demo: Spannung und Strom'); await page.fill('#exp
 await badge('#exp-title', 1, -4, -8); await badge('#dl-csv', 2); await badge('#dl-png', 3); await badge('#dl-protocol', 4);
 {
   const r = await page.evaluate(() => { const a = document.querySelector('details.export').getBoundingClientRect(), b = document.querySelector('#german').getBoundingClientRect(); const p = document.querySelector('.p4-side').getBoundingClientRect(); return { x: p.left + scrollX, w: p.width, y: a.top + scrollY, bottom: b.bottom + scrollY }; });
-  await shotRect('13-export', r.x, r.y - 20, r.w, r.bottom - r.y + 40);
+  await shotRect('13-export', r.x - 16, r.y - 20, r.w + 16, r.bottom - r.y + 40); // links Platz für die Markierungen 2 und 4
 }
 
 // ---- 11 Protokoll (Druckansicht) -------------------------------------------------------------
