@@ -116,7 +116,8 @@
           <img src="/anleitung-bilder/02-zeigerinstrument.jpg" alt="Kalibriertes Zeigerinstrument mit drei Markierungen" />
           <figcaption><ol class="legend"><li>Drehpunkt des Zeigers anklicken.</li><li>Einen Skalenstrich mit bekanntem Wert anklicken und den Wert eintippen, z. B. 0.</li><li>Einen zweiten Skalenstrich möglichst weit vom ersten anklicken und den Wert eintippen, z. B. 10.</li></ol></figcaption>
         </figure>
-        <p>Die große Zahl oben zeigt sofort, ob die Ablesung stimmt. Stimmt sie nicht, ziehe die Punkte mit der Maus, verschiebe sie mit den Pfeiltasten (<kbd>Umschalt</kbd> = 5 Bildpunkte) oder nimm den letzten Schritt mit <kbd>Strg</kbd>+<kbd>Z</kbd> zurück. Hat die Skala mehr als 180°, schalte „Skala größer als 180°“ ein.</p>
+        <p>Die große Zahl oben zeigt sofort, ob die Ablesung stimmt. Stimmt sie nicht, ziehe die Punkte mit der Maus, verschiebe sie mit den Pfeiltasten (<kbd>Umschalt</kbd> = 5 Bildpunkte) oder nimm den letzten Schritt mit <kbd>Strg</kbd>+<kbd>Z</kbd> zurück. Ob die Skala mehr oder weniger als 180° überstreicht, erkennt die App nach dem zweiten Skalenstrich am Zeiger selbst und sagt es im Hinweis. Liegt sie falsch (etwa wenn der Zeiger genau auf einem Skalenstrich ruht), schalte „Skala größer als 180°“ um.</p>
+        <p><b>Tipps für echte Zeigerinstrumente:</b> Den Drehpunkt genau treffen, auch wenn er unter einer Abdeckung liegt (dort, wo die Verlängerung des Zeigers hinläuft). Die beiden Skalenstriche möglichst weit auseinander wählen, am besten Anfang und Ende der Skala. Frontal filmen, sonst wird die runde Skala zur Ellipse. Ein heller Zeiger auf dunklem Grund braucht das Häkchen „Zeiger dunkel auf hellem Grund“ aus. Gesucht wird nur im Bereich der Skala; Gehäuse, Schrauben und Beschriftung daneben stören nicht.</p>
 
         <h3>Digitalanzeige</h3>
         <figure>
@@ -316,6 +317,7 @@
           <thead><tr><th>Problem</th><th>Was hilft</th></tr></thead>
           <tbody>
             <tr><td>Die Zahl oben stimmt nicht oder steht auf „unsicher“.</td><td>Skalenwerte und Punkte prüfen und mit der Maus nachziehen. Bei Digitalanzeigen die Schrift auf „LCD / Punktmatrix“ stellen oder Ziffern anlernen. Auf Unschärfe, Spiegelung und Kontrast achten (die App warnt).</td></tr>
+            <tr><td>Der Zeiger eines echten Messgeräts wird nicht verfolgt oder die Werte laufen falsch herum.</td><td>Prüfe im Hinweis nach der Kalibrierung, ob die Skala als kleiner oder größer als 180° erkannt wurde, und schalte sonst „Skala größer als 180°“ um. Drehpunkt genau setzen (Verlängerung des Zeigers), Skalenstriche weit auseinander, frontal filmen, bei hellem Zeiger das Häkchen „Zeiger dunkel“ entfernen.</td></tr>
             <tr><td>Der Wert springt um den Faktor 10.</td><td>Messbereich am Multimeter gewechselt: Einheit und Dezimalstellen in der Gerätekarte anpassen. In der Auswertung die markierte Stelle umrechnen.</td></tr>
             <tr><td>Die Kamera startet nicht.</td><td>Der Browser braucht die Erlaubnis für die Kamera, und die Seite muss über HTTPS oder localhost laufen. Als Ausweg das Video aufnehmen und als Videodatei öffnen.</td></tr>
             <tr><td>Der Fit ist „nicht belastbar“.</td><td>Anderes Modell wählen, den Fitbereich einengen oder prüfen, ob genug Punkte vorhanden sind. Das Modell muss zur Kurve passen.</td></tr>

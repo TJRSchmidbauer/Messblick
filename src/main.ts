@@ -1,5 +1,5 @@
 import type { Frame, Point, Rect } from './core/types';
-import { buildAnalogCalibration, type AnalogRaw } from './readers/analog';
+import { buildAnalogCalibration, guessBigArc, type AnalogRaw } from './readers/analog';
 import { readChannel, type Calibration, type DigitalCalibration, type LearnedGlyph } from './readers';
 import { learnGlyphs } from './readers/glyph';
 import { Session, TIME_KEY, seriesOf, tableOf, type ChannelDef } from './session/session';
@@ -435,7 +435,7 @@ function addChannel(type: 'analog' | 'digital'): void {
   const slot = [0, 1, 2, 3].find((s) => !used.has(s))!;
   const id = `k${nextId++}`;
   chans.push({
-    id, slot, type, name: `Gerät ${chans.length + 1}`, unit: type === 'analog' ? 'V' : 'A', raw: {}, bigArc: type === 'analog',
+    id, slot, type, name: `Gerät ${chans.length + 1}`, unit: type === 'analog' ? 'V' : 'A', raw: {}, bigArc: false,
     pointerDark: true, digits: 4, decimals: '', polarity: 'auto', style: 'auto', learned: [], unc: { mode: 'none', a: '', b: '', c: '' }, cal: null, live: null, issues: [], hist: [],
   });
   startCalibration(id);
@@ -535,10 +535,17 @@ async function onCalibClick(p: Point): Promise<void> {
     else {
       if (v === c.raw.v1) return setHint('Beide Skalenwerte sind gleich – wähle einen anderen Skalenstrich.');
       c.raw.p2 = p; c.raw.v2 = v; calib = null;
+      // Kurzer oder langer Bogen? Zwei Skalenpunkte allein sagen das nicht; der Zeiger im Bild entscheidet.
+      try { c.bigArc = guessBigArc(grabStable(), c.raw as AnalogRaw, c.pointerDark); } catch { /* ohne Bild: Einstellung bleibt */ }
     }
   }
   rebuildCal(c);
-  if (!calib) { sel = { id: c.id, key: 'p2' }; setHint('Kalibrierung fertig. Stimmt die Zahl oben? Sonst Punkte ziehen oder „großer Bogen“ umschalten.'); }
+  if (!calib) {
+    sel = { id: c.id, key: 'p2' };
+    setHint(c.type === 'analog'
+      ? `Kalibrierung fertig. Erkannt: Skala ${c.bigArc ? 'größer' : 'kleiner'} als 180°. Stimmt die Zahl oben? Sonst Punkte ziehen oder „Skala größer als 180°“ umschalten.`
+      : 'Kalibrierung fertig. Stimmt die Zahl oben? Sonst Punkte ziehen.');
+  }
   else explain();
   renderChannels();
   renderLive();

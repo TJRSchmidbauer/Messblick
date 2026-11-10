@@ -56,3 +56,15 @@ describe('Analog-Reader', () => {
     expect(r.confidence).toBeLessThan(0.2);
   });
 });
+
+describe('Bogen automatisch erkennen', () => {
+  it('270°-Skala (wie die Demo): Zeiger oben → großer Bogen', async () => {
+    const { guessBigArc } = await import('../src/readers/analog');
+    const raw = { pivot: PIVOT, p1: { x: PIVOT.x + Math.cos(A0) * R, y: PIVOT.y + Math.sin(A0) * R }, v1: 0, p2: { x: PIVOT.x + Math.cos(A1) * R, y: PIVOT.y + Math.sin(A1) * R }, v2: 10 };
+    for (const v of [2, 5, 8]) {
+      const f = createFrame(320, 320, 245);
+      drawAnalogDial(f, PIVOT.x, PIVOT.y, R, deg(135 + (270 * v) / 10), { ticks: { from: deg(135), to: deg(405), count: 10 } });
+      expect(guessBigArc(f, raw), String(v)).toBe(true);
+    }
+  });
+});

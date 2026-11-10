@@ -53,56 +53,127 @@ export function angleToValue(cal: AnalogCalibration, theta: number): number {
   return cal.v1 + (cal.v2 - cal.v1) * t;
 }
 
-const N_ANGLES = 720; // 0,5° Raster
+const STEP = Math.PI / 720; // 0,25° Raster
 const INNER = 0.2;
 const OUTER = 0.85;
+/** Halbe Breite des Fensters für den örtlichen Hintergrund (rad): breiter als ein Zeiger, schmaler als Gehäuse oder Schatten. */
+const BASE_HALF = (8 * Math.PI) / 180;
 
-export function readAnalog(frame: Frame, cal: AnalogCalibration): ReadResult {
+/**
+ * Sucht den Zeiger und liefert seinen Winkel samt Sicherheit. Robust gegen echte Geräte:
+ * - gesucht wird nur im kalibrierten Skalenbereich (mit Rand), nicht im ganzen Kreis: Gehäuse, Drehpunkt-Abdeckung
+ *   und Beschriftung außerhalb der Skala können den Zeiger nicht mehr verdrängen;
+ * - jede Kreisbahn wird gegen ihren örtlichen Hintergrund (±8°) verglichen: breite dunkle Flächen, Lichtverläufe und
+ *   der Skalenbogen selbst fallen heraus, ein dünner Zeiger bleibt;
+ * - je Winkel zählt der Median über alle Radien: Ein Zeiger ist auf ganzer Länge dunkel, eine Ziffer oder ein Schild
+ *   nur auf einem Teil davon.
+ */
+export function findNeedle(frame: Frame, cal: Pick<AnalogCalibration, 'pivot' | 'radius' | 'a1' | 'sweep' | 'pointerDark'>): { theta: number; confidence: number } | null {
   const { pivot, radius } = cal;
-  if (!(radius > 8)) return { value: null, confidence: 0 };
-  const r0 = Math.max(4, radius * INNER);
-  const r1 = radius * OUTER;
-  const mean = new Float64Array(N_ANGLES);
-  const all: number[] = [];
-  for (let k = 0; k < N_ANGLES; k++) {
-    const a = (k / N_ANGLES) * TAU - Math.PI;
-    const c = Math.cos(a), s = Math.sin(a);
-    let sum = 0, n = 0;
-    for (let r = r0; r <= r1; r += 1) {
-      const x = Math.round(pivot.x + c * r), y = Math.round(pivot.y + s * r);
-      if (x < 0 || y < 0 || x >= frame.width || y >= frame.height) continue;
-      sum += luminance(frame, x, y);
-      n++;
+  if (!(radius > 8)) return null;
+  const r0 = Math.max(4, radius * INNER), r1 = radius * OUTER;
+  const margin = Math.max((5 * Math.PI) / 180, Math.abs(cal.sweep) * 0.12);
+  const dir = Math.sign(cal.sweep) || 1;
+  const start = cal.a1 - dir * margin;
+  const span = Math.abs(cal.sweep) + 2 * margin;
+  const half = Math.round(BASE_HALF / STEP);
+  // Winkel des Suchfensters plus Rand für den Hintergrund
+  const nWin = Math.round(span / STEP) + 1;
+  const nAll = nWin + 2 * half;
+  const angle = (k: number): number => start + dir * (k - half) * STEP;
+  const radii: number[] = [];
+  for (let r = r0; r <= r1; r += 1) radii.push(r);
+  const nr = radii.length;
+  if (nr < 4) return null;
+  // Helligkeit je (Radius, Winkel); außerhalb des Bildes NaN
+  const lum = new Float32Array(nr * nAll);
+  const cs = Array.from({ length: nAll }, (_, k) => [Math.cos(angle(k)), Math.sin(angle(k))]);
+  let inside = 0;
+  for (let j = 0; j < nr; j++) {
+    const r = radii[j];
+    for (let k = 0; k < nAll; k++) {
+      const x = Math.round(pivot.x + cs[k][0] * r), y = Math.round(pivot.y + cs[k][1] * r);
+      if (x < 0 || y < 0 || x >= frame.width || y >= frame.height) { lum[j * nAll + k] = NaN; continue; }
+      lum[j * nAll + k] = luminance(frame, x, y);
+      inside++;
     }
-    mean[k] = n > 0 ? sum / n : NaN;
-    if (n > 0) all.push(mean[k]);
   }
-  if (all.length < N_ANGLES / 2) return { value: null, confidence: 0 };
-  const sorted = [...all].sort((a, b) => a - b);
-  const bg = sorted[sorted.length >> 1];
+  if (inside < (nr * nAll) / 2) return null;
   const sign = cal.pointerDark ? -1 : 1;
-  const raw = Array.from(mean, (m) => (Number.isNaN(m) ? 0 : (sign * (m - bg)) / 255));
-  // 3-Punkt-Glättung (zyklisch)
-  const score = raw.map((_, k) => (raw[(k + N_ANGLES - 1) % N_ANGLES] + raw[k] + raw[(k + 1) % N_ANGLES]) / 3);
+  // Kontrast gegen den örtlichen Hintergrund je Kreisbahn (gleitender Mittelwert über ±8° per Präfixsumme)
+  const score = new Float64Array(nWin);
+  const col = new Float64Array(nr);
+  const pre = new Float64Array(nAll + 1), cnt = new Float64Array(nAll + 1);
+  const contrast = new Float32Array(nr * nWin);
+  for (let j = 0; j < nr; j++) {
+    for (let k = 0; k < nAll; k++) {
+      const v = lum[j * nAll + k];
+      pre[k + 1] = pre[k] + (Number.isNaN(v) ? 0 : v);
+      cnt[k + 1] = cnt[k] + (Number.isNaN(v) ? 0 : 1);
+    }
+    for (let w = 0; w < nWin; w++) {
+      const k = w + half, v = lum[j * nAll + k];
+      const n = cnt[k + half + 1] - cnt[k - half];
+      contrast[j * nWin + w] = Number.isNaN(v) || n < half ? 0 : (sign * (v - (pre[k + half + 1] - pre[k - half]) / n)) / 255;
+    }
+  }
+  for (let w = 0; w < nWin; w++) {
+    for (let j = 0; j < nr; j++) col[j] = contrast[j * nWin + w];
+    col.sort();
+    score[w] = col[nr >> 1]; // Median über die Radien
+  }
+  // leichte Glättung (Zeiger sind ein bis wenige Zehntelgrad breit)
+  const sm = Float64Array.from(score, (_, w) => (score[Math.max(0, w - 1)] + 2 * score[w] + score[Math.min(nWin - 1, w + 1)]) / 4);
   let p = 0;
-  for (let k = 1; k < N_ANGLES; k++) if (score[k] > score[p]) p = k;
-  const peak = score[p];
-  // Schwerpunkt um den Peak (±3°)
+  for (let w = 1; w < nWin; w++) if (sm[w] > sm[p]) p = w;
+  const peak = sm[p];
+  if (!(peak > 0)) return { theta: angle(p + half), confidence: 0 };
   let wSum = 0, aSum = 0;
-  for (let d = -6; d <= 6; d++) {
-    const w = Math.max(0, score[(p + d + N_ANGLES) % N_ANGLES] - peak * 0.5);
-    wSum += w;
-    aSum += w * d;
+  for (let d = -8; d <= 8; d++) {
+    const q = p + d;
+    if (q < 0 || q >= nWin) continue;
+    const wt = Math.max(0, sm[q] - peak * 0.5);
+    wSum += wt; aSum += wt * d;
   }
   const kRef = p + (wSum > 0 ? aSum / wSum : 0);
-  const theta = (kRef / N_ANGLES) * TAU - Math.PI;
-  const med = [...score].sort((a, b) => a - b)[N_ANGLES >> 1];
-  let confidence = Math.max(0, Math.min(1, (peak - med) / 0.3));
+  const theta = start + dir * kRef * STEP;
+  // Sicherheit: Abstand zum zweitbesten Kandidaten außerhalb von ±4°, bezogen auf einen deutlichen Zeigerkontrast
+  let second = 0;
+  const excl = Math.round((4 * Math.PI) / 180 / STEP);
+  for (let w = 0; w < nWin; w++) if (Math.abs(w - p) > excl && sm[w] > second) second = sm[w];
+  const strength = Math.min(1, peak / 0.15);
+  const separation = Math.min(1, (peak - second) / Math.max(1e-6, peak) * 2);
+  return { theta, confidence: Math.max(0, Math.min(1, strength * (0.4 + 0.6 * separation))) };
+}
+
+export function readAnalog(frame: Frame, cal: AnalogCalibration): ReadResult {
+  const n = findNeedle(frame, cal);
+  if (!n) return { value: null, confidence: 0 };
+  let confidence = n.confidence;
   // auf 1/1000 der Skalenspanne runden (Ablesegenauigkeit, vermeidet Pseudo-Genauigkeit im Export)
   const decimals = Math.max(0, 3 - Math.ceil(Math.log10(Math.abs(cal.v2 - cal.v1) || 1)));
-  const value = Number(angleToValue(cal, theta).toFixed(Math.min(decimals, 8)));
-  // außerhalb des Skalenbereichs (+15 %) → unsicherer
+  const value = Number(angleToValue(cal, n.theta).toFixed(Math.min(decimals, 8)));
+  // knapp außerhalb des Skalenbereichs → unsicherer
   const t = (value - cal.v1) / (cal.v2 - cal.v1);
-  if (t < -0.15 || t > 1.15) confidence *= 0.5;
+  if (t < -0.05 || t > 1.05) confidence *= 0.5;
   return { value, confidence };
+}
+
+/**
+ * Welcher Bogen ist die Skala? Mit zwei Skalenpunkten ist das nicht eindeutig (kurzer oder langer Weg herum).
+ * Entscheidet nach dem Zeiger im aktuellen Bild: Liegt er deutlich nur auf dem langen Bogen, ist die Skala größer als 180°.
+ * Sonst (auch wenn der Zeiger auf einem Skalenpunkt ruht) gilt der kurze Bogen, wie bei den meisten Messgeräten.
+ */
+export function guessBigArc(frame: Frame, raw: AnalogRaw, pointerDark = true): boolean {
+  const small = buildAnalogCalibration(raw, false, pointerDark), big = buildAnalogCalibration(raw, true, pointerDark);
+  const nS = findNeedle(frame, small), nB = findNeedle(frame, big);
+  if (!nB || nB.confidence < 0.3) return false;
+  // Zeiger im Inneren des langen Bogens (nicht im Randbereich nahe den Skalenpunkten)?
+  const t = (angleToValue(big, nB.theta) - big.v1) / (big.v2 - big.v1);
+  const insideBig = t > 0.03 && t < 0.97;
+  const tS = nS ? (angleToValue(small, nS.theta) - small.v1) / (small.v2 - small.v1) : -1;
+  const insideSmall = !!nS && nS.confidence >= 0.3 && tS > 0.03 && tS < 0.97;
+  if (insideBig && !insideSmall) return true;
+  if (insideBig && insideSmall) return nB.confidence > nS!.confidence * 1.3;
+  return false;
 }
