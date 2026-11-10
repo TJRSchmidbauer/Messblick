@@ -19,6 +19,7 @@ import { announcePoint, describeSeries, sonificationSchedule, type DescribeOptio
 import { Sonifier, localGermanVoice } from './ui/sonify';
 import { Tracker, makeTemplate, type TrackConfig } from './readers/track';
 import { parseTask, serializeTask, type TaskFile } from './task';
+import { Stabilizer } from './readers/stabilize';
 import type { TrackResult } from './readers/track';
 import { TEMPLATES, evalTemplateResults, templateById, type Template, type TplResultLine } from './templates';
 import { describeUncertainty, type UncertaintyConfig } from './analysis/uncertainty';
@@ -99,12 +100,12 @@ let prediction: Prediction | null = null;
 interface TrackState { name: string; cfg: TrackConfig | null; scaleP: Point[]; meters: number | null }
 const freshTrack = (): TrackState => ({ name: 'Marker', cfg: null, scaleP: [], meters: null });
 let trackSt: TrackState = freshTrack();
-let trackMode: 'marker' | 'gate' | 'scale1' | 'scale2' | null = null;
+let trackMode: 'marker' | 'gate' | 'anchor' | 'scale1' | 'scale2' | null = null;
 /** Lichtschranke: Zone im Bild, Name, Breite des Körpers (m) für die Geschwindigkeit. */
 interface GateState { name: string; rect: Rect | null; width: string }
 const freshGate = (): GateState => ({ name: 'Lichtschranke', rect: null, width: '' });
 let gateSt: GateState = freshGate();
-let drawKind: 'marker' | 'gate' = 'marker';
+let drawKind: 'marker' | 'gate' | 'anchor' = 'marker';
 let gateLast: { r: GateResult; intervals: ReturnType<typeof gateStats>; periods: ReturnType<typeof gateStats> } | null = null;
 /** Anzahl der Größen, die schon belegt sind (Geräte, Marker x/y, Lichtschranke, abgeleitete Größen). */
 const usedChannelCount = (): number => chans.length + session.channels.filter((c) => c.derived).length + (trackSt.cfg ? 2 : 0) + (gateSt.rect ? 1 : 0) + audioChannelCount();
@@ -116,6 +117,10 @@ let previewRes: TrackResult | null = null;
 /** Geladene Aufgabe der Lehrkraft; `taskRevealed`: Ergebnis der Vorlage wurde aufgedeckt. */
 let task: TaskFile | null = null;
 let taskRevealed = false;
+/** Bildanker: Konfiguration, ein Stabilisierer für Anzeige und Vorschau und einer für Aufnahme und Auswertung (getrennter Zustand). */
+let anchorCfg: TrackConfig | null = null;
+let loopStab: { cfg: TrackConfig; stab: Stabilizer } | null = null;
+let recStab: { cfg: TrackConfig; stab: Stabilizer } | null = null;
 const predRange = { xmin: 0, xmax: 30, ymin: 0, ymax: 10 };
 let stopLive: (() => void) | null = null;
 let abort: AbortController | null = null;
@@ -281,6 +286,9 @@ function setSource(src: FrameSource): void {
   document.querySelectorAll('.choice').forEach((c) => c.classList.remove('active'));
   ({ camera: $('btn-camera'), demo: $('btn-demo'), file: $('file').closest('.choice')!, audio: src instanceof ToneDemoSource ? $('btn-tone') : $('btn-mic') }[src.kind] as HTMLElement).classList.add('active');
   applyAudioMode();
+  anchorCfg = null; loopStab = null; recStab = null; // ein Anker gehört zu einem Kamerabild
+  $<HTMLInputElement>('demo-shake').checked = false;
+  renderAnchorStatus();
   showError(null);
   updateButtons();
   goStep(2);
@@ -379,7 +387,7 @@ async function learnDigits(id: string): Promise<void> {
   const c = chan(id);
   if (!c.cal || c.cal.type !== 'digital' || !source) return showError('Zum Anlernen braucht es eine Quelle und eine kalibrierte Digitalanzeige.');
   let frame: Frame;
-  try { frame = source.grab(); } catch { return showError('Noch kein Bild verfügbar.'); }
+  try { frame = grabStable(); } catch { return showError('Noch kein Bild verfügbar.'); }
   const base = c.cal;
   let result: ReturnType<typeof learnGlyphs> | null = null;
   const text = await askText((t) => {
@@ -593,7 +601,7 @@ view.addEventListener('pointerup', () => {
     const { start, cur } = trkDraw;
     trkDraw = null;
     const rect = { x: Math.min(start.x, cur.x), y: Math.min(start.y, cur.y), w: Math.abs(cur.x - start.x), h: Math.abs(cur.y - start.y) };
-    if (drawKind === 'gate') finishGate(rect); else finishMarker(rect);
+    if (drawKind === 'gate') finishGate(rect); else if (drawKind === 'anchor') finishAnchor(rect); else finishMarker(rect);
     return;
   }
   if (roiDraw) {
@@ -861,13 +869,14 @@ function loop(now: number): void {
   if (!source) drawEmpty();
   if (source) {
     try {
-      const frame = source.grab();
+      const frame = stabilizeFrame(source.grab());
       vctx.putImageData(new ImageData(frame.data as Uint8ClampedArray<ArrayBuffer>, frame.width, frame.height), 0, 0);
       updateTrackPreview(frame);
       drawOverlay();
       if (now - lastRead > 250) {
         lastRead = now;
         announceLive(now);
+        if (anchorCfg || loopStab) renderAnchorStatus();
         if (source?.kind === 'audio') renderAudioLive();
         for (const c of chans) if (c.cal) {
           c.live = readChannel(frame, c.cal);
@@ -970,7 +979,7 @@ function toggleRecording(): void {
   syncSessionChannels();
   recStart = performance.now();
   const hz = Number($<HTMLSelectElement>('hz').value);
-  stopLive = startLive(source, active(), session, hz, () => { updateStatus(); renderResults(); scheduleSave(); });
+  stopLive = startLive(source, active(), session, hz, () => { updateStatus(); renderResults(); scheduleSave(); }, recStabilizer());
   setLiveButton(true);
   updateButtons();
 }
@@ -986,7 +995,7 @@ $('btn-analyze').onclick = async () => {
   bar.value = 0;
   updateButtons();
   try {
-    await analyzeFile(source, active(), session, hz, (f) => { bar.value = f; $('status').textContent = `Auswertung ${Math.round(f * 100)} % · ${session.samples.length} Messpunkte`; }, abort.signal);
+    await analyzeFile(source, active(), session, hz, (f) => { bar.value = f; $('status').textContent = `Auswertung ${Math.round(f * 100)} % · ${session.samples.length} Messpunkte`; }, abort.signal, recStabilizer());
   } catch (e) {
     showError((e as Error).message);
   }
@@ -1801,7 +1810,7 @@ function syncSessionChannelsIfAny(): void {
 }
 
 function onTrackPointerDown(e: PointerEvent, p: Point): void {
-  if (trackMode === 'marker' || trackMode === 'gate') {
+  if (trackMode === 'marker' || trackMode === 'gate' || trackMode === 'anchor') {
     drawKind = trackMode;
     view.setPointerCapture(e.pointerId);
     trkDraw = { start: p, cur: p };
@@ -1830,7 +1839,7 @@ function onTrackPointerDown(e: PointerEvent, p: Point): void {
 function finishMarker(r: Rect): void {
   if (!source) return;
   let frame: Frame;
-  try { frame = source.grab(); } catch { return showError('Noch kein Bild verfügbar.'); }
+  try { frame = grabStable(); } catch { return showError('Noch kein Bild verfügbar.'); }
   const t = makeTemplate(frame, r);
   trackMode = null;
   if ('error' in t) return showError(t.error);
@@ -1852,8 +1861,74 @@ function updateTrackPreview(frame: Frame): void {
   previewRes = previewCache.tracker.update(frame, source.time());
 }
 
+/* ---- Bildanker ---- */
+
+/** Stabilisiert das Bild für Anzeige, Vorschau und Ablesung (leeres Ergebnis ohne Anker: dasselbe Bild). */
+function stabilizeFrame(frame: Frame): Frame {
+  if (!anchorCfg || !source) return frame;
+  if (loopStab?.cfg !== anchorCfg) loopStab = { cfg: anchorCfg, stab: new Stabilizer(anchorCfg) };
+  return loopStab.stab.apply(frame, source.time());
+}
+const grabStable = (): Frame => stabilizeFrame(source!.grab());
+/** Eigener Stabilisierer für Aufnahme und Auswertung; der Sampler setzt ihn beim Start zurück. */
+function recStabilizer(): Stabilizer | undefined {
+  if (!anchorCfg) return undefined;
+  if (recStab?.cfg !== anchorCfg) recStab = { cfg: anchorCfg, stab: new Stabilizer(anchorCfg) };
+  return recStab.stab;
+}
+
+function renderAnchorStatus(): void {
+  $('anchor-remove').toggleAttribute('disabled', !anchorCfg);
+  $('demo-shake-row').hidden = source?.kind !== 'demo';
+  const el = $('anchor-status');
+  if (!anchorCfg) { el.textContent = 'Noch kein Anker gewählt.'; el.classList.remove('problem'); return; }
+  const sh = loopStab?.stab;
+  if (!sh) { el.textContent = 'Anker gewählt.'; return; }
+  const { dx, dy } = sh.shift;
+  el.textContent = sh.lost
+    ? 'Anker nicht gefunden: die zuletzt bekannte Korrektur bleibt. Ist er verdeckt oder zu weit gewandert?'
+    : `Anker gefunden. Verschiebung gegenüber der Kalibrierung: x ${de(dx, 1)}, y ${de(dy, 1)} Bildpunkte (wird zurückgeschoben).`;
+  el.classList.toggle('problem', sh.lost);
+}
+$('anchor-set').onclick = () => {
+  if (!source) return showError('Bitte zuerst eine Quelle wählen.');
+  trackMode = 'anchor';
+  calib = null;
+  setHint('Ziehe ein Rechteck um einen ruhenden, kontrastreichen Punkt (Aufkleber, Gerätekante). Direkt nach der Kalibrierung, bevor die Kamera bewegt wird.');
+};
+$('anchor-remove').onclick = () => { anchorCfg = null; loopStab = null; recStab = null; renderAnchorStatus(); scheduleSave(); };
+$('demo-shake').addEventListener('change', (e) => { if (source instanceof DemoSource) source.shake = (e.target as HTMLInputElement).checked; });
+
+function finishAnchor(r: Rect): void {
+  trackMode = null;
+  if (!source) return;
+  let raw: Frame;
+  try { raw = source.grab(); } catch { return showError('Noch kein Bild verfügbar.'); }
+  // Vorlage aus dem unstabilisierten Bild: so sind Anker und Kalibrierung im selben Koordinatensystem
+  const t = makeTemplate(raw, r);
+  if ('error' in t) return showError(t.error.replace('Der Marker', 'Der Anker'));
+  showError(null);
+  anchorCfg = { template: t.template, t0: 0, scale: null };
+  loopStab = null; recStab = null;
+  setHint('Anker gewählt. Verrutscht die Kamera jetzt leicht, bleibt die Kalibrierung gültig.');
+  renderAnchorStatus(); scheduleSave();
+}
+
+function drawAnchorOverlay(scale: number): void {
+  if (!anchorCfg) return;
+  const t = anchorCfg.template, lost = loopStab?.stab.lost;
+  const col = lost ? '#ff7a7a' : '#8fd19e';
+  strokeHalo(() => { vctx.beginPath(); vctx.rect(t.x, t.y, t.w, t.h); vctx.setLineDash([4 * scale, 4 * scale]); }, col, 2);
+  vctx.setLineDash([]);
+  vctx.fillStyle = 'rgb(0 0 0 / .72)';
+  const label = lost ? 'Anker verloren' : 'Anker';
+  vctx.fillRect(t.x, t.y + t.h + 2 * scale, vctx.measureText(label).width + 16 * scale, 20 * scale);
+  vctx.fillStyle = '#fff'; vctx.fillText(label, t.x + 8 * scale, t.y + t.h + 17 * scale);
+}
+
 function drawTrackOverlay(scale: number): void {
   if (source?.kind === 'audio') { drawAudioLabels(scale); return; }
+  drawAnchorOverlay(scale);
   const c = trackSt.cfg;
   const col = '#F6B48F';
   if (gateSt.rect) {
@@ -2240,7 +2315,7 @@ function saveNow(): void {
   saveTimer = 0;
   const state: SavedState = {
     version: 1, channels: chans.map(toSaved), nextId, hz: Number($<HTMLSelectElement>('hz').value), theme: themeSel.value,
-    smoothing: session.smoothing, variation, template: { id: tplId, inputs: tplInputs }, track: trackSt, gate: gateSt, task: task ? { task, revealed: taskRevealed } : null, prediction: prediction ? { ...prediction, range: predRange } : null, session: { channels: session.channels, samples: session.samples, runs: session.runs },
+    smoothing: session.smoothing, variation, template: { id: tplId, inputs: tplInputs }, track: trackSt, gate: gateSt, anchor: anchorCfg, task: task ? { task, revealed: taskRevealed } : null, prediction: prediction ? { ...prediction, range: predRange } : null, session: { channels: session.channels, samples: session.samples, runs: session.runs },
   };
   try { localStorage.setItem(STORAGE_KEY, serialize(state)); } catch {
     if (!saveWarned) { saveWarned = true; showError('Automatisches Speichern ist nicht möglich (Speicher voll oder gesperrt). Exportiere deine Daten rechtzeitig.'); }
@@ -2272,6 +2347,8 @@ function restore(): void {
   if (tk?.cfg?.template && Array.isArray(tk.cfg.template.data) && tk.cfg.template.data.length === tk.cfg.template.w * tk.cfg.template.h) trackSt = { ...freshTrack(), ...tk };
   const tk2 = s.task as { task?: unknown; revealed?: boolean } | null | undefined;
   if (tk2?.task) { const parsed = parseTask(JSON.stringify(tk2.task)); if (!('error' in parsed)) { task = parsed; taskRevealed = !!tk2.revealed; } }
+  const an = s.anchor as TrackConfig | null | undefined;
+  if (an?.template && Array.isArray(an.template.data) && an.template.data.length === an.template.w * an.template.h) anchorCfg = an;
   const gt = s.gate as GateState | undefined;
   if (gt?.rect && gt.rect.w > 0 && gt.rect.h > 0) gateSt = { ...freshGate(), ...gt };
   const pr = s.prediction as (Prediction & { range?: typeof predRange }) | null | undefined;
@@ -2285,7 +2362,7 @@ function restore(): void {
       <button type="button" id="restore-reset">Neu beginnen</button><button type="button" class="ghost" id="restore-ok">OK</button>`;
     $('restore-ok').onclick = () => { n.hidden = true; };
     $('restore-reset').onclick = () => {
-      chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1; variation = freshVariation(); tplId = ''; tplInputs = {}; prediction = null; trackSt = freshTrack(); gateSt = freshGate(); task = null; taskRevealed = false;
+      chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1; variation = freshVariation(); tplId = ''; tplInputs = {}; prediction = null; trackSt = freshTrack(); gateSt = freshGate(); task = null; taskRevealed = false; anchorCfg = null; anchorCfg = null;
       n.hidden = true;
       try { localStorage.removeItem(STORAGE_KEY); } catch { /* egal */ }
       renderChannels(); renderLive(); updateButtons(); renderResults();
@@ -2340,6 +2417,7 @@ updateButtons();
 applyStep();
 renderTemplateCard();
 renderTaskCard();
+renderAnchorStatus();
 renderTrackStatus();
 renderGateStatus();
 syncPredInputs();

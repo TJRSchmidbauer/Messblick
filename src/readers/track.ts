@@ -65,7 +65,8 @@ export class Tracker {
   private lostFrames = 0;
   private readonly sub: { dx: number[]; dy: number[]; v: number[]; n: number; norm: number };
 
-  constructor(private readonly cfg: TrackConfig) {
+  /** stationary: ruhendes Ziel (Bildanker) – keine Geschwindigkeitsvorhersage, Suche immer um die Ausgangslage. */
+  constructor(private readonly cfg: TrackConfig, private readonly stationary = false) {
     const { w, h, data } = cfg.template;
     const dx: number[] = [], dy: number[] = [], v: number[] = [];
     for (let y = 0; y < h; y += 2) for (let x = 0; x < w; x += 2) { dx.push(x); dy.push(y); v.push(data[y * w + x]); }
@@ -166,7 +167,7 @@ export class Tracker {
     // Vorhersage mit konstanter Geschwindigkeit (Bildpunkte je Sekunde aus den letzten beiden Funden)
     const dt = Math.max(1e-6, t - this.lastT);
     let pred = { ...this.last }, speed = 0;
-    if (this.prev && this.lostFrames === 0 && t > this.lastT) {
+    if (!this.stationary && this.prev && this.lostFrames === 0 && t > this.lastT) {
       const span = Math.max(1e-6, this.lastT - this.prevT);
       const k = Math.min(3, dt / span);
       pred = { x: this.last.x + (this.last.x - this.prev.x) * k, y: this.last.y + (this.last.y - this.prev.y) * k };
@@ -176,6 +177,7 @@ export class Tracker {
     // bei Misserfolg gleich noch einmal mit großem Radius; nach Verlust wächst der Radius
     const small = Math.round(Math.max(10, 0.5 * size) + 0.15 * speed * dt);
     const big = Math.round(Math.max(32, 2 * size) * Math.pow(1.6, Math.min(this.lostFrames, 4)));
+    if (this.stationary) { const t0 = this.cfg.template; pred = { x: t0.x + t0.w / 2, y: t0.y + t0.h / 2 }; }
     const cx = Math.round(pred.x - w / 2), cy = Math.round(pred.y - h / 2);
     let r = this.lostFrames === 0 ? this.search(frame, cx, cy, small) : this.search(frame, cx, cy, big);
     if (this.lostFrames === 0 && r.score < RETRY_BELOW) {

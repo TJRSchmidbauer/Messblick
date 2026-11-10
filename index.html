@@ -148,6 +148,16 @@
           </div>
           <p id="gate-status" class="note" aria-live="polite">Noch keine Zone gewählt.</p>
         </fieldset>
+        <fieldset class="trackbox" id="anchorbox">
+          <legend>Bildanker (Kamera verrutscht?)</legend>
+          <p class="note">Wähle einen ruhenden, kontrastreichen Punkt im Bild, z. B. einen Aufkleber auf dem Tisch oder die Kante eines Geräts. Verrutscht die Kamera, schiebt die App das Bild zurück, und Zeiger, Ziffernfeld, Marker und Lichtschranke bleiben an ihrer Stelle. Setze den Anker direkt nach der Kalibrierung, bevor die Kamera bewegt wird. Es wird nur verschoben, nicht gedreht oder gezoomt.</p>
+          <div class="bar">
+            <button id="anchor-set" type="button"><span data-icon="expand"></span>Anker wählen</button>
+            <button id="anchor-remove" type="button" class="ghost" disabled><span data-icon="trash"></span>Entfernen</button>
+            <label class="check" id="demo-shake-row" hidden><input id="demo-shake" type="checkbox" /> Demo: Kamera wackelt (zum Ausprobieren)</label>
+          </div>
+          <p id="anchor-status" class="note" aria-live="polite">Noch kein Anker gewählt.</p>
+        </fieldset>
         <div class="bar secondary">
           <button id="cal-save" type="button" class="ghost" disabled><span data-icon="download"></span>Kalibrierung speichern</button>
           <label class="btn ghost"><span data-icon="upload"></span>Kalibrierung laden<input id="cal-load" type="file" accept="application/json,.json" hidden /></label>

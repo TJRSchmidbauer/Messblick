@@ -44,6 +44,8 @@ export interface SavedState {
   gate?: unknown;
   /** Geladene Aufgabe (siehe task.ts) und ob das Ergebnis schon aufgedeckt wurde; fehlt in älteren Sitzungen. */
   task?: unknown;
+  /** Bildanker (Vorlage und Position); fehlt in älteren Sitzungen. */
+  anchor?: unknown;
   session: { channels: ChannelDef[]; samples: Sample[]; runs: Run[] };
 }
 
