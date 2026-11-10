@@ -418,5 +418,16 @@ body.beamer .moreopts, body.beamer .moretools, body.beamer .help { display: none
 #scan-video { width: 100%; max-height: 50vh; background: #000; border-radius: 8px; }
 .site-foot .credit { flex-basis: 100%; color: var(--ink); }
 .site-foot .credit a { color: var(--link); text-underline-offset: .2em; }
-.shell .brand h1 .sub { display: block; font: 400 .72rem/1.2 'Atkinson Hyperlegible', system-ui, sans-serif; letter-spacing: .02em; opacity: .85; }
+.shell .brand h1 .tagline { margin: 0; display: block; font: 400 .72rem/1.2 'Atkinson Hyperlegible', system-ui, sans-serif; letter-spacing: .02em; opacity: .85; }
 .shell .brand h1 { display: flex; flex-direction: column; gap: .1rem; }
+@media (max-width: 640px) {
+  .shell { padding: .5rem .9rem; gap: .4rem .75rem; }
+  .wortmarke { font-size: 1.6rem; }
+  .brand h1 { font-size: 1.35rem; }
+  .shell .brand h1 .tagline { font-size: .68rem; }
+  .tools { gap: .35rem; }
+  .tools .btn, .tools button, .shell select { padding-block: .3rem; font-size: .85rem; min-height: 0; }
+  .shell .field-inline { font-size: 0; gap: 0; }
+  .shell .field-inline select { font-size: .85rem; }
+  #btn-help, #btn-beamer { display: none; }
+}
