@@ -1,7 +1,7 @@
 {
   "schemaVersion": 2,
   "generatedAt": "2026-11-09T00:00:00Z",
-  "title": "Design System: Physik-Messwerterfassung",
+  "title": "Design System: Messblick",
   "extensions": {
     "colorMeta": {
       "kohle": { "role": "primary", "displayName": "Kohle", "canonical": "#2e2a28", "tonalRamp": ["#0e0c0b", "#1a1716", "#2e2a28", "#4a4542", "#6b6561", "#8f8985", "#bcb6b2", "#e7e3e0"] },

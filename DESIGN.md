@@ -1,5 +1,5 @@
 ---
-name: Physik-Messwerterfassung
+name: Messblick
 description: A Tafelwerk with register tabs in the owner's schmidbauer.io brand. Apricot shell, Kohle ink, Creme paper, flat and calm, one fixed colour and symbol per measuring device.
 colors:
   apricot: "#f6b48f"
@@ -134,7 +134,7 @@ components:
     padding: "0.4rem 0.6rem"
 ---
 
-# Design System: Physik-Messwerterfassung
+# Design System: Messblick
 
 ## Overview
 

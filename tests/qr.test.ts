@@ -24,7 +24,7 @@ describe('QR-Kodierer (gegen jsQR geprüft)', () => {
     }
   });
   it('Gruppenlink mit Code und Umlauten', () => {
-    const link = 'https://tjrschmidbauer.github.io/Physikmesswererfassung/#pmw=PMW1.' + rnd(160).replace(/[^A-Za-z0-9]/g, 'x');
+    const link = 'https://tjrschmidbauer.github.io/Messblick/#pmw=PMW1.' + rnd(160).replace(/[^A-Za-z0-9]/g, 'x');
     expect(decode(link)).toBe(link);
     expect(decode('Größe µ ß ✓')).toBe('Größe µ ß ✓');
   });

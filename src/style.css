@@ -418,3 +418,4 @@ body.beamer .moreopts, body.beamer .moretools, body.beamer .help { display: none
 #scan-video { width: 100%; max-height: 50vh; background: #000; border-radius: 8px; }
 .site-foot .credit { flex-basis: 100%; color: var(--ink); }
 .site-foot .credit a { color: var(--link); text-underline-offset: .2em; }
+.shell .brand h1 .sub { display: block; font: 400 .72rem/1.2 'Atkinson Hyperlegible', system-ui, sans-serif; letter-spacing: .02em; opacity: .85; }

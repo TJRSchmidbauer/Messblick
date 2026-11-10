@@ -1,6 +1,6 @@
 # Lizenz und Namensnennung
 
-**Physik-Messwerterfassung** © 2026 Tobias Schmidbauer ([schmidbauer.io](https://schmidbauer.io))
+**Messblick** (früher „Physik-Messwerterfassung“) © 2026 Tobias Schmidbauer ([schmidbauer.io](https://schmidbauer.io))
 
 Dieses Werk (Programmcode, Texte, Anleitung, Bilder dieses Repositories) steht unter der Lizenz
 **Creative Commons Namensnennung – Nicht kommerziell 4.0 International (CC BY-NC 4.0)**.
@@ -36,14 +36,14 @@ In dieser App steht die Angabe in der Fußzeile jeder Seite (Startseite und Anle
 
 **Unveränderte Kopie** (zum Beispiel auf der Schulwebseite), sichtbar auf der Startseite:
 
-> „Physik-Messwerterfassung“ von Tobias Schmidbauer (schmidbauer.io),
-> Quelle: https://github.com/TJRSchmidbauer/Physikmesswererfassung,
+> „Messblick“ von Tobias Schmidbauer (schmidbauer.io),
+> Quelle: https://github.com/TJRSchmidbauer/Messblick,
 > Lizenz: CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/deed.de)
 
 **Abwandlung** (geändertes Werk), sichtbar auf der Startseite der Abwandlung:
 
-> „Messtool Physik 10b“ ist eine Abwandlung von „Physik-Messwerterfassung“ von Tobias Schmidbauer
-> (schmidbauer.io, https://github.com/TJRSchmidbauer/Physikmesswererfassung), lizenziert unter CC BY-NC 4.0
+> „Messtool Physik 10b“ ist eine Abwandlung von „Messblick“ von Tobias Schmidbauer
+> (schmidbauer.io, https://github.com/TJRSchmidbauer/Messblick), lizenziert unter CC BY-NC 4.0
 > (https://creativecommons.org/licenses/by-nc/4.0/deed.de). Änderungen: Vorlagen für die 10. Klasse ergänzt,
 > Oberfläche gekürzt.
 
@@ -51,7 +51,7 @@ In dieser App steht die Angabe in der Fußzeile jeder Seite (Startseite und Anle
 
 ```html
 <p class="credit">
-  „Physik-Messwerterfassung“ von <strong>Tobias Schmidbauer</strong>
+  „Messblick“ von <strong>Tobias Schmidbauer</strong>
   (<a href="https://schmidbauer.io">schmidbauer.io</a>),
   Lizenz <a href="https://creativecommons.org/licenses/by-nc/4.0/deed.de">CC BY-NC 4.0</a>.
   Dies ist eine Abwandlung; Änderungen: …
@@ -60,7 +60,7 @@ In dieser App steht die Angabe in der Fußzeile jeder Seite (Startseite und Anle
 
 **Kurzform** für Folien, Arbeitsblätter und Veröffentlichungen:
 
-> Tobias Schmidbauer: Physik-Messwerterfassung, CC BY-NC 4.0, https://github.com/TJRSchmidbauer/Physikmesswererfassung
+> Tobias Schmidbauer: Messblick, CC BY-NC 4.0, https://github.com/TJRSchmidbauer/Messblick
 
 ## Bausteine anderer Urheber
 

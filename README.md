@@ -1,4 +1,6 @@
-# Physik-Messwerterfassung
+# Messblick
+
+_Physik-Messwerterfassung per Kamera_
 
 **Messgeräte im Physikunterricht abfilmen, Werte ablesen, Graph und Tabelle erhalten.**
 Eine Webanwendung für Lehrkräfte und Schüler: Ein analoges Zeigerinstrument (z. B. PHYWE-Demogerät) oder eine Digitalanzeige (z. B. Multimeter) wird per Kamera oder Videodatei abgefilmt. Die App liest die Werte ab und erzeugt eine **CSV-/XLSX-Datei** sowie **Graphen** (Wert über Zeit oder über einem zweiten Messgerät).
@@ -17,7 +19,7 @@ Nutzen, kopieren, weitergeben und verändern ist erlaubt, auch im Unterricht, ab
 
 Beispiel für die Quellenangabe:
 
-> „Physik-Messwerterfassung“ von Tobias Schmidbauer (schmidbauer.io), https://github.com/TJRSchmidbauer/Physikmesswererfassung, Lizenz CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/deed.de)
+> „Messblick“ von Tobias Schmidbauer (schmidbauer.io), https://github.com/TJRSchmidbauer/Messblick, Lizenz CC BY-NC 4.0 (https://creativecommons.org/licenses/by-nc/4.0/deed.de)
 
 Bei einer Abwandlung zusätzlich angeben, dass es eine Abwandlung ist und was geändert wurde. Weitere Beispiele (auch HTML für die Fußzeile),
 die Zusammenfassung und die Hinweise zu Bausteinen anderer Urheber stehen in [`NOTICE.md`](NOTICE.md); der Volltext in [`LICENSE`](LICENSE).

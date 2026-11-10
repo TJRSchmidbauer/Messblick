@@ -1,11 +1,11 @@
 cff-version: 1.2.0
 message: "Wenn du dieses Programm verwendest, zitiere es bitte so und nenne den Namen des Urhebers sichtbar auf der Startseite (siehe NOTICE.md)."
-title: "Physik-Messwerterfassung"
+title: "Messblick – Physik-Messwerterfassung"
 type: software
 authors:
   - family-names: Schmidbauer
     given-names: Tobias
     website: "https://schmidbauer.io"
-repository-code: "https://github.com/TJRSchmidbauer/Physikmesswererfassung"
+repository-code: "https://github.com/TJRSchmidbauer/Messblick"
 license: CC-BY-NC-4.0
 year: 2026

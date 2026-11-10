@@ -1,6 +1,6 @@
 {
-  "name": "Physik-Messwerterfassung",
-  "short_name": "Messwerte",
+  "name": "Messblick – Physik-Messwerterfassung",
+  "short_name": "Messblick",
   "description": "Messgeräte im Physikunterricht abfilmen, Werte ablesen, Graph und Tabelle erhalten. Läuft lokal im Browser.",
   "lang": "de",
   "start_url": "./",

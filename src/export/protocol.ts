@@ -94,6 +94,6 @@ export function buildProtocolHtml(d: ProtocolData): string {
 <p class="screen-note">Die gepunkteten Felder lassen sich hier im Browser beschriften. Danach über „Drucken“ ausdrucken oder als PDF speichern.</p>
 <header><h1>${esc(d.title || 'Versuchsprotokoll')}</h1><p class="meta">${[d.names, d.date].filter(Boolean).map(esc).join(' · ')}</p></header>
 ${parts.join('\n')}
-<footer>Erstellt mit der Physik-Messwerterfassung. Die Auswertung lief lokal im Browser, es wurden keine Daten übertragen.</footer>
+<footer>Erstellt mit Messblick. Die Auswertung lief lokal im Browser, es wurden keine Daten übertragen.</footer>
 </main></body></html>`;
 }
