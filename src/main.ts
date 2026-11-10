@@ -18,6 +18,7 @@ import { detectGate, stats as gateStats, type GateResult } from './analysis/gate
 import { announcePoint, describeSeries, sonificationSchedule, type DescribeOptions } from './analysis/describe';
 import { Sonifier, localGermanVoice } from './ui/sonify';
 import { Tracker, makeTemplate, type TrackConfig } from './readers/track';
+import { parseTask, serializeTask, type TaskFile } from './task';
 import type { TrackResult } from './readers/track';
 import { TEMPLATES, evalTemplateResults, templateById, type Template, type TplResultLine } from './templates';
 import { describeUncertainty, type UncertaintyConfig } from './analysis/uncertainty';
@@ -112,6 +113,9 @@ let trackerCache: { cfg: TrackConfig; tracker: Tracker } | null = null;
 /** Vorschau der Markerverfolgung in jedem Anzeigebild (eigener Tracker, unabhängig von der Aufnahme): sonst hinkt das Fadenkreuz der Messrate hinterher. */
 let previewCache: { cfg: TrackConfig; tracker: Tracker } | null = null;
 let previewRes: TrackResult | null = null;
+/** Geladene Aufgabe der Lehrkraft; `taskRevealed`: Ergebnis der Vorlage wurde aufgedeckt. */
+let task: TaskFile | null = null;
+let taskRevealed = false;
 const predRange = { xmin: 0, xmax: 30, ymin: 0, ymax: 10 };
 let stopLive: (() => void) | null = null;
 let abort: AbortController | null = null;
@@ -724,8 +728,13 @@ $<HTMLInputElement>('cal-load').onchange = async (e) => {
   if (!f) return;
   const list = parseCalibrationFile(await f.text());
   if (!list) return showError('Diese Datei ist keine Kalibrierungsdatei dieser App.');
-  const free = MAX_CHANNELS - chans.length;
-  for (const s of list.slice(0, free)) {
+  addSavedChannels(list);
+  setHint('Kalibrierung geladen. Sie gilt nur, wenn Kamera und Aufbau wie bei der Aufnahme stehen – prüfe die Zahlen oben.');
+};
+/** Fügt gespeicherte Geräte hinzu (so viele, wie noch Platz ist) und meldet, wenn welche fehlen. */
+function addSavedChannels(list: SavedChannel[]): void {
+  const free = MAX_CHANNELS - usedChannelCount();
+  for (const s of list.slice(0, Math.max(0, free))) {
     const used = new Set(chans.map((c) => c.slot));
     const slot = [0, 1, 2, 3].find((k) => !used.has(k))!;
     const id = `k${nextId++}`;
@@ -733,10 +742,9 @@ $<HTMLInputElement>('cal-load').onchange = async (e) => {
     rebuildCal(c);
     chans.push(c);
   }
-  showError(list.length > free ? `Nur ${free} Gerät(e) übernommen – mehr als vier Kanäle sind nicht möglich.` : null);
-  setHint('Kalibrierung geladen. Sie gilt nur, wenn Kamera und Aufbau wie bei der Aufnahme stehen – prüfe die Zahlen oben.');
+  showError(list.length > free ? `Nur ${Math.max(0, free)} Gerät(e) übernommen – mehr als vier Größen gleichzeitig sind nicht möglich.` : null);
   renderChannels(); renderLive(); updateButtons(); scheduleSave();
-};
+}
 
 /* ============================== Live-Karten ============================== */
 
@@ -1502,6 +1510,10 @@ function renderTemplateResults(): void {
   tplLines = [];
   if (!t) return;
   if ($('tpl-card').hidden) { renderTemplateCard(); return; }
+  if (task?.hideResults && !taskRevealed) {
+    host.innerHTML = `<p class="note">${icon('info', 16)} Das Ergebnis ist ausgeblendet: Berechne es selbst aus den Fitparametern und prüfe es dann hier.</p><button type="button" id="task-reveal">Ergebnis anzeigen</button>`;
+    return;
+  }
   const fit = t.mode === 'series' ? lastVarFit : lastFit;
   if (!fit) {
     host.innerHTML = `<p class="note">${icon('info', 16)} ${t.mode === 'series' ? 'Das Ergebnis erscheint, sobald die Parameterreihe mindestens zwei Zeilen und einen gültigen Fit hat.' : 'Das Ergebnis erscheint, sobald es Messwerte gibt und der Fit gelingt.'}</p>`;
@@ -2090,6 +2102,52 @@ function renderAudioLive(): void {
   if (host.dataset.last !== html) { host.dataset.last = html; host.innerHTML = html; }
 }
 
+/* ---- Aufgabe der Lehrkraft ---- */
+
+function renderTaskCard(): void {
+  const card = $('task-card');
+  card.hidden = !task;
+  if (!task) return;
+  $('task-title-view').textContent = task.title;
+  $('task-text').innerHTML = task.text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+  $('task-hints').innerHTML = task.hints.map((h) => `<li>${esc(h)}</li>`).join('');
+}
+$('task-close').onclick = () => { task = null; taskRevealed = false; renderTaskCard(); renderResults(); scheduleSave(); };
+$('tpl-results').addEventListener('click', (e) => {
+  if ((e.target as HTMLElement).closest('#task-reveal')) { taskRevealed = true; renderResults(); scheduleSave(); }
+});
+
+$('task-save').onclick = () => {
+  const title = $<HTMLInputElement>('task-title').value.trim();
+  if (!title) return showError('Bitte der Aufgabe einen Titel geben.');
+  showError(null);
+  const json = serializeTask({
+    title,
+    text: $<HTMLTextAreaElement>('task-text-in').value,
+    hints: $<HTMLTextAreaElement>('task-hints-in').value.split('\n').map((l) => l.trim()).filter(Boolean),
+    ...(tplId ? { templateId: tplId, inputs: tplInputs } : {}),
+    hideResults: $<HTMLInputElement>('task-hide').checked || undefined,
+    channels: chans.filter((c) => c.cal).map(toSaved),
+  });
+  download(new Blob([json], { type: 'application/json' }), `aufgabe-${title.toLowerCase().replace(/[^a-z0-9äöüß]+/g, '-').replace(/^-|-$/g, '') || 'aufgabe'}.json`);
+};
+$<HTMLInputElement>('task-load').onchange = async (e) => {
+  const f = (e.target as HTMLInputElement).files?.[0];
+  (e.target as HTMLInputElement).value = '';
+  if (!f) return;
+  const r = parseTask(await f.text());
+  if ('error' in r) return showError(r.error);
+  showError(null);
+  task = r; taskRevealed = false;
+  if (r.channels?.length) addSavedChannels(r.channels as SavedChannel[]);
+  if (r.templateId) {
+    applyTemplate(templateById(r.templateId)!);
+    if (r.inputs) { tplInputs = { ...r.inputs }; renderTemplateCard(); }
+  }
+  renderTaskCard(); renderResults(); scheduleSave();
+  setHint(`Aufgabe „${r.title}“ geladen. Die Aufgabenstellung steht oben. Kalibrierte Geräte gelten nur bei gleichem Kamerabild.`);
+};
+
 function renderRuns(): void {
   const host = $('runs');
   if (!session.runs.length) { host.innerHTML = ''; return; }
@@ -2182,7 +2240,7 @@ function saveNow(): void {
   saveTimer = 0;
   const state: SavedState = {
     version: 1, channels: chans.map(toSaved), nextId, hz: Number($<HTMLSelectElement>('hz').value), theme: themeSel.value,
-    smoothing: session.smoothing, variation, template: { id: tplId, inputs: tplInputs }, track: trackSt, gate: gateSt, prediction: prediction ? { ...prediction, range: predRange } : null, session: { channels: session.channels, samples: session.samples, runs: session.runs },
+    smoothing: session.smoothing, variation, template: { id: tplId, inputs: tplInputs }, track: trackSt, gate: gateSt, task: task ? { task, revealed: taskRevealed } : null, prediction: prediction ? { ...prediction, range: predRange } : null, session: { channels: session.channels, samples: session.samples, runs: session.runs },
   };
   try { localStorage.setItem(STORAGE_KEY, serialize(state)); } catch {
     if (!saveWarned) { saveWarned = true; showError('Automatisches Speichern ist nicht möglich (Speicher voll oder gesperrt). Exportiere deine Daten rechtzeitig.'); }
@@ -2212,6 +2270,8 @@ function restore(): void {
   if (tp?.id && templateById(tp.id)) { tplId = tp.id; tplInputs = tp.inputs ?? {}; }
   const tk = s.track as TrackState | undefined;
   if (tk?.cfg?.template && Array.isArray(tk.cfg.template.data) && tk.cfg.template.data.length === tk.cfg.template.w * tk.cfg.template.h) trackSt = { ...freshTrack(), ...tk };
+  const tk2 = s.task as { task?: unknown; revealed?: boolean } | null | undefined;
+  if (tk2?.task) { const parsed = parseTask(JSON.stringify(tk2.task)); if (!('error' in parsed)) { task = parsed; taskRevealed = !!tk2.revealed; } }
   const gt = s.gate as GateState | undefined;
   if (gt?.rect && gt.rect.w > 0 && gt.rect.h > 0) gateSt = { ...freshGate(), ...gt };
   const pr = s.prediction as (Prediction & { range?: typeof predRange }) | null | undefined;
@@ -2225,7 +2285,7 @@ function restore(): void {
       <button type="button" id="restore-reset">Neu beginnen</button><button type="button" class="ghost" id="restore-ok">OK</button>`;
     $('restore-ok').onclick = () => { n.hidden = true; };
     $('restore-reset').onclick = () => {
-      chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1; variation = freshVariation(); tplId = ''; tplInputs = {}; prediction = null; trackSt = freshTrack(); gateSt = freshGate();
+      chans = []; session.channels = []; session.samples = []; session.runs = []; nextId = 1; variation = freshVariation(); tplId = ''; tplInputs = {}; prediction = null; trackSt = freshTrack(); gateSt = freshGate(); task = null; taskRevealed = false;
       n.hidden = true;
       try { localStorage.removeItem(STORAGE_KEY); } catch { /* egal */ }
       renderChannels(); renderLive(); updateButtons(); renderResults();
@@ -2279,6 +2339,7 @@ refreshSelects();
 updateButtons();
 applyStep();
 renderTemplateCard();
+renderTaskCard();
 renderTrackStatus();
 renderGateStatus();
 syncPredInputs();

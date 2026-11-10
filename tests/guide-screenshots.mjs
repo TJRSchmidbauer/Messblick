@@ -276,6 +276,24 @@ await badge('#mic-freq', 1, -8, -6); await badge('#mic-level', 2, -8, -6);
 await shot('18b-mikrofon-messgroessen', '#micbox', 14);
 await page.waitForTimeout(300);
 
+// ---- 14 Aufgabe für Lehrkräfte -----------------------------------------------------------------
+await page.click('#tab-1');
+await page.click('.taskedit summary');
+await page.fill('#task-title', 'Federkonstante bestimmen');
+await page.fill('#task-text-in', 'Bestimme die Federkonstante D der Feder.\n\nBegründe, warum T² über m aufgetragen wird.');
+await page.fill('#task-hints-in', 'Masse in g eintippen\nJede Periodendauer dreimal messen');
+await page.check('#task-hide');
+await badge('#task-title', 1, -18, -10); await badge('#task-text-in', 2, -18, -10); await badge('#task-hints-in', 3, -18, -10); await badge('#task-hide', 4, -8, -6); await badge('#task-save', 5);
+await shot('19-aufgabe-vorbereiten', '#taskpick', 14);
+fs.writeFileSync(`${out}../../node_modules/.cache-aufgabe.json`, JSON.stringify({ kind: 'pmw-task', version: 1, title: 'Federkonstante bestimmen', text: 'Bestimme die Federkonstante D der Feder.\n\nBegründe, warum T² über m aufgetragen wird.', hints: ['Masse in g eintippen', 'Jede Periodendauer dreimal messen'], templateId: 'federpendel', hideResults: true }));
+await page.setInputFiles('#task-load', `${out}../../node_modules/.cache-aufgabe.json`);
+await page.waitForSelector('#task-card:not([hidden])');
+await page.evaluate(() => window.scrollTo(0, 0));
+await page.waitForTimeout(300);
+await badge('#task-title-view', 1, -14, -4); await badge('#task-hints', 2, -22, -2); await badge('#task-close', 3);
+await shot('20-aufgabe-schueler', '#task-card', 14);
+fs.rmSync(`${out}../../node_modules/.cache-aufgabe.json`, { force: true });
+
 if (errors.length) throw new Error('Seitenfehler: ' + errors.join(' | '));
 await browser.close();
 console.log('GUIDE SHOTS OK');

@@ -348,3 +348,17 @@ body.beamer .a11ybar, body.beamer .graphdesc { display: none; }
 .audiolive { display: grid; gap: .5rem; margin-bottom: .75rem; }
 .audiolive .live .live-value { font-size: clamp(1.8rem, 3.2vw, 2.6rem); }
 body.beamer .audiolive .live .live-value { font-size: clamp(3rem, 6.5vw, 6rem); }
+
+/* Aufgabe */
+.taskcard { max-width: 1500px; margin: .75rem auto 0; padding: .8rem 1.25rem; border: 2px solid var(--ink); border-radius: 12px; background: var(--surface); width: calc(100% - 2.5rem); }
+.task-head { display: flex; flex-wrap: wrap; gap: .5rem; justify-content: space-between; align-items: center; }
+.task-head h2 { margin: 0; font-size: 1.3rem; }
+.taskcard p { max-width: 80ch; margin: .4rem 0; }
+.taskcard ul { margin: .4rem 0 0; padding-left: 1.3rem; }
+.taskedit { margin-top: .5rem; }
+.taskedit summary { font-weight: 700; cursor: pointer; }
+.taskedit textarea { width: 100%; font: inherit; font-weight: 400; padding: .45rem .65rem; border: 1.5px solid var(--line-strong); border-radius: 10px; background: var(--surface); color: var(--ink); resize: vertical; }
+.taskedit .field { display: grid; gap: .25rem; margin: .5rem 0; }
+.taskedit input[type=text] { width: 100%; }
+body.beamer .taskedit { display: none; }
+@media (max-width: 900px) { .taskcard { width: calc(100% - 1.5rem); padding: .6rem .8rem; } }

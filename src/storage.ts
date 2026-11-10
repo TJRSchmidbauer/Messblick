@@ -42,6 +42,8 @@ export interface SavedState {
   track?: unknown;
   /** Lichtschranke (Zone, Name, Breite); fehlt in älteren Sitzungen. */
   gate?: unknown;
+  /** Geladene Aufgabe (siehe task.ts) und ob das Ergebnis schon aufgedeckt wurde; fehlt in älteren Sitzungen. */
+  task?: unknown;
   session: { channels: ChannelDef[]; samples: Sample[]; runs: Run[] };
 }
 

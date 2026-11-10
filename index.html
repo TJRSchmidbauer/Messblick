@@ -45,6 +45,12 @@
 
   <div id="restore" class="notice" role="status" hidden></div>
 
+  <section id="task-card" class="taskcard" hidden aria-labelledby="task-title-view">
+    <div class="task-head"><h2 id="task-title-view"></h2><button id="task-close" type="button" class="ghost"><span data-icon="x"></span>Aufgabe schließen</button></div>
+    <div id="task-text"></div>
+    <ul id="task-hints"></ul>
+  </section>
+
   <main>
     <section id="stage" aria-label="Kamerabild" tabindex="-1">
       <div class="viewwrap"><canvas id="view" width="640" height="360" aria-label="Kamerabild mit Messgeräten – Kalibrierpunkte per Klick setzen und ziehen"></canvas></div>
@@ -78,6 +84,21 @@
             <button id="tpl-apply" type="button" disabled><span data-icon="flask"></span>Vorlage anwenden</button>
           </div>
           <p id="tpl-pick-summary" class="note"></p>
+        </fieldset>
+        <fieldset class="tplpick" id="taskpick">
+          <legend>Aufgabe (von der Lehrkraft)</legend>
+          <div class="bar">
+            <label class="btn"><span data-icon="upload"></span>Aufgabe laden<input id="task-load" type="file" accept="application/json,.json" hidden /></label>
+          </div>
+          <details class="taskedit">
+            <summary>Für Lehrkräfte: Aufgabe vorbereiten</summary>
+            <p class="note">Stelle Vorlage, Eingaben und Geräte so ein, wie die Klasse sie bekommen soll (Kalibrierung gilt nur bei gleichem Aufbau). Schreibe die Aufgabe und speichere sie als Datei. Schüler laden sie mit „Aufgabe laden“.</p>
+            <label class="field">Titel <input id="task-title" type="text" autocomplete="off" maxlength="120" placeholder="z. B. Federkonstante bestimmen" /></label>
+            <label class="field">Aufgabenstellung <textarea id="task-text-in" rows="4" maxlength="4000" placeholder="Absätze mit Leerzeile trennen"></textarea></label>
+            <label class="field">Hinweise (eine Zeile je Hinweis) <textarea id="task-hints-in" rows="3" placeholder="z. B. Masse in g eintippen"></textarea></label>
+            <label class="check"><input id="task-hide" type="checkbox" /> Ergebnis der Vorlage zunächst ausblenden (Schüler rechnen selbst und prüfen dann)</label>
+            <div class="bar"><button id="task-save" type="button"><span data-icon="download"></span>Aufgabe als Datei speichern</button></div>
+          </details>
         </fieldset>
         <details open class="tips">
           <summary>So gelingt die Aufnahme</summary>
