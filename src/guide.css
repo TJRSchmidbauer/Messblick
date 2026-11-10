@@ -16,8 +16,8 @@ body.guide .doc { display: grid; grid-template-columns: 14rem minmax(0, 48rem); 
 .guide figure.narrow img { max-width: 30rem; }
 .guide figcaption { margin-top: .5rem; }
 .guide ol.legend { list-style: none; counter-reset: legend; margin: 0; padding: 0; display: grid; gap: .35rem; }
-.guide ol.legend li { counter-increment: legend; display: grid; grid-template-columns: 1.9rem 1fr; gap: .6rem; align-items: start; }
-.guide ol.legend li::before { content: counter(legend); display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border-radius: 50%; background: var(--brand-ziegel); color: var(--brand-kohle); border: 2px solid var(--brand-kohle); font: 700 .9rem system-ui, sans-serif; margin-top: .1rem; }
+.guide ol.legend li { counter-increment: legend; display: block; position: relative; padding-left: 2.5rem; min-height: 1.9rem; }
+.guide ol.legend li::before { content: counter(legend); display: grid; place-items: center; width: 1.7rem; height: 1.7rem; border-radius: 50%; background: var(--brand-ziegel); color: var(--brand-kohle); border: 2px solid var(--brand-kohle); font: 700 .9rem system-ui, sans-serif; position: absolute; left: 0; top: .1rem; }
 .guide kbd { font-family: "JetBrains Mono Variable", "JetBrains Mono", monospace; font-size: .9em; padding: .05rem .4rem; border: 1.5px solid var(--line-strong); border-radius: 5px; background: var(--surface); }
 .guide code { font-family: "JetBrains Mono Variable", "JetBrains Mono", monospace; font-size: .92em; background: var(--surface-2); padding: .05rem .3rem; border-radius: 4px; }
 .guide table.plain { border-collapse: collapse; width: 100%; margin: .8rem 0 1.2rem; font-size: .98rem; }
