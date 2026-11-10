@@ -419,3 +419,4 @@ body.beamer .moreopts, body.beamer .moretools, body.beamer .help { display: none
 .site-foot .credit { flex-basis: 100%; color: var(--ink); }
 .site-foot .credit a { color: var(--link); text-underline-offset: .2em; }
 .shell .brand h1 .sub { display: block; font: 400 .72rem/1.2 'Atkinson Hyperlegible', system-ui, sans-serif; letter-spacing: .02em; opacity: .85; }
+.shell .brand h1 { display: flex; flex-direction: column; gap: .1rem; }
