@@ -22,6 +22,8 @@ check(/Tobias Schmidbauer/.test(ct) && /CC BY-NC 4\.0/.test(ct), 'Namensnennung 
 const lic = await page.evaluate(async () => (await fetch('LICENSE.txt')).text());
 check(/Attribution-NonCommercial 4\.0 International/.test(lic) && lic.length > 15000, 'LICENSE.txt fehlt oder ist unvollständig');
 
+check(/^Version ([0-9a-f]{7}|lokal) · \d{4}-\d\d-\d\d \d\d:\d\d UTC$/.test(await page.locator('#build-id').textContent()), 'Versionsanzeige fehlt: ' + await page.locator('#build-id').textContent());
+
 // 1) Startwege: Standard ist „Frei messen“, Vorlage und Aufgabe erst auf Wunsch
 check(!(await vis('#tplbox')) && !(await vis('#taskpick')), 'Vorlage und Aufgabe sollten zunächst verborgen sein');
 check((await page.getAttribute('#route-free', 'aria-pressed')) === 'true', 'Frei messen nicht vorgewählt');

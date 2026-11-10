@@ -41,6 +41,9 @@ await page.waitForTimeout(400);
 check(/Erkannt: Skala größer als 180°/.test(await hint()), 'Bogen nicht erkannt: ' + await hint());
 check(await page.locator('.chan input[data-f="bigArc"]').isChecked(), 'Häkchen „größer als 180°“ nicht gesetzt');
 
+// Sichtbare Kontrolle: Warnung, wenn der Zeiger laut Ablesung außerhalb der Skala steht (hier: falsche Skalenwerte eintragen)
+await page.locator('.chan input[data-f="unit"]').fill('V');
+
 // 3) Auswerten und mit dem bekannten Verlauf der Demo vergleichen (5 + 4·sin(t/3))
 await page.click('#tab-3'); await page.selectOption('#hz', '5'); await page.click('#btn-analyze');
 await page.waitForSelector('#panel-4:not([hidden])', { timeout: 120000 });

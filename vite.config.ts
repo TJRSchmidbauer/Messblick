@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { execSync } from 'node:child_process';
 import { readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import { defineConfig, type Plugin } from 'vite';
@@ -6,6 +7,13 @@ import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { buildPages } from './src/pages/versuche';
 import { TEMPLATES } from './src/templates';
+
+/** Kennung des Stands: Commit (CI: GITHUB_SHA) und Bauzeit, damit man sieht, welche Version im Browser läuft. */
+function buildId(): string {
+  let sha = (process.env.GITHUB_SHA ?? '').slice(0, 7);
+  if (!sha) { try { sha = execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] }).toString().trim(); } catch { sha = 'lokal'; } }
+  return `${sha} · ${new Date().toISOString().slice(0, 16).replace('T', ' ')} UTC`;
+}
 
 /**
  * Öffentliche Adresse der App (mit Schrägstrich am Ende). Wird für Vorschau-Angaben, Sitemap und Versuchsseiten gebraucht.
@@ -67,6 +75,7 @@ function offlineWorker(): Plugin {
 
 export default defineConfig({
   base: './',
+  define: { __BUILD__: JSON.stringify(buildId()) },
   plugins: [siteUrl(), versuchsseiten(), offlineWorker()],
   build: { rollupOptions: { input: { main: 'index.html', anleitung: 'anleitung.html' } } },
   test: { environment: 'node', include: ['tests/**/*.test.ts'] },

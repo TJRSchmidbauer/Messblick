@@ -862,11 +862,30 @@ function drawOverlay(): void {
     const r = c.raw;
     const anchor: Point | undefined = c.type === 'analog' ? r.pivot : c.roi ? { x: c.roi.x, y: c.roi.y - 8 } : undefined;
     if (c.type === 'analog') {
-      if (r.pivot) for (const p of [r.p1, r.p2]) if (p) strokeHalo(() => { vctx.beginPath(); vctx.moveTo(r.pivot!.x, r.pivot!.y); vctx.lineTo(p.x, p.y); }, col);
-      if (c.cal?.type === 'analog' && r.pivot) {
-        const rad = c.cal.radius;
-        strokeHalo(() => { vctx.beginPath(); vctx.arc(r.pivot!.x, r.pivot!.y, rad, 0, 7); vctx.setLineDash([5 * scale, 7 * scale]); }, col, 1.5);
-        vctx.setLineDash([]);
+      const cal = c.cal?.type === 'analog' ? c.cal : null;
+      const inView = (p: Point): boolean => p.x >= 0 && p.y >= 0 && p.x <= view.width && p.y <= view.height;
+      // Verbindungslinien Drehpunkt → Skalenstrich nur, wenn der Drehpunkt im Bild liegt (bei verdecktem Drehpunkt wären es riesige Linien)
+      if (r.pivot && inView(r.pivot) && !c.pivotHidden) for (const p of [r.p1, r.p2]) if (p) strokeHalo(() => { vctx.beginPath(); vctx.moveTo(r.pivot!.x, r.pivot!.y); vctx.lineTo(p.x, p.y); }, col);
+      if (cal && r.pivot) {
+        // Der kalibrierte Skalenbogen: er muss auf der aufgedruckten Skala liegen, sonst stimmt die Kalibrierung nicht
+        const rad = cal.radius, a0 = cal.a1, a1 = cal.a1 + cal.sweep;
+        const rr = (p?: Point): number => (p ? Math.hypot(p.x - r.pivot!.x, p.y - r.pivot!.y) : rad);
+        const rArc = (rr(r.p1) + rr(r.p2)) / 2;
+        strokeHalo(() => { vctx.beginPath(); vctx.arc(r.pivot!.x, r.pivot!.y, rArc, a0, a1, cal.sweep < 0); }, col, 3);
+        // Zeiger, wie die App ihn gerade liest: Linie vom Drehpunkt durch die gelesene Stelle
+        const v = c.live?.value;
+        if (v !== null && v !== undefined && cal.v2 !== cal.v1) {
+          const th = cal.a1 + cal.sweep * ((v - cal.v1) / (cal.v2 - cal.v1));
+          strokeHalo(() => { vctx.beginPath(); vctx.moveTo(r.pivot!.x + Math.cos(th) * rArc * 0.45, r.pivot!.y + Math.sin(th) * rArc * 0.45); vctx.lineTo(r.pivot!.x + Math.cos(th) * rArc * 1.04, r.pivot!.y + Math.sin(th) * rArc * 1.04); }, '#F6B48F', 2);
+        }
+        // Beschriftung der Skalenenden mit den eingegebenen Werten
+        vctx.fillStyle = 'rgb(0 0 0 / .72)';
+        for (const [p, val] of [[r.p1, cal.v1], [r.p2, cal.v2]] as const) {
+          if (!p) continue;
+          const t = `${de(val, 3)} ${c.unit}`.trim();
+          vctx.fillRect(p.x - 4, p.y + 10 * scale, vctx.measureText(t).width + 8, 18 * scale);
+          vctx.fillStyle = '#fff'; vctx.fillText(t, p.x, p.y + 24 * scale); vctx.fillStyle = 'rgb(0 0 0 / .72)';
+        }
       }
       for (const q of pointsOf(c)) {
         const selected = sel?.id === c.id && sel.key === q.key;
@@ -903,6 +922,12 @@ function qualityOf(c: Chan, frame: Frame): string[] {
   const issues = c.cal.type === 'analog'
     ? assessRegion(frame, { x: c.cal.pivot.x - c.cal.radius, y: c.cal.pivot.y - c.cal.radius, w: 2 * c.cal.radius, h: 2 * c.cal.radius }, { minFeature: c.cal.radius / 2 }).issues
     : assessRegion(frame, c.cal.roi, { minFeature: c.cal.roi.h / 3 }).issues;
+  if (c.cal.type === 'analog' && c.live?.value !== null && c.live?.value !== undefined) {
+    const { v1, v2 } = c.cal, span = Math.abs(v2 - v1), lo = Math.min(v1, v2), hi = Math.max(v1, v2), v = c.live.value;
+    if (v < lo - 0.05 * span || v > hi + 0.05 * span) {
+      issues.push(`Der Zeiger steht laut Ablesung außerhalb der kalibrierten Skala (${de(lo, 3)} bis ${de(hi, 3)} ${c.unit}). Entweder ist er wirklich dort, oder die Kalibrierung stimmt nicht: Der dicke Bogen im Bild muss auf der aufgedruckten Skala liegen, sonst Punkte nachziehen oder neu kalibrieren.`);
+    }
+  }
   // Sprung um eine Zehnerpotenz in den letzten Ablesungen: Messbereich oder Dezimalpunkt am Gerät geändert?
   const buf = liveBuf.get(c.id) ?? [];
   if (detectScaleJumps(buf, { persist: 2 }).some((j) => j.index >= buf.length - 5)) jumpWarnAt.set(c.id, performance.now());
@@ -2681,10 +2706,21 @@ renderResults();
 
 /* ============================== Offline ============================== */
 
+$('build-id').textContent = `Version ${__BUILD__}`;
+
 /** Service Worker nur im gebauten Stand: nach dem ersten Laden läuft die App auch ohne Netz. */
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   const state = $('offline-state');
   const show = (): void => { state.hidden = false; state.textContent = 'Offline nutzbar'; };
+  const hadController = !!navigator.serviceWorker.controller;
+  // Eine neue Version hat die Kontrolle übernommen, die Seite zeigt aber noch die alte: zum Neuladen auffordern
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) return;
+    const n = $('update-note');
+    n.hidden = false;
+    n.innerHTML = `<span>${icon('info')} Es gibt eine neue Version von Messblick.</span> <button type="button" id="update-reload" class="primary">Jetzt neu laden</button>`;
+    $('update-reload').onclick = () => location.reload();
+  });
   navigator.serviceWorker.register('./sw.js').then(
     (reg) => { if (navigator.serviceWorker.controller) show(); else navigator.serviceWorker.ready.then(show); void reg; },
     () => { /* ohne Service Worker (z. B. privates Fenster): App läuft online wie bisher */ },

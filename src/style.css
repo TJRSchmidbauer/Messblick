@@ -431,3 +431,4 @@ body.beamer .moreopts, body.beamer .moretools, body.beamer .help { display: none
   .shell .field-inline select { font-size: .85rem; }
   #btn-help, #btn-beamer { display: none; }
 }
+.site-foot .build { margin-left: auto; font-family: 'JetBrains Mono Variable', monospace; font-size: .8rem; color: var(--ink-2); }
