@@ -3,6 +3,7 @@ import { readChannel } from './readers';
 import type { Session } from './session/session';
 import type { FrameSource } from './source/types';
 import type { Tracker } from './readers/track';
+import type { AudioReader } from './source/audio';
 import type { Frame, Rect } from './core/types';
 import { luminance } from './core/types';
 
@@ -16,6 +17,8 @@ export interface ActiveChannel {
   track?: Tracker;
   /** Lichtschranke: mittlere Helligkeit (0..1) dieser Bildzone. */
   gate?: Rect;
+  /** Mikrofon: Frequenz unter `${id}f`, Pegel unter `${id}l`. */
+  audio?: AudioReader;
 }
 
 /** Mittlere Helligkeit einer Bildzone, 0 (schwarz) bis 1 (weiß). */
@@ -35,6 +38,10 @@ function sampleOnce(src: FrameSource, channels: ActiveChannel[], session: Sessio
       const r = ch.track.update(frame, t);
       values[`${ch.id}x`] = { v: r.x, c: r.confidence };
       values[`${ch.id}y`] = { v: r.y, c: r.confidence };
+    } else if (ch.audio) {
+      const a = ch.audio.read();
+      values[`${ch.id}f`] = { v: a?.freq ?? null, c: a?.confidence ?? 0 };
+      values[`${ch.id}l`] = { v: a ? a.level : null, c: a ? 1 : 0 };
     } else if (ch.gate) {
       values[ch.id] = { v: meanBrightness(frame, ch.gate), c: 1 };
     } else if (ch.cal) {

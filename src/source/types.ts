@@ -1,7 +1,7 @@
 import type { Frame } from '../core/types';
 
 export interface FrameSource {
-  kind: 'camera' | 'file' | 'demo';
+  kind: 'camera' | 'file' | 'demo' | 'audio';
   width: number;
   height: number;
   /** Dauer in s; null bei Livequellen. */

@@ -22,6 +22,8 @@ import { TEMPLATES, evalTemplateResults, templateById, type Template, type TplRe
 import { describeUncertainty, type UncertaintyConfig } from './analysis/uncertainty';
 import { icon, symbol, SYMBOLS } from './ui/icons';
 import { openCamera, openVideoFile } from './source/video';
+import { MicSource, ToneDemoSource, toneLabel, type AudioReader } from './source/audio';
+import { noteName } from './analysis/audio';
 import { DemoSource } from './source/demo';
 import type { FrameSource } from './source/types';
 import { analyzeFile, startLive, type ActiveChannel } from './sampler';
@@ -103,7 +105,7 @@ let gateSt: GateState = freshGate();
 let drawKind: 'marker' | 'gate' = 'marker';
 let gateLast: { r: GateResult; intervals: ReturnType<typeof gateStats>; periods: ReturnType<typeof gateStats> } | null = null;
 /** Anzahl der Größen, die schon belegt sind (Geräte, Marker x/y, Lichtschranke, abgeleitete Größen). */
-const usedChannelCount = (): number => chans.length + session.channels.filter((c) => c.derived).length + (trackSt.cfg ? 2 : 0) + (gateSt.rect ? 1 : 0);
+const usedChannelCount = (): number => chans.length + session.channels.filter((c) => c.derived).length + (trackSt.cfg ? 2 : 0) + (gateSt.rect ? 1 : 0) + audioChannelCount();
 let trkDraw: { start: Point; cur: Point } | null = null;
 let trackerCache: { cfg: TrackConfig; tracker: Tracker } | null = null;
 const predRange = { xmin: 0, xmax: 30, ymin: 0, ymax: 10 };
@@ -181,6 +183,7 @@ const active = (): ActiveChannel[] => [
   ...chans.filter((c) => c.cal).map((c) => ({ id: c.id, cal: c.cal! })),
   ...(trackSt.cfg ? [{ id: 'trk-', track: trackerOf(trackSt.cfg) }] : []),
   ...(gateSt.rect ? [{ id: 'gate', gate: gateSt.rect }] : []),
+  ...(source?.kind === 'audio' && audioChannelCount() > 0 ? [{ id: 'mic-', audio: source as unknown as AudioReader }] : []),
 ];
 /** Ein Tracker je Marker-Konfiguration; der Sampler setzt ihn beim Start einer Aufnahme zurück. */
 function trackerOf(cfg: TrackConfig): Tracker {
@@ -268,7 +271,8 @@ function setSource(src: FrameSource): void {
   $('btn-analyze').hidden = !isFile;
   $('btn-live').hidden = src.kind === 'file';
   document.querySelectorAll('.choice').forEach((c) => c.classList.remove('active'));
-  ({ camera: $('btn-camera'), demo: $('btn-demo'), file: $('file').closest('.choice')! }[src.kind] as HTMLElement).classList.add('active');
+  ({ camera: $('btn-camera'), demo: $('btn-demo'), file: $('file').closest('.choice')!, audio: src instanceof ToneDemoSource ? $('btn-tone') : $('btn-mic') }[src.kind] as HTMLElement).classList.add('active');
+  applyAudioMode();
   showError(null);
   updateButtons();
   goStep(2);
@@ -283,6 +287,8 @@ async function guarded(fn: () => Promise<FrameSource>): Promise<void> {
 }
 $('btn-camera').onclick = () => guarded(() => openCamera());
 $('btn-demo').onclick = () => guarded(async () => new DemoSource());
+$('btn-mic').onclick = () => guarded(() => MicSource.open());
+$('btn-tone').onclick = () => guarded(async () => new ToneDemoSource());
 $<HTMLInputElement>('file').onchange = (e) => {
   const f = (e.target as HTMLInputElement).files?.[0];
   if (f) void guarded(() => openVideoFile(f));
@@ -849,6 +855,7 @@ function loop(now: number): void {
       if (now - lastRead > 250) {
         lastRead = now;
         announceLive(now);
+        if (source?.kind === 'audio') renderAudioLive();
         for (const c of chans) if (c.cal) {
           c.live = readChannel(frame, c.cal);
           updateLive(c);
@@ -887,6 +894,11 @@ function syncSessionChannels(): void {
       const id = `trk-${axis}`, name = `${trackSt.name} ${axis}`;
       const ex = session.channels.find((s) => s.id === id);
       if (ex) { ex.name = name; ex.unit = unit; } else session.addChannel({ id, name, unit });
+    }
+  }
+  if (source?.kind === 'audio') {
+    for (const [id, name, unit, on] of [['mic-f', 'Frequenz', 'Hz', $<HTMLInputElement>('mic-freq').checked], ['mic-l', 'Pegel', 'dB', $<HTMLInputElement>('mic-level').checked]] as const) {
+      if (on && !session.channels.some((s) => s.id === id)) session.addChannel({ id, name, unit });
     }
   }
   if (gateSt.rect) {
@@ -1803,6 +1815,7 @@ function finishMarker(r: Rect): void {
 }
 
 function drawTrackOverlay(scale: number): void {
+  if (source?.kind === 'audio') { drawAudioLabels(scale); return; }
   const c = trackSt.cfg;
   const col = '#F6B48F';
   if (gateSt.rect) {
@@ -1995,6 +2008,50 @@ function announceLive(now: number): void {
   const text = chans.filter((c) => c.cal && c.live?.value != null).map((c) => `${c.name}: ${de(c.live!.value!, 2)} ${c.unit}`.trim()).join('. ');
   lastAnnounce = now;
   if (text && text !== lastAnnounceText) { lastAnnounceText = text; $('live-announce').textContent = text; }
+}
+
+/* ---- Mikrofon ---- */
+
+const audioChannelCount = (): number => (source?.kind === 'audio' ? Number($<HTMLInputElement>('mic-freq').checked) + Number($<HTMLInputElement>('mic-level').checked) : 0);
+
+/** Bei Tonquellen: Messgrößen des Mikrofons zeigen, die Bedienung für Kamerabilder ausblenden. */
+function applyAudioMode(): void {
+  const audio = source?.kind === 'audio';
+  $('micbox').hidden = !audio;
+  $('audiolive').hidden = !audio;
+  for (const id of ['add-analog', 'add-digital']) $(id).hidden = audio;
+  for (const id of ['trackbox', 'gatebox']) $(id).hidden = audio;
+  if (audio) { chans = []; calib = null; sel = null; renderChannels(); renderLive(); }
+  updateButtons();
+}
+for (const id of ['mic-freq', 'mic-level']) $(id).addEventListener('change', () => { updateButtons(); scheduleSave(); });
+
+/** Beschriftung der Tonanzeige im Bild: Oszilloskop oben, Spektrum unten mit Frequenzmarken. */
+function drawAudioLabels(scale: number): void {
+  vctx.save();
+  vctx.font = `700 ${14 * scale}px "Atkinson Hyperlegible", system-ui, sans-serif`;
+  vctx.fillStyle = '#fff';
+  vctx.fillText('Oszilloskop (Schwingung über der Zeit)', 10 * scale, 20 * scale);
+  vctx.fillText('Spektrum: Stärke über der Frequenz', 10 * scale, 205 * scale);
+  vctx.font = `${13 * scale}px "Atkinson Hyperlegible", system-ui, sans-serif`;
+  const x = (hz: number): number => (Math.log(hz / 20) / Math.log(5000 / 20)) * (view.width - 1);
+  for (const [hz, label] of [[100, '100 Hz'], [1000, '1 kHz'], [5000, '5 kHz']] as const) vctx.fillText(label, Math.min(view.width - 52 * scale, x(hz) + 4 * scale), 346 * scale);
+  vctx.restore();
+}
+
+/** Große Zahlen für Frequenz und Pegel der Tonquelle. */
+function renderAudioLive(): void {
+  if (source?.kind !== 'audio') return;
+  const a = (source as unknown as AudioReader).read();
+  const host = $('audiolive');
+  const freqTxt = a?.freq != null ? `${a.freq.toFixed(1).replace('.', ',')}<small>Hz</small>` : '–';
+  const note = a?.freq != null ? noteName(a.freq) : null;
+  const html = `
+    <div class="live ch-1"><div class="name"><span>Frequenz</span></div><div class="live-value">${freqTxt}</div>
+      <div class="conf ${a?.freq != null ? 'ok' : 'none'}">${icon(a?.freq != null ? 'check' : 'warning', 16)}${esc(a?.freq != null ? `Ton ${note!.name}${note!.cents ? `, ${note!.cents > 0 ? '+' : '−'}${Math.abs(note!.cents)} Cent` : ''}` : 'kein Ton erkannt')}</div></div>
+    <div class="live ch-2"><div class="name"><span>Pegel</span></div><div class="live-value">${a ? a.level.toFixed(1).replace('.', ',') : '–'}<small>dB</small></div>
+      <div class="conf ok">${icon('check', 16)}relativ zur Vollaussteuerung</div></div>`;
+  if (host.dataset.last !== html) { host.dataset.last = html; host.innerHTML = html; }
 }
 
 function renderRuns(): void {

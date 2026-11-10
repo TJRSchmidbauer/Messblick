@@ -258,6 +258,24 @@ await page.waitForTimeout(600);
 await page.screenshot({ path: `${out}16-beamer.jpg`, type: 'jpeg', quality: 80 });
 console.log('Bild 16-beamer');
 
+// ---- 13 Mikrofon mit dem Demo-Ton -----------------------------------------------------------
+await page.setViewportSize({ width: 1360, height: 900 });
+await page.keyboard.press('b'); // Beamer-Modus wieder aus
+await page.click('#tab-1');
+await page.click('#btn-tone');
+await page.waitForSelector('#micbox:not([hidden])');
+await page.check('#mic-level');
+await page.evaluate(() => window.scrollTo(0, 0));
+await page.waitForTimeout(900);
+{
+  const vbm = await page.locator('#view').boundingBox();
+  await badgeAt(vbm.x + 24, vbm.y + 40, 1); await badgeAt(vbm.x + 24, vbm.y + 226, 2); await badgeAt(vbm.x + vbm.width * 0.6, vbm.y + 245, 3);
+  await shotRect('18-mikrofon', vbm.x - 8, vbm.y - 8, vbm.width + 16, vbm.height + 16);
+}
+await badge('#mic-freq', 1, -8, -6); await badge('#mic-level', 2, -8, -6);
+await shot('18b-mikrofon-messgroessen', '#micbox', 14);
+await page.waitForTimeout(300);
+
 if (errors.length) throw new Error('Seitenfehler: ' + errors.join(' | '));
 await browser.close();
 console.log('GUIDE SHOTS OK');

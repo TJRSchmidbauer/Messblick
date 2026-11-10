@@ -30,6 +30,7 @@
         <li><a href="#quelle">Schritt 1: Quelle</a></li>
         <li><a href="#geraete">Schritt 2: Geräte festlegen</a></li>
         <li><a href="#bewegung">Bewegung und Lichtschranke</a></li>
+        <li><a href="#mikrofon">Mikrofon: Frequenz und Pegel</a></li>
         <li><a href="#messen">Schritt 3: Messen</a></li>
         <li><a href="#auswertung">Schritt 4: Auswertung</a></li>
         <li><a href="#vorlagen">Versuchsvorlagen</a></li>
@@ -133,6 +134,20 @@
           <img src="/anleitung-bilder/07b-gatebox.jpg" alt="Bedienfeld Lichtschranke" />
           <figcaption><ol class="legend"><li>Zone wählen.</li></ol></figcaption>
         </figure>
+      </section>
+
+      <section id="mikrofon">
+        <h2>Mikrofon: Frequenz und Pegel</h2>
+        <p>Statt der Kamera kann das Mikrofon die Messgröße liefern, etwa bei Stimmgabel, Flöte, Resonanzrohr, Saite oder Schwebung. Wähle in Schritt 1 <b>Mikrofon</b> (der Browser fragt nach der Erlaubnis). Zum Üben gibt es den <b>Demo-Ton</b>: ein gleitender Ton ohne Mikrofon.</p>
+        <figure>
+          <img src="/anleitung-bilder/18-mikrofon.jpg" alt="Oszilloskop und Spektrum des Demo-Tons" />
+          <figcaption><ol class="legend"><li><b>Oszilloskop:</b> die Schwingung über der Zeit, ein sauberer Ton ergibt eine gleichmäßige Welle.</li><li><b>Spektrum:</b> Stärke über der Frequenz (logarithmisch von 20 Hz bis 5 kHz). Der Berg zeigt, welche Frequenzen im Ton stecken.</li><li>Die helle senkrechte Linie markiert die erkannte Grundfrequenz, die große Zahl rechts nennt sie samt Tonname (z. B. A4 = 440 Hz) und Abweichung in Cent.</li></ol></figcaption>
+        </figure>
+        <figure class="narrow">
+          <img src="/anleitung-bilder/18b-mikrofon-messgroessen.jpg" alt="Bedienfeld Mikrofon mit Frequenz und Pegel" />
+          <figcaption><ol class="legend"><li><b>Frequenz</b> in Hz: Grundton des lautesten Tons, auf etwa 0,2 Hz genau.</li><li><b>Pegel</b> in dB relativ zur Vollaussteuerung. Das ist kein geeichter Schalldruckpegel.</li></ol></figcaption>
+        </figure>
+        <p>Danach geht es wie bei jeder Messung weiter: in Schritt 3 mit „Aufnahme starten“ aufnehmen, in Schritt 4 Frequenz oder Pegel über der Zeit auswerten, fitten und exportieren. Ein Ton, der in 12 Sekunden gleitet, lässt sich z. B. mit „Sinus mit Offset“ fitten. Echo-Unterdrückung, Rauschfilter und automatische Lautstärke sind beim Mikrofon bewusst ausgeschaltet, sonst würden sie die Messung verfälschen. Zeigt die App „kein Ton erkannt“, ist es zu leise oder zu laut verrauscht: Mikrofon näher an die Quelle halten.</p>
       </section>
 
       <section id="messen">

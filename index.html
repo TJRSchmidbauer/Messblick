@@ -59,6 +59,7 @@
 
     <div id="side">
       <div id="livecards" class="livecards" aria-live="off"></div>
+      <div id="audiolive" class="audiolive" hidden aria-live="off"></div>
 
       <section class="panel" id="panel-1" role="tabpanel" aria-labelledby="tab-1">
         <h2>Quelle wählen</h2>
@@ -66,6 +67,8 @@
           <button id="btn-camera" type="button" class="choice"><span data-icon="camera" data-size="28"></span><b>Kamera</b><small>Live-Aufnahme, Handy oder Webcam</small></button>
           <label class="choice"><span data-icon="film" data-size="28"></span><b>Videodatei</b><small>Vorher gefilmt, Frame-genau</small><input id="file" type="file" accept="video/*" hidden /></label>
           <button id="btn-demo" type="button" class="choice"><span data-icon="flask" data-size="28"></span><b>Demo</b><small>Ausprobieren ohne Gerät</small></button>
+          <button id="btn-mic" type="button" class="choice"><span data-icon="mic" data-size="28"></span><b>Mikrofon</b><small>Frequenz und Pegel eines Tons</small></button>
+          <button id="btn-tone" type="button" class="choice"><span data-icon="mic" data-size="28"></span><b>Demo-Ton</b><small>Mikrofon ausprobieren ohne Ton</small></button>
         </div>
         <fieldset class="tplpick">
           <legend>Versuchsvorlage (optional)</legend>
@@ -93,6 +96,15 @@
           <button id="add-analog" type="button"><span data-icon="gauge"></span>Zeigerinstrument</button>
           <button id="add-digital" type="button"><span data-icon="digits"></span>Digitalanzeige</button>
         </div>
+        <fieldset class="trackbox" id="micbox" hidden>
+          <legend>Mikrofon: Messgrößen</legend>
+          <p class="note">Das Mikrofon misst die Grundfrequenz des lautesten Tons und den Pegel. Für Stimmgabel, Flöte, Resonanzrohr, Saite oder Schwebungen. Echo-Unterdrückung und automatische Lautstärke sind aus, damit die Messung nicht verfälscht wird.</p>
+          <div class="bar">
+            <label class="check"><input id="mic-freq" type="checkbox" checked /> Frequenz (Hz)</label>
+            <label class="check"><input id="mic-level" type="checkbox" /> Pegel (dB, 0 dB = Vollaussteuerung)</label>
+          </div>
+          <p class="note">Der Pegel ist relativ, kein geeichter Schalldruckpegel. Frequenzen werden auf etwa 0,2 Hz genau bestimmt (Blocklänge 0,19 s).</p>
+        </fieldset>
         <div id="channels"></div>
         <fieldset class="trackbox" id="trackbox">
           <legend>Bewegung verfolgen (Marker)</legend>

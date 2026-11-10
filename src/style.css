@@ -343,3 +343,8 @@ th .sym { color: var(--c); margin-right: .3rem; }
 .graphdesc p { margin: .4rem 0 0; max-width: 70ch; }
 #chart:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
 body.beamer .a11ybar, body.beamer .graphdesc { display: none; }
+
+/* Mikrofon */
+.audiolive { display: grid; gap: .5rem; margin-bottom: .75rem; }
+.audiolive .live .live-value { font-size: clamp(1.8rem, 3.2vw, 2.6rem); }
+body.beamer .audiolive .live .live-value { font-size: clamp(3rem, 6.5vw, 6rem); }
