@@ -37,3 +37,13 @@ body.guide .doc { display: grid; grid-template-columns: 14rem minmax(0, 48rem); 
   .guide h2 { font-size: 1.4rem; }
 }
 .guide table.plain td, .guide table.plain th { overflow-wrap: anywhere; }
+
+/* Versuchsseiten (statisch erzeugt, siehe src/pages/versuche.ts) */
+body.guide main.versuch { display: block; max-width: 52rem; margin: 0 auto; padding: 1.25rem 1.25rem 4rem; }
+.versuch .vtitle { font-family: 'Space Grotesk', sans-serif; font-size: 2rem; line-height: 1.15; margin: .4rem 0 .6rem; }
+.versuch .crumb { font-size: .9rem; color: var(--ink-2); margin: 0; }
+.versuch a.btn { display: inline-flex; align-items: center; text-decoration: none; margin: .3rem .4rem .3rem 0; }
+.versuch .vlist { list-style: none; padding: 0; display: grid; gap: .6rem; }
+.versuch .vlist li { display: grid; gap: .15rem; padding: .7rem .9rem; border: 1.5px solid var(--line); border-radius: 10px; background: var(--surface); }
+.versuch .vlist a { font-weight: 700; }
+.versuch .vlist span { color: var(--ink-2); font-size: .95rem; }

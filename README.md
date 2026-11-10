@@ -24,6 +24,14 @@ Beispiel für die Quellenangabe:
 Bei einer Abwandlung zusätzlich angeben, dass es eine Abwandlung ist und was geändert wurde. Weitere Beispiele (auch HTML für die Fußzeile),
 die Zusammenfassung und die Hinweise zu Bausteinen anderer Urheber stehen in [`NOTICE.md`](NOTICE.md); der Volltext in [`LICENSE`](LICENSE).
 
+
+## Reichweite: Link-Vorschau und Versuchsseiten
+
+- **Link-Vorschau:** Startseite und Anleitung tragen Open-Graph-Angaben und ein Vorschaubild (`public/og.png`, 1200×630, erzeugt mit `node tests/og-image.mjs`). Geteilte Links zeigen so Titel, Text und Bild.
+- **Versuchsseiten:** Der Build erzeugt aus den Vorlagen je eine statische Seite unter `versuche/` (Aufbau, Ablauf, Auswertung, Ergebnis), eine Übersicht, `sitemap.xml` und `robots.txt`. Der Knopf „Diesen Versuch in Messblick öffnen“ führt mit `#vorlage=<id>` in die App und stellt die Vorlage ein. Quelle: `src/pages/versuche.ts`; neue Vorlagen bekommen ihre Seite automatisch.
+- **Adresse:** Die absolute Adresse steht in `vite.config.ts` (`SITE_URL`, Standard `https://tjrschmidbauer.github.io/Messblick/`). Bei eigener Domain die Umgebungsvariable `SITE_URL` beim Bauen setzen.
+- Geprüft im gebauten Stand mit `tests/e2e-versuche.mjs`. Ob Suchmaschinen und Messenger die Seiten tatsächlich so darstellen, ist nicht getestet.
+
 ## Version 2.0: übersichtlichere Oberfläche (jetzt `main`; die Version davor liegt im Branch `v1.0`)
 
 - Schritt 1 beginnt mit der Frage „Wie möchtest du messen?“ (Frei messen, Standardversuch, Aufgabe der Lehrkraft); danach folgen Bildquellen und Ton getrennt.

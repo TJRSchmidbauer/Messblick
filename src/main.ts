@@ -2601,6 +2601,22 @@ renderPredState();
 drawPredCanvas();
 renderResults();
 
+/* ---- Direktlink von einer Versuchsseite: …/#vorlage=fadenpendel wählt die Vorlage ---- */
+(() => {
+  const m = /[#&]vorlage=([a-z0-9-]+)/.exec(location.hash);
+  if (!m) return;
+  history.replaceState(null, '', location.pathname + location.search);
+  const t = templateById(m[1]);
+  if (!t) return showError('Diesen Versuch gibt es nicht (mehr). Wähle unten eine Vorlage.');
+  if (tplId !== t.id) applyTemplate(t);
+  if (tplId !== t.id) return; // abgelehnt (vorhandene Parameterreihe behalten)
+  tplSelect.value = t.id;
+  tplSelect.dispatchEvent(new Event('change'));
+  setRoute('tpl');
+  goStep(1);
+  setHint(`Versuch „${t.title}“ ist eingestellt. Wähle jetzt die Quelle${t.audio ? ' (Mikrofon)' : ' (Kamera, Videodatei oder Demo)'}.`);
+})();
+
 /* ============================== Offline ============================== */
 
 /** Service Worker nur im gebauten Stand: nach dem ersten Laden läuft die App auch ohne Netz. */
