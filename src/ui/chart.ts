@@ -160,6 +160,15 @@ export class ResultChart {
     (this.chart as any).resetZoom?.();
   }
 
+  /** Hebt einen Messpunkt der ersten Reihe hervor (Tastaturbedienung); null nimmt die Hervorhebung zurück. */
+  highlight(index: number | null, dataset = 0): void {
+    const ch = this.chart;
+    const el = index === null ? [] : [{ datasetIndex: dataset, index }];
+    ch.setActiveElements(el);
+    ch.tooltip?.setActiveElements(el, { x: 0, y: 0 });
+    ch.update();
+  }
+
   /** Während der Bereichswahl pausieren Zoom und Verschieben, damit Ziehen das Band setzt. */
   setSelecting(on: boolean): void {
     const z = (this.chart.options.plugins as any).zoom;

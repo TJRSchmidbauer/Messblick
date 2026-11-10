@@ -134,6 +134,8 @@
           <button id="btn-analyze" type="button" class="primary big" disabled hidden><span data-icon="play"></span>Video auswerten</button>
           <button id="btn-cancel" type="button" hidden><span data-icon="x"></span>Abbrechen</button>
         </div>
+        <label class="check"><input id="announce" type="checkbox" /> Messwerte ansagen (für Screenreader: jeder neue Wert wird vorgelesen)</label>
+        <p id="live-announce" class="sr-only" aria-live="polite"></p>
         <progress id="progress" max="1" value="0" hidden aria-label="Fortschritt der Auswertung"></progress>
         <p id="status" class="status" role="status" aria-live="polite">Noch keine Messpunkte.</p>
         <div class="bar secondary">
@@ -195,7 +197,18 @@
           <p class="note">Der Wert des Parameters kommt aus dem Feld in der Parameterreihe weiter unten.</p>
         </section>
         <p id="pred-feedback" class="predfeedback" aria-live="polite" hidden></p>
-        <div class="chartwrap"><canvas id="chart" aria-label="Messgraph"></canvas></div>
+        <div class="chartwrap"><canvas id="chart" tabindex="0" role="img" aria-label="Messgraph. Mit den Pfeiltasten durch die Messpunkte gehen." aria-describedby="graph-desc"></canvas></div>
+        <div class="bar a11ybar" role="group" aria-label="Graph hören und vorlesen">
+          <button id="graph-listen" type="button"><span data-icon="play"></span>Graph hören</button>
+          <button id="graph-speak" type="button" disabled><span data-icon="keyboard"></span>Graph vorlesen</button>
+          <button id="graph-stop" type="button" class="ghost" hidden><span data-icon="stop"></span>Stopp</button>
+          <span class="note">Tastatur: Pfeiltasten im Graphen gehen durch die Messpunkte (<kbd>Umschalt</kbd> = 10 Schritte, <kbd>Pos1</kbd>/<kbd>Ende</kbd> = Anfang/Ende).</span>
+        </div>
+        <details class="graphdesc" id="graph-desc-box" open>
+          <summary>Beschreibung des Graphen in Worten</summary>
+          <p id="graph-desc"></p>
+        </details>
+        <p id="graph-live" class="sr-only" aria-live="polite"></p>
         <div class="bar"><button id="zoom-reset" type="button" class="ghost"><span data-icon="reset"></span>Zoom zurücksetzen</button><span class="note">Mausrad oder Pinch zoomt, Ziehen verschiebt.</span></div>
         <fieldset class="fitbar">
           <legend>Fit und Größen</legend>

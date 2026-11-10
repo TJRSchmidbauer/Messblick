@@ -41,4 +41,4 @@ Demo-Quelle und synthetische Testbilder; keine realen Fotos oder Videos von PHYW
 5. Beamer und Touch gleichwertig: lesbar aus der letzten Reihe und bedienbar mit dem Daumen.
 
 ## Accessibility & Inclusion
-Projektortauglicher Kontrast, Tastaturbedienung und Signale nicht allein über Farbe (konkrete Norm nicht festgelegt).
+Projektortauglicher Kontrast, Tastaturbedienung und Signale nicht allein über Farbe (konkrete Norm nicht festgelegt). Graph als Text beschrieben, hörbar (Sonifikation) und per Tastatur punktweise erkundbar; Messwerte für Screenreader ansagbar. Nicht mit Screenreadern geprüft, nur per Test der Bedienwege.

@@ -156,6 +156,16 @@ await badge('#chart', 4, 40, 10);
   await shotRect('09-auswertung', pr.x, r.y - 60, pr.w, r.bottom - r.y + 160);
 }
 
+// ---- 7b Barrierefreiheit: Graph hören, Beschreibung, Tastatur --------------------------------
+await page.locator('#chart').scrollIntoViewIfNeeded();
+await page.focus('#chart');
+await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowRight');
+await badge('#chart', 1, 36, 6); await badge('#graph-listen', 2); await badge('#graph-speak', 3); await badge('#graph-desc-box summary', 4, -10, -2);
+{
+  const r = await page.evaluate(() => { const a = document.querySelector('#chart').getBoundingClientRect(), b = document.querySelector('#graph-desc-box').getBoundingClientRect(), p = document.querySelector('#panel-4').getBoundingClientRect(); return { x: p.left + scrollX, w: p.width, y: a.top + scrollY, bottom: b.bottom + scrollY }; });
+  await shotRect('17-barrierefrei', r.x, r.y - 24, r.w, r.bottom - r.y + 48);
+}
+
 // ---- 8 Neue Größe und Fit-Leiste ------------------------------------------------------------
 await page.click('#derive-new');
 await page.fill('#derivedlg-expr', 'Gerät_1*Gerät_2'); await page.fill('#derivedlg-name', 'Leistung'); await page.fill('#derivedlg-unit', 'W');

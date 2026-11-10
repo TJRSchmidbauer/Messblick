@@ -15,6 +15,8 @@ import { sigmaOf } from './analysis/uncertainty';
 import { detectScaleJumps, factorLabel } from './analysis/jumps';
 import { cleanPath, comparePrediction, type Prediction } from './analysis/prediction';
 import { detectGate, stats as gateStats, type GateResult } from './analysis/gate';
+import { announcePoint, describeSeries, sonificationSchedule, type DescribeOptions } from './analysis/describe';
+import { Sonifier, localGermanVoice } from './ui/sonify';
 import { Tracker, makeTemplate, type TrackConfig } from './readers/track';
 import { TEMPLATES, evalTemplateResults, templateById, type Template, type TplResultLine } from './templates';
 import { describeUncertainty, type UncertaintyConfig } from './analysis/uncertainty';
@@ -846,6 +848,7 @@ function loop(now: number): void {
       drawOverlay();
       if (now - lastRead > 250) {
         lastRead = now;
+        announceLive(now);
         for (const c of chans) if (c.cal) {
           c.live = readChannel(frame, c.cal);
           updateLive(c);
@@ -1057,6 +1060,7 @@ function renderResults(light = false): void {
   });
   renderPredictionOnChart(x, ys[0], series, light);
   renderFit(x, ys[0], series, light);
+  renderGraphDescription(x, ys[0], series);
   chart.update({
     band: fitRange, series, xLabel: label(x), yLabel: ys[0] ? label(ys[0]) : '', y2Label: ys[1] ? label(ys[1]) : '',
     xLog: $<HTMLInputElement>('xlog').checked, yLog: $<HTMLInputElement>('ylog').checked, line: x === TIME_KEY,
@@ -1908,6 +1912,90 @@ function takeGate(kind: 'intervals' | 'periods'): void {
 }
 $('gate-take-interval').onclick = () => takeGate('intervals');
 $('gate-take-period').onclick = () => takeGate('periods');
+
+/* ---- Barrierefreiheit: Beschreibung, Hören, Tastatur, Ansagen ---- */
+
+const sonifier = new Sonifier();
+const a11y: { points: { x: number; y: number }[]; opts: DescribeOptions; index: number } = {
+  points: [], opts: { xName: 'x', xUnit: '', yName: 'y', yUnit: '' }, index: -1,
+};
+const nameUnit = (id: string): { name: string; unit: string } => {
+  if (id === TIME_KEY) return { name: 'Zeit', unit: 's' };
+  const c = allChannelDefs().find((d) => d.id === id);
+  return { name: c?.name ?? id, unit: c?.unit ?? '' };
+};
+
+/** Beschreibt die erste Reihe des Graphen in Worten (für Screenreader und zum Vorlesen). */
+function renderGraphDescription(x: string, yId: string | undefined, series: ChartSeries[]): void {
+  const main = series.find((s) => !s.fit && !s.pred && !s.faded);
+  const box = $('graph-desc');
+  if (!main || !yId || main.points.length < 2) { a11y.points = []; a11y.index = -1; box.textContent = 'Noch keine Messwerte im Graphen.'; return; }
+  const xn = nameUnit(x), yn = nameUnit(yId);
+  a11y.opts = {
+    xName: xn.name, xUnit: xn.unit, yName: yn.name, yUnit: yn.unit,
+    fit: lastFit ? `Fit ${lastFit.model.name}: ${lastFit.params.map((p) => `${p.name} = ${withError(p.value, p.sigma)}`).join(', ')}.` : undefined,
+  };
+  a11y.points = main.points.map((p) => ({ x: p.x, y: p.y }));
+  a11y.index = Math.min(a11y.index, a11y.points.length - 1);
+  box.textContent = describeSeries(a11y.points, a11y.opts).text;
+}
+
+chartCanvas.addEventListener('keydown', (e) => {
+  const n = a11y.points.length;
+  if (!n) return;
+  const step = e.shiftKey ? 10 : 1;
+  let i = a11y.index;
+  if (e.key === 'ArrowRight' || e.key === 'ArrowUp') i = i < 0 ? 0 : Math.min(n - 1, i + step);
+  else if (e.key === 'ArrowLeft' || e.key === 'ArrowDown') i = i < 0 ? n - 1 : Math.max(0, i - step);
+  else if (e.key === 'Home') i = 0;
+  else if (e.key === 'End') i = n - 1;
+  else if (e.key === 'Escape') { a11y.index = -1; chart.highlight(null); return; }
+  else return;
+  e.preventDefault();
+  a11y.index = i;
+  chart.highlight(i);
+  $('graph-live').textContent = announcePoint(i, n, a11y.points[i], a11y.opts);
+});
+
+function setListening(on: boolean): void {
+  $('graph-stop').hidden = !on;
+  $<HTMLButtonElement>('graph-listen').disabled = on;
+}
+$('graph-listen').onclick = () => {
+  if (a11y.points.length < 2) return showError('Es gibt noch keine Messwerte zum Anhören.');
+  showError(null);
+  const ok = sonifier.play(sonificationSchedule(a11y.points, 6), () => setListening(false));
+  if (!ok) return showError('Dein Browser kann keinen Ton ausgeben.');
+  setListening(true);
+};
+$('graph-stop').onclick = () => { sonifier.stop(); if ('speechSynthesis' in window) speechSynthesis.cancel(); setListening(false); };
+$('graph-speak').onclick = () => {
+  const voice = localGermanVoice();
+  if (!voice || a11y.points.length < 2) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance($('graph-desc').textContent ?? '');
+  u.lang = 'de-DE'; u.voice = voice;
+  u.onend = () => setListening(false);
+  setListening(true);
+  speechSynthesis.speak(u);
+};
+/** Vorlesen nur mit einer lokalen deutschen Stimme: Der Text soll das Gerät nicht verlassen. */
+function refreshVoice(): void {
+  const ok = !!localGermanVoice();
+  const b = $<HTMLButtonElement>('graph-speak');
+  b.disabled = !ok;
+  b.title = ok ? '' : 'Keine lokale deutsche Stimme gefunden. Nutze den Screenreader mit der Beschreibung unten.';
+}
+if ('speechSynthesis' in window) { refreshVoice(); speechSynthesis.addEventListener('voiceschanged', refreshVoice); }
+
+/** Neue Messwerte als Ansage für Screenreader (höchstens alle 3 s, nur bei geänderter Zahl). */
+let lastAnnounce = 0, lastAnnounceText = '';
+function announceLive(now: number): void {
+  if (!$<HTMLInputElement>('announce').checked || now - lastAnnounce < 3000) return;
+  const text = chans.filter((c) => c.cal && c.live?.value != null).map((c) => `${c.name}: ${de(c.live!.value!, 2)} ${c.unit}`.trim()).join('. ');
+  lastAnnounce = now;
+  if (text && text !== lastAnnounceText) { lastAnnounceText = text; $('live-announce').textContent = text; }
+}
 
 function renderRuns(): void {
   const host = $('runs');

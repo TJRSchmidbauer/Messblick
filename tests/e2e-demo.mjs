@@ -131,8 +131,22 @@ console.log('Fit:', fitText.replace(/\n+/g, ' | '));
 if (!/ω/.test(fitText) || !/0,33/.test(fitText)) throw new Error('Fit-Ergebnis fehlt: ' + fitText);
 if (/Keine Messunsicherheit/.test(fitText)) throw new Error('Messunsicherheit wurde nicht berücksichtigt');
 if (!(await page.locator('#resid-wrap').isVisible())) throw new Error('Residuen-Graph fehlt');
+// Barrierefreiheit: Beschreibung in Worten, Messpunkte per Tastatur, Graph hören
+const desc = await page.locator('#graph-desc').innerText();
+console.log('Beschreibung:', desc.slice(0, 160));
+if (!/Messpunkten/.test(desc) || !/schwingt auf und ab/.test(desc) || !/Fit Sinus mit Offset/.test(desc)) throw new Error('Beschreibung des Graphen unvollständig: ' + desc);
+await page.focus('#chart');
+await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowRight');
+if (!/Messpunkt 2 von 151: Zeit = /.test(await page.locator('#graph-live').textContent())) throw new Error('Tastaturansage fehlt');
+await page.keyboard.press('End');
+if (!/Messpunkt 151 von 151/.test(await page.locator('#graph-live').textContent())) throw new Error('Ende-Taste geht nicht');
+await page.click('#graph-listen');
+if (!(await page.locator('#graph-stop').isVisible())) throw new Error('Graph hören startet nicht: ' + await page.locator('#error, .error').allTextContents());
+await page.click('#graph-stop');
+if (await page.locator('#graph-stop').isVisible()) throw new Error('Stopp wirkt nicht');
 // Fitbereich per Ziehen im Graphen
 await page.click('#fit-range');
+await page.locator('#chart').scrollIntoViewIfNeeded();
 const cb = await page.locator('#chart').boundingBox();
 await page.mouse.move(cb.x + cb.width * 0.3, cb.y + cb.height * 0.5); await page.mouse.down();
 await page.mouse.move(cb.x + cb.width * 0.7, cb.y + cb.height * 0.5, { steps: 6 }); await page.mouse.up();
