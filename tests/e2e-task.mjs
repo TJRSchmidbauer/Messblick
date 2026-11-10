@@ -32,7 +32,7 @@ await t.page.click('#tab-4');
 await t.page.fill('#tpl-in-Dnenn', '20');
 await t.page.click('#tab-1');
 const [dl] = await Promise.all([t.page.waitForEvent('download'), t.page.click('#task-save')]);
-const tmp = process.env.TMPDIR_E2E ?? '/tmp/claude-0/-home-user-Physikmesswererfassung/ca9799fc-5dd4-51a9-ada3-7d1b4ad7cae1/scratchpad';
+const tmp = process.env.TMPDIR_E2E ?? (await import('node:os')).tmpdir();
 const path = `${tmp}/aufgabe-test.json`;
 fs.copyFileSync(await dl.path(), path); // der Download verschwindet mit dem Browser-Kontext
 const saved = JSON.parse(fs.readFileSync(path, 'utf8'));
