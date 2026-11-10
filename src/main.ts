@@ -305,6 +305,9 @@ function setSource(src: FrameSource): void {
     void src.seek!(0);
   }
   $('btn-analyze').hidden = !isFile;
+  // Videodatei: Standard ist eine hohe Rate (die meisten Videos haben 25 bis 30 Bilder pro Sekunde); 2 pro Sekunde ließ den Graphen dünn aussehen
+  if (src.kind === 'file') $<HTMLSelectElement>('hz').value = '30';
+  renderRateInfo();
   $('btn-live').hidden = src.kind === 'file';
   document.querySelectorAll('.choice').forEach((c) => c.classList.remove('active'));
   ({ camera: $('btn-camera'), demo: $('btn-demo'), file: $('file').closest('.choice')!, audio: src instanceof ToneDemoSource ? $('btn-tone') : $('btn-mic') }[src.kind] as HTMLElement).classList.add('active');
@@ -1073,17 +1076,34 @@ function toggleRecording(): void {
 }
 liveBtn.onclick = toggleRecording;
 
+/** Wie viele Messpunkte ergibt die gewählte Rate bei einer Videodatei? Vorab sagen, damit der Graph nicht überraschend dünn wird. */
+function renderRateInfo(): void {
+  const el = $('rate-info');
+  const dur = source?.seek && source.duration !== null ? source.duration : null;
+  if (dur === null || !source) { el.hidden = true; return; }
+  const hz = Number($<HTMLSelectElement>('hz').value);
+  const n = Math.floor(dur * hz) + 1;
+  el.hidden = false;
+  el.textContent = `Bei ${hz} pro Sekunde ergibt das Video (${de(dur, 1)} s) etwa ${n} Messpunkte.${hz < 10 ? ' Für einen glatten Graphen bei bewegtem Zeiger eine höhere Rate wählen (Videos haben meist 25 bis 30 Bilder pro Sekunde).' : ''}`;
+}
+$<HTMLSelectElement>('hz').addEventListener('change', renderRateInfo);
+
 $('btn-analyze').onclick = async () => {
   if (!source) return;
   syncSessionChannels();
   const hz = Number($<HTMLSelectElement>('hz').value);
+  const t0 = performance.now();
   abort = new AbortController();
   const bar = $<HTMLProgressElement>('progress');
   bar.hidden = false;
   bar.value = 0;
   updateButtons();
   try {
-    await analyzeFile(source, active(), session, hz, (f) => { bar.value = f; $('status').textContent = `Auswertung ${Math.round(f * 100)} % · ${session.samples.length} Messpunkte`; }, abort.signal, recStabilizer());
+    await analyzeFile(source, active(), session, hz, (f) => {
+      bar.value = f;
+      const left = f > 0.03 ? Math.round(((performance.now() - t0) / 1000) * (1 - f) / f) : null;
+      $('status').textContent = `Auswertung ${Math.round(f * 100)} % · ${session.samples.length} Messpunkte${left !== null && left > 5 ? ` · noch etwa ${left >= 90 ? `${Math.round(left / 60)} min` : `${left} s`}` : ''}`;
+    }, abort.signal, recStabilizer());
   } catch (e) {
     showError((e as Error).message);
   }

@@ -66,6 +66,18 @@ export async function analyzeFile(
   prep?.reset();
   const dt = 1 / hz;
   const n = Math.floor(src.duration / dt);
+  // Hohe Raten: Video abspielen statt Bild für Bild zu springen (viel schneller, Zeit = echte Bildzeit)
+  if (src.scan && hz >= 10) {
+    const dur = src.duration;
+    let count = 0;
+    await src.scan(hz, (t) => {
+      sampleOnce(src, channels, session, t, prep);
+      count++;
+      onProgress(Math.min(1, t / dur));
+    }, signal);
+    if (count > 0) return;
+    // nichts bekommen (Browser spielt nicht ab): zurück zum Springen
+  }
   for (let i = 0; i <= n; i++) {
     if (signal.aborted) return;
     const t = Math.min(i * dt, src.duration);

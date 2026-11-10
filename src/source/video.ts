@@ -21,6 +21,30 @@ class VideoSource implements FrameSource {
     this.canvas.width = this.width;
     this.canvas.height = this.height;
     this.ctx = this.canvas.getContext('2d', { willReadFrequently: true })!;
+    if (kind === 'file' && 'requestVideoFrameCallback' in HTMLVideoElement.prototype) {
+      this.scan = (hz, onFrame, signal) => new Promise<void>((resolve) => {
+        const v = this.video, dt = 1 / hz;
+        let next = 0, last = -1, rate = 1, finished = false;
+        const done = (): void => { if (finished) return; finished = true; v.pause(); v.playbackRate = 1; resolve(); };
+        const cb = (_now: number, meta: { mediaTime: number }): void => {
+          if (signal.aborted) return done();
+          const t = meta.mediaTime;
+          if (t + 1e-3 >= next) {
+            onFrame(t);
+            next = (Math.floor((t + 1e-3) / dt) + 1) * dt;
+          }
+          // Bilder fehlen? Dann kommt die Verarbeitung nicht hinterher: langsamer abspielen.
+          if (last >= 0 && t - last > 1.6 * Math.max(dt, 1 / 30) && rate > 0.25) { rate /= 2; v.playbackRate = rate; }
+          last = t;
+          if (!finished) v.requestVideoFrameCallback(cb);
+        };
+        v.addEventListener('ended', done, { once: true });
+        v.addEventListener('error', done, { once: true });
+        const start = (): void => { v.playbackRate = 1; v.requestVideoFrameCallback(cb); void v.play().catch(done); };
+        if (Math.abs(v.currentTime) < 1e-3) start();
+        else { v.addEventListener('seeked', start, { once: true }); v.currentTime = 0; }
+      });
+    }
     if (kind === 'file') {
       this.seek = (t: number): Promise<void> =>
         new Promise((resolve) => {
@@ -31,6 +55,13 @@ class VideoSource implements FrameSource {
     }
   }
   seek?: (t: number) => Promise<void>;
+
+  /**
+   * Abspielen und dabei Bilder abtasten (requestVideoFrameCallback). Springen kostet je Bild ein Dekodieren ab dem
+   * letzten Schlüsselbild (hier etwa 180 ms); beim Abspielen kommt jedes Bild nach etwa 35 ms. Bleibt die Verarbeitung
+   * hinter dem Video zurück (Bilder werden übersprungen), wird die Abspielgeschwindigkeit halbiert.
+   */
+  scan: FrameSource['scan'] = null;
 
   private t0 = performance.now();
   time(): number {

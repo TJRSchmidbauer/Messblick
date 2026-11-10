@@ -11,5 +11,10 @@ export interface FrameSource {
   grab(): Frame;
   /** Nur Dateien/Demo: auf Zeitpunkt springen (Frame-genau auswertbar). */
   seek?(t: number): Promise<void>;
+  /**
+   * Nur Videodateien: Video abspielen und bei jedem dargestellten Bild (höchstens `hz` je Sekunde) `onFrame(t)` rufen,
+   * t = echte Zeit des Bildes. Etwa fünfmal schneller als je Bild zu springen. null, wenn der Browser es nicht kann.
+   */
+  scan?: ((hz: number, onFrame: (t: number) => void, signal: AbortSignal) => Promise<void>) | null;
   stop(): void;
 }
