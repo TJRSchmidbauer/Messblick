@@ -13,6 +13,8 @@ export interface SavedChannel {
   raw: unknown;
   bigArc: boolean;
   pointerDark: boolean;
+  /** Drehpunkt aus drei Skalenpunkten berechnet (fehlt in älteren Dateien). */
+  pivotHidden?: boolean;
   roi: unknown;
   digits: number;
   decimals: string;

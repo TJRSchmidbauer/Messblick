@@ -1,5 +1,5 @@
 import type { Frame, Point, Rect } from './core/types';
-import { buildAnalogCalibration, guessBigArc, type AnalogRaw } from './readers/analog';
+import { buildAnalogCalibration, guessBigArc, pivotFromScale, pivotMismatch, type AnalogRaw } from './readers/analog';
 import { readChannel, type Calibration, type DigitalCalibration, type LearnedGlyph } from './readers';
 import { learnGlyphs } from './readers/glyph';
 import { Session, TIME_KEY, seriesOf, tableOf, type ChannelDef } from './session/session';
@@ -38,8 +38,8 @@ import { STORAGE_KEY, calibrationFile, parseCalibrationFile, parseState, seriali
 
 /* ============================== Zustand ============================== */
 
-type PointKey = 'pivot' | 'p1' | 'p2' | 'roi';
-type Step = 'pivot' | 'ref1' | 'ref2' | 'roi';
+type PointKey = 'pivot' | 'p1' | 'p2' | 'p3' | 'roi';
+type Step = 'pivot' | 'ref1' | 'ref2' | 'ref3' | 'roi';
 
 interface Chan {
   id: string;
@@ -51,6 +51,8 @@ interface Chan {
   raw: Partial<AnalogRaw>;
   bigArc: boolean;
   pointerDark: boolean;
+  /** Drehpunkt verdeckt: wird aus drei Skalenpunkten berechnet statt angeklickt. */
+  pivotHidden: boolean;
   roi?: Rect;
   digits: number;
   decimals: string;
@@ -175,6 +177,10 @@ const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', 
 function rebuildCal(c: Chan): void {
   if (c.type === 'analog') {
     const r = c.raw;
+    if (c.pivotHidden) {
+      const pv = r.p1 && r.p2 && r.p3 ? pivotFromScale(r.p1, r.p3, r.p2) : null;
+      if (pv) r.pivot = pv; else delete r.pivot;
+    }
     c.cal = r.pivot && r.p1 && r.p2 && r.v1 !== undefined && r.v2 !== undefined && r.v1 !== r.v2
       ? buildAnalogCalibration(r as AnalogRaw, c.bigArc, c.pointerDark)
       : null;
@@ -435,7 +441,7 @@ function addChannel(type: 'analog' | 'digital'): void {
   const slot = [0, 1, 2, 3].find((s) => !used.has(s))!;
   const id = `k${nextId++}`;
   chans.push({
-    id, slot, type, name: `Gerät ${chans.length + 1}`, unit: type === 'analog' ? 'V' : 'A', raw: {}, bigArc: false,
+    id, slot, type, name: `Gerät ${chans.length + 1}`, unit: type === 'analog' ? 'V' : 'A', raw: {}, bigArc: false, pivotHidden: false,
     pointerDark: true, digits: 4, decimals: '', polarity: 'auto', style: 'auto', learned: [], unc: { mode: 'none', a: '', b: '', c: '' }, cal: null, live: null, issues: [], hist: [],
   });
   startCalibration(id);
@@ -449,6 +455,11 @@ function pushHist(c: Chan): void {
 }
 function stepFromRaw(c: Chan): Step | null {
   if (c.type === 'digital') return c.roi ? null : 'roi';
+  if (c.pivotHidden) {
+    if (!c.raw.p1) return 'ref1';
+    if (!c.raw.p2) return 'ref2';
+    return c.raw.p3 ? null : 'ref3';
+  }
   if (!c.raw.pivot) return 'pivot';
   if (!c.raw.p1) return 'ref1';
   if (!c.raw.p2) return 'ref2';
@@ -474,9 +485,10 @@ function explain(): void {
   if (!calib) return;
   const c = chan(calib.id);
   setHint(({
-    pivot: `${esc(c.name)}: Klicke auf den Drehpunkt des Zeigers.`,
-    ref1: `${esc(c.name)}: Klicke auf einen Skalenstrich mit bekanntem Wert, z. B. den Anfang der Skala.`,
-    ref2: `${esc(c.name)}: Klicke auf einen zweiten Skalenstrich mit bekanntem Wert, möglichst weit vom ersten entfernt.`,
+    pivot: `${esc(c.name)}: Klicke auf den Drehpunkt des Zeigers. Liegt er hinter dem Gehäuse verdeckt, kreuze in der Gerätekarte „Drehpunkt verdeckt“ an.`,
+    ref1: `${esc(c.name)}: Klicke auf einen Skalenstrich mit bekanntem Wert, am besten den Anfang der Skala${c.pivotHidden ? ' (genau auf den Fuß des Strichs, am Skalenbogen)' : ''}.`,
+    ref2: `${esc(c.name)}: Klicke auf einen zweiten Skalenstrich mit bekanntem Wert, am besten das Ende der Skala${c.pivotHidden ? ' (wieder am Skalenbogen)' : ''}.`,
+    ref3: `${esc(c.name)}: Klicke auf einen Skalenstrich in der Mitte der Skala, ebenfalls am Skalenbogen. Daraus berechnet die App den verdeckten Drehpunkt.`,
     roi: `${esc(c.name)}: Ziehe ein Rechteck eng um die Ziffern der Anzeige.`,
   } as Record<Step, string>)[calib.step]);
 }
@@ -492,7 +504,7 @@ function startCalibration(id: string): void {
   c.raw = {};
   c.roi = undefined;
   c.cal = null;
-  calib = { id, step: c.type === 'analog' ? 'pivot' : 'roi' };
+  calib = { id, step: c.type === 'analog' ? (c.pivotHidden ? 'ref1' : 'pivot') : 'roi' };
   sel = null;
   explain();
   renderChannels();
@@ -515,6 +527,13 @@ function cancelCalibration(): void {
   applyStep();
 }
 
+/** Kurzer oder langer Bogen? Zwei Skalenpunkte allein sagen das nicht; der Zeiger im Bild entscheidet. */
+function guessArc(c: Chan): void {
+  rebuildCal(c);
+  if (!c.raw.pivot || !c.raw.p1 || !c.raw.p2) return;
+  try { c.bigArc = guessBigArc(grabStable(), c.raw as AnalogRaw, c.pointerDark); } catch { /* ohne Bild: Einstellung bleibt */ }
+}
+
 async function onCalibClick(p: Point): Promise<void> {
   if (!calib) return;
   const c = chan(calib.id);
@@ -534,17 +553,26 @@ async function onCalibClick(p: Point): Promise<void> {
     if (which === 1) { c.raw.p1 = p; c.raw.v1 = v; calib.step = 'ref2'; }
     else {
       if (v === c.raw.v1) return setHint('Beide Skalenwerte sind gleich – wähle einen anderen Skalenstrich.');
-      c.raw.p2 = p; c.raw.v2 = v; calib = null;
-      // Kurzer oder langer Bogen? Zwei Skalenpunkte allein sagen das nicht; der Zeiger im Bild entscheidet.
-      try { c.bigArc = guessBigArc(grabStable(), c.raw as AnalogRaw, c.pointerDark); } catch { /* ohne Bild: Einstellung bleibt */ }
+      c.raw.p2 = p; c.raw.v2 = v;
+      if (c.pivotHidden) calib.step = 'ref3';
+      else { calib = null; guessArc(c); }
     }
+  } else if (step === 'ref3') {
+    if (!pivotFromScale(c.raw.p1!, p, c.raw.p2!)) return setHint('Die drei Punkte liegen fast auf einer Geraden. Klicke einen Skalenstrich weiter in der Mitte des Bogens an.');
+    c.raw.p3 = p;
+    calib = null;
+    rebuildCal(c);
+    guessArc(c);
   }
   rebuildCal(c);
   if (!calib) {
     sel = { id: c.id, key: 'p2' };
-    setHint(c.type === 'analog'
-      ? `Kalibrierung fertig. Erkannt: Skala ${c.bigArc ? 'größer' : 'kleiner'} als 180°. Stimmt die Zahl oben? Sonst Punkte ziehen oder „Skala größer als 180°“ umschalten.`
-      : 'Kalibrierung fertig. Stimmt die Zahl oben? Sonst Punkte ziehen.');
+    const off = c.type === 'analog' && !c.pivotHidden && c.raw.pivot && c.raw.p1 && c.raw.p2 ? pivotMismatch(c.raw as AnalogRaw) : 0;
+    setHint(c.type !== 'analog'
+      ? 'Kalibrierung fertig. Stimmt die Zahl oben? Sonst Punkte ziehen.'
+      : off > 0.15
+        ? `Achtung: Der Drehpunkt passt nicht zu den Skalenstrichen (ihre Abstände zum Drehpunkt weichen um ${Math.round(off * 100)} % ab). Ist der Drehpunkt verdeckt? Dann in der Gerätekarte „Drehpunkt verdeckt“ ankreuzen und neu kalibrieren.`
+        : `Kalibrierung fertig. Erkannt: Skala ${c.bigArc ? 'größer' : 'kleiner'} als 180°. Stimmt die Zahl oben? Sonst Punkte ziehen oder „Skala größer als 180°“ umschalten.`);
   }
   else explain();
   renderChannels();
@@ -569,7 +597,7 @@ function finishRoi(r: Rect): void {
 }
 
 function pointsOf(c: Chan): { key: PointKey; p: Point }[] {
-  if (c.type === 'analog') return (['pivot', 'p1', 'p2'] as const).filter((k) => c.raw[k]).map((k) => ({ key: k, p: c.raw[k]! }));
+  if (c.type === 'analog') return (c.pivotHidden ? (['p1', 'p2', 'p3'] as const) : (['pivot', 'p1', 'p2'] as const)).filter((k) => c.raw[k]).map((k) => ({ key: k, p: c.raw[k]! }));
   return [];
 }
 
@@ -655,7 +683,8 @@ function renderChannels(): void {
       <div class="opts">
         ${c.type === 'analog'
           ? `<label><input type="checkbox" data-f="bigArc" ${c.bigArc ? 'checked' : ''}/> Skala größer als 180°</label>
-             <label><input type="checkbox" data-f="pointerDark" ${c.pointerDark ? 'checked' : ''}/> Zeiger dunkel auf hellem Grund</label>`
+             <label><input type="checkbox" data-f="pointerDark" ${c.pointerDark ? 'checked' : ''}/> Zeiger dunkel auf hellem Grund</label>
+             <label title="Für Geräte, bei denen der Drehpunkt hinter dem Gehäuse liegt: drei Skalenstriche statt Drehpunkt anklicken"><input type="checkbox" data-f="pivotHidden" ${c.pivotHidden ? 'checked' : ''}/> Drehpunkt verdeckt (drei Skalenstriche)</label>`
           : `<label class="field">Ziffern <input type="number" data-f="digits" min="1" max="8" value="${c.digits}" style="width:4.5em"/></label>
              <label class="field">Dezimalstellen <input type="number" data-f="decimals" min="0" max="6" value="${c.decimals}" placeholder="auto" style="width:5.5em"/></label>
              <label class="field">Anzeige <select data-f="polarity">
@@ -699,6 +728,12 @@ function onFieldChange(el: HTMLInputElement | HTMLSelectElement): void {
   else if (f === 'unit') c.unit = String(val);
   else if (f === 'bigArc') c.bigArc = val as boolean;
   else if (f === 'pointerDark') c.pointerDark = val as boolean;
+  else if (f === 'pivotHidden') {
+    c.pivotHidden = val as boolean;
+    // Ablauf ändert sich: neu kalibrieren (alte Punkte bleiben über „Rückgängig“ erreichbar)
+    startCalibration(c.id);
+    return;
+  }
   else if (f === 'digits') c.digits = Math.max(1, parseInt(String(val), 10) || 1);
   else if (f === 'decimals') c.decimals = String(val);
   else if (f === 'polarity') c.polarity = val as Chan['polarity'];
@@ -748,10 +783,10 @@ $('channels').addEventListener('click', (e) => {
 /* ---- Kalibrierung sichern / laden ---- */
 
 function toSaved(c: Chan): SavedChannel {
-  return { id: c.id, type: c.type, name: c.name, unit: c.unit, cal: c.cal, raw: c.raw, bigArc: c.bigArc, pointerDark: c.pointerDark, roi: c.roi, digits: c.digits, decimals: c.decimals, polarity: c.polarity, style: c.style, learned: c.learned, unc: c.unc };
+  return { id: c.id, type: c.type, name: c.name, unit: c.unit, cal: c.cal, raw: c.raw, bigArc: c.bigArc, pointerDark: c.pointerDark, pivotHidden: c.pivotHidden, roi: c.roi, digits: c.digits, decimals: c.decimals, polarity: c.polarity, style: c.style, learned: c.learned, unc: c.unc };
 }
 function fromSaved(s: SavedChannel, slot: number): Chan {
-  return { id: s.id, slot, type: s.type, name: s.name, unit: s.unit, raw: (s.raw as Chan['raw']) ?? {}, bigArc: s.bigArc, pointerDark: s.pointerDark, roi: s.roi as Rect | undefined, digits: s.digits, decimals: s.decimals, polarity: s.polarity as Chan['polarity'], style: (s.style as Chan['style']) ?? 'segment', learned: s.learned ?? [], unc: (s.unc as Chan['unc'] | undefined) ?? { mode: 'none', a: '', b: '', c: '' }, cal: s.cal, live: null, issues: [], hist: [] };
+  return { id: s.id, slot, type: s.type, name: s.name, unit: s.unit, raw: (s.raw as Chan['raw']) ?? {}, bigArc: s.bigArc, pointerDark: s.pointerDark, pivotHidden: !!s.pivotHidden, roi: s.roi as Rect | undefined, digits: s.digits, decimals: s.decimals, polarity: s.polarity as Chan['polarity'], style: (s.style as Chan['style']) ?? 'segment', learned: s.learned ?? [], unc: (s.unc as Chan['unc'] | undefined) ?? { mode: 'none', a: '', b: '', c: '' }, cal: s.cal, live: null, issues: [], hist: [] };
 }
 $('cal-save').onclick = () => download(new Blob([calibrationFile(chans.filter((c) => c.cal).map(toSaved))], { type: 'application/json' }), `kalibrierung-${stamp()}.json`);
 $<HTMLInputElement>('cal-load').onchange = async (e) => {
@@ -2581,7 +2616,7 @@ document.addEventListener('keydown', (e) => {
     if (Date.now() - lastKeyHist > 800) pushHist(c);
     lastKeyHist = Date.now();
     if (sel.key === 'roi' && c.roi) c.roi = { ...c.roi, x: c.roi.x + dx, y: c.roi.y + dy };
-    else { const p = c.raw[sel.key as 'pivot' | 'p1' | 'p2']; if (p) c.raw = { ...c.raw, [sel.key]: { x: p.x + dx, y: p.y + dy } }; }
+    else { const p = c.raw[sel.key as 'pivot' | 'p1' | 'p2' | 'p3']; if (p) c.raw = { ...c.raw, [sel.key]: { x: p.x + dx, y: p.y + dy } }; }
     rebuildCal(c);
     scheduleSave();
   }

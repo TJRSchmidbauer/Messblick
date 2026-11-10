@@ -19,6 +19,8 @@ export interface AnalogCalibration {
 
 export interface AnalogRaw {
   pivot: Point;
+  /** Dritter Skalenpunkt, nur bei verdecktem Drehpunkt (der Drehpunkt wird dann daraus berechnet). */
+  p3?: Point;
   p1: Point;
   v1: number;
   p2: Point;
@@ -32,6 +34,30 @@ const wrap = (a: number): number => {
 };
 
 export const angleOf = (pivot: Point, p: Point): number => Math.atan2(p.y - pivot.y, p.x - pivot.x);
+
+/**
+ * Drehpunkt aus drei Punkten auf der Skala (Mittelpunkt des Kreises durch sie). Für Geräte, bei denen der Drehpunkt
+ * hinter dem Gehäuse liegt (z. B. Demo-Multimeter). null, wenn die Punkte fast auf einer Geraden liegen.
+ */
+export function pivotFromScale(a: Point, b: Point, c: Point): Point | null {
+  const d = 2 * (a.x * (b.y - c.y) + b.x * (c.y - a.y) + c.x * (a.y - b.y));
+  const span = Math.max(Math.hypot(a.x - c.x, a.y - c.y), Math.hypot(a.x - b.x, a.y - b.y), 1);
+  if (Math.abs(d) < 1e-3 * span * span) return null;
+  const a2 = a.x * a.x + a.y * a.y, b2 = b.x * b.x + b.y * b.y, c2 = c.x * c.x + c.y * c.y;
+  const p = { x: (a2 * (b.y - c.y) + b2 * (c.y - a.y) + c2 * (a.y - b.y)) / d, y: (a2 * (c.x - b.x) + b2 * (a.x - c.x) + c2 * (b.x - a.x)) / d };
+  // ein „Drehpunkt“ weit außerhalb (fast gerade Punkte) ist unbrauchbar
+  return Math.hypot(p.x - a.x, p.y - a.y) > 20 * span ? null : p;
+}
+
+/**
+ * Passt der angeklickte Drehpunkt zu den Skalenstrichen? Beide Striche liegen auf demselben Kreis um den Drehpunkt;
+ * weichen ihre Abstände deutlich voneinander ab, ist der Drehpunkt vermutlich falsch gesetzt (oft: verdeckt).
+ * Liefert die relative Abweichung (0 = perfekt).
+ */
+export function pivotMismatch(raw: AnalogRaw): number {
+  const d1 = Math.hypot(raw.p1.x - raw.pivot.x, raw.p1.y - raw.pivot.y), d2 = Math.hypot(raw.p2.x - raw.pivot.x, raw.p2.y - raw.pivot.y);
+  return Math.abs(d1 - d2) / Math.max(d1, d2, 1);
+}
 
 /** Baut die Kalibrierung aus drei Klicks. `bigArc`: Skala überstreicht mehr als 180°. */
 export function buildAnalogCalibration(raw: AnalogRaw, bigArc: boolean, pointerDark = true): AnalogCalibration {

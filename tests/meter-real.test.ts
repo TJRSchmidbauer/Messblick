@@ -59,3 +59,21 @@ describe('Echtes Demo-Multimeter (100°-Skala im Gehäuse)', () => {
     expect(readAnalog(f, c).confidence).toBeGreaterThan(0.4);
   });
 });
+
+describe('Verdeckter Drehpunkt', () => {
+  it('Drehpunkt aus drei Skalenstrichen, auch mit ungenauen Klicks', async () => {
+    const { pivotFromScale, pivotMismatch } = await import('../src/readers/analog');
+    const on = (a: number, r = R * 0.9, jx = 0, jy = 0) => ({ x: PIV.x + Math.cos(a) * r + jx, y: PIV.y + Math.sin(a) * r + jy });
+    const exact = pivotFromScale(on(A0), on(deg(-90)), on(A1))!;
+    expect(Math.hypot(exact.x - PIV.x, exact.y - PIV.y)).toBeLessThan(1e-6);
+    // Klicks um 2–3 Bildpunkte daneben: Ablesung bleibt auf ±0,5 V (5 %) bei kleiner Skala
+    const p = pivotFromScale(on(A0, R * 0.9, 2, -3), on(deg(-95), R * 0.9, -3, 2), on(A1, R * 0.9, 3, 2))!;
+    const c = buildAnalogCalibration({ pivot: p, p1: on(A0), v1: 0, p2: on(A1), v2: 10 }, false);
+    for (const v of [0, 3, 5, 7, 10]) expect(Math.abs((readAnalog(realMeter(v, { shadow: true }), c).value ?? NaN) - v), String(v)).toBeLessThan(0.5); // kleine Skala (180 px): je größer im Bild, desto genauer
+    expect(pivotFromScale(on(A0), { x: 0, y: 0 }, { x: 0, y: 0 })).toBeNull();
+    expect(pivotFromScale({ x: 0, y: 0 }, { x: 50, y: 0.0001 }, { x: 100, y: 0 })).toBeNull();
+    // Warnung: Klick aufs sichtbare Zeigerende statt auf den verdeckten Drehpunkt
+    expect(pivotMismatch({ pivot: PIV, p1: on(A0), v1: 0, p2: on(A1), v2: 10 })).toBeLessThan(0.01);
+    expect(pivotMismatch({ pivot: { x: PIV.x - 60, y: PIV.y - 40 }, p1: on(A0), v1: 0, p2: on(A1), v2: 10 })).toBeGreaterThan(0.15);
+  });
+});
