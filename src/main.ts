@@ -102,8 +102,11 @@ const freshTrack = (): TrackState => ({ name: 'Marker', cfg: null, scaleP: [], m
 let trackSt: TrackState = freshTrack();
 let trackMode: 'marker' | 'gate' | 'anchor' | 'scale1' | 'scale2' | null = null;
 /** Lichtschranke: Zone im Bild, Name, Breite des Körpers (m) für die Geschwindigkeit. */
-interface GateState { name: string; rect: Rect | null; width: string }
-const freshGate = (): GateState => ({ name: 'Lichtschranke', rect: null, width: '' });
+interface GateState { name: string; rect: Rect | null; width: string; unit: string; factor: string }
+const freshGate = (): GateState => ({ name: 'Lichtschranke', rect: null, width: '', unit: '', factor: '' });
+/** Umrechnung der relativen Helligkeit (0 bis 1) in eine eigene Einheit, z. B. Lux: Wert = Faktor · Helligkeit. */
+const gateFactor = (): number => { const f = Number(gateSt.factor.trim().replace(',', '.')); return gateSt.factor.trim() && Number.isFinite(f) && f > 0 ? f : 1; };
+const gateUnit = (): string => gateSt.unit.trim() || (gateFactor() === 1 ? 'rel.' : '');
 let gateSt: GateState = freshGate();
 let drawKind: 'marker' | 'gate' | 'anchor' = 'marker';
 let gateLast: { r: GateResult; intervals: ReturnType<typeof gateStats>; periods: ReturnType<typeof gateStats> } | null = null;
@@ -195,7 +198,7 @@ function uncOf(c: Chan): UncertaintyConfig {
 const active = (): ActiveChannel[] => [
   ...chans.filter((c) => c.cal).map((c) => ({ id: c.id, cal: c.cal! })),
   ...(trackSt.cfg ? [{ id: 'trk-', track: trackerOf(trackSt.cfg) }] : []),
-  ...(gateSt.rect ? [{ id: 'gate', gate: gateSt.rect }] : []),
+  ...(gateSt.rect ? [{ id: 'gate', gate: gateSt.rect, gateScale: gateFactor() }] : []),
   ...(source?.kind === 'audio' && audioChannelCount() > 0 ? [{ id: 'mic-', audio: source as unknown as AudioReader }] : []),
 ];
 /** Ein Tracker je Marker-Konfiguration; der Sampler setzt ihn beim Start einer Aufnahme zurück. */
@@ -925,7 +928,7 @@ function syncSessionChannels(): void {
   }
   if (gateSt.rect) {
     const ex = session.channels.find((s) => s.id === 'gate');
-    if (ex) { ex.name = gateSt.name; ex.unit = 'rel.'; } else session.addChannel({ id: 'gate', name: gateSt.name, unit: 'rel.' });
+    if (ex) { ex.name = gateSt.name; ex.unit = gateUnit(); } else session.addChannel({ id: 'gate', name: gateSt.name, unit: gateUnit() });
   }
   refreshSelects();
 }
@@ -1971,6 +1974,8 @@ function renderGateStatus(): void {
   $<HTMLButtonElement>('gate-remove').disabled = !g;
   $<HTMLInputElement>('gate-name').value = gateSt.name;
   $<HTMLInputElement>('gate-width').value = gateSt.width;
+  $<HTMLInputElement>('gate-unit').value = gateSt.unit;
+  $<HTMLInputElement>('gate-factor').value = gateSt.factor;
 }
 $('gate-zone').onclick = () => {
   if (!source) return showError('Bitte zuerst eine Quelle wählen.');
@@ -1988,6 +1993,13 @@ $('gate-name').addEventListener('input', (e) => {
   if (session.channels.some((c) => c.id === 'gate')) { syncSessionChannels(); renderResults(); }
   scheduleSave();
 });
+for (const [id, key] of [['gate-unit', 'unit'], ['gate-factor', 'factor']] as const) {
+  $(id).addEventListener('input', (e) => {
+    gateSt[key] = (e.target as HTMLInputElement).value;
+    if (session.channels.some((c) => c.id === 'gate')) { syncSessionChannels(); renderResults(); }
+    scheduleSave();
+  });
+}
 $('gate-width').addEventListener('input', (e) => { gateSt.width = (e.target as HTMLInputElement).value; renderGate(); scheduleSave(); });
 
 function finishGate(r: Rect): void {

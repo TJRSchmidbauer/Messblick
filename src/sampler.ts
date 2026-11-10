@@ -18,6 +18,8 @@ export interface ActiveChannel {
   track?: Tracker;
   /** Lichtschranke: mittlere Helligkeit (0..1) dieser Bildzone. */
   gate?: Rect;
+  /** Faktor von der relativen Helligkeit zur eigenen Einheit (z. B. Lux); Standard 1. */
+  gateScale?: number;
   /** Mikrofon: Frequenz unter `${id}f`, Pegel unter `${id}l`. */
   audio?: AudioReader;
 }
@@ -45,7 +47,7 @@ function sampleOnce(src: FrameSource, channels: ActiveChannel[], session: Sessio
       values[`${ch.id}f`] = { v: a?.freq ?? null, c: a?.confidence ?? 0 };
       values[`${ch.id}l`] = { v: a ? a.level : null, c: a ? 1 : 0 };
     } else if (ch.gate) {
-      values[ch.id] = { v: meanBrightness(frame, ch.gate), c: 1 };
+      values[ch.id] = { v: meanBrightness(frame, ch.gate) * (ch.gateScale ?? 1), c: 1 };
     } else if (ch.cal) {
       const r = readChannel(frame, ch.cal);
       values[ch.id] = { v: r.value, c: r.confidence };

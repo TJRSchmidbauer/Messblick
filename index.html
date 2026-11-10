@@ -140,9 +140,11 @@
         </fieldset>
         <fieldset class="trackbox" id="gatebox">
           <legend>Lichtschranke (Kamerazone)</legend>
-          <p class="note">Eine kleine Bildzone wirkt wie eine Lichtschranke: Läuft etwas hindurch, ändert sich die Helligkeit. Daraus ergeben sich Zeitabstände, Periodendauern und Geschwindigkeiten. Für schnelle Vorgänge in Schritt 3 eine hohe Messrate wählen.</p>
+          <p class="note">Eine kleine Bildzone wirkt wie eine Lichtschranke: Läuft etwas hindurch, ändert sich die Helligkeit. Daraus ergeben sich Zeitabstände, Periodendauern und Geschwindigkeiten. Für schnelle Vorgänge in Schritt 3 eine hohe Messrate wählen. Die Zone misst auch allgemein die Helligkeit: Mit Einheit und Faktor (Wert bei voller Helligkeit) wird sie zur Messgröße, z. B. Lux nach Abgleich mit einem Luxmeter. Vor der Aufnahme einstellen.</p>
           <div class="bar">
             <label class="field">Name <input id="gate-name" autocomplete="off" value="Lichtschranke" style="width:10em" /></label>
+            <label class="field">Einheit <input id="gate-unit" autocomplete="off" placeholder="rel." style="width:5em" /></label>
+            <label class="field" title="Wert bei voller Helligkeit, z. B. der Luxwert, den ein Luxmeter bei weißem Bild zeigt">Faktor <input id="gate-factor" inputmode="decimal" autocomplete="off" placeholder="1" style="width:5em" /></label>
             <button id="gate-zone" type="button"><span data-icon="expand"></span>Zone wählen</button>
             <button id="gate-remove" type="button" class="ghost" disabled><span data-icon="trash"></span>Entfernen</button>
           </div>

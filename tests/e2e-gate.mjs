@@ -22,6 +22,7 @@ await page.mouse.move(x0, y0); await page.mouse.down(); await page.mouse.move(x1
 const status = await page.locator('#gate-status').textContent();
 if (!/Zone gewählt/.test(status)) throw new Error('Zone nicht übernommen: ' + status);
 
+await page.fill('#gate-unit', 'lx'); await page.fill('#gate-factor', '800');
 await page.click('#tab-3');
 await page.selectOption('#hz', '30');
 await page.click('#btn-analyze');
@@ -40,7 +41,15 @@ if (!/Geschwindigkeit beim Durchgang/.test(body)) throw new Error('Geschwindigke
 await page.fill('#var-p', '1');
 await page.click('#gate-take-period');
 if ((await page.locator('#var-table tbody tr').count()) !== 1) throw new Error('Periodendauer wurde nicht in die Parameterreihe übernommen');
-await page.selectOption('#ysel', { label: 'Lichtschranke' });
+{
+  const [csv] = await Promise.all([page.waitForEvent('download'), page.click('#dl-csv')]);
+  const lines = (await import('node:fs')).readFileSync(await csv.path(), 'utf8').trim().split(/\r?\n/);
+  const vals = lines.slice(1).map((l) => Number(l.split(';')[1].replace(',', '.'))).filter(Number.isFinite);
+  if (!/lx/.test(lines[0])) throw new Error('Einheit lx fehlt im Kopf: ' + lines[0]);
+  if (!(Math.max(...vals) > 100 && Math.max(...vals) <= 800)) throw new Error('Skalierung mit Faktor 800 falsch: max ' + Math.max(...vals));
+  console.log('Helligkeit in lx, max', Math.max(...vals).toFixed(0));
+}
+await page.selectOption('#ysel', { index: (await page.locator('#ysel option').allTextContents()).findIndex((t) => /Lichtschranke/.test(t)) });
 await page.screenshot({ path: process.env.SHOT ?? '/tmp/gate.png', fullPage: true });
 if (errors.length) throw new Error('Konsolenfehler: ' + errors.join(' | '));
 await browser.close();
