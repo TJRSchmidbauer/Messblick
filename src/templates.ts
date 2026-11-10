@@ -210,6 +210,14 @@ export const TEMPLATES: Template[] = [
     results: [{ label: 'Spezifische Wärmekapazität c = P/(m·a)', unit: 'J/(kg·K)', expr: 'P/(m*a)', lit: { label: 'Literaturwert Wasser', value: 4182, source: 'bei 20 °C' } }],
   },
   {
+    id: 'spulenfeld', title: 'Magnetfeld einer langen Spule (Hall-Sonde): Feldkonstante', topic: 'Magnetisches Feld, Spule, magnetische Flussdichte, Hall-Sonde', mode: 'channels',
+    summary: 'Flussdichte im Inneren einer langen Spule über der Stromstärke; die Steigung ist μ₀·N/l, daraus folgt die magnetische Feldkonstante μ₀.',
+    steps: ['Zwei Geräte anlegen: erst die Stromstärke I, dann die Flussdichte B (Teslameter mit Hall-Sonde, Anzeige in mT).', 'Sonde ruhig in die Mitte der Spule halten, Strom stufenweise erhöhen und je Stufe aufnehmen. Nullabgleich der Sonde vorher nicht vergessen.', 'Windungszahl N und Länge l der Spule eintragen. Die Auftragung B über I mit „Proportional“ ist voreingestellt; Erdfeld und Streufelder erscheinen als Achsenabschnitt (dann „Gerade“ wählen).'],
+    channels: [{ name: 'Stromstärke I', unit: 'A' }, { name: 'Flussdichte B', unit: 'mT' }], fit: 'prop',
+    inputs: [{ id: 'N', label: 'Windungszahl N', unit: '' }, { id: 'l', label: 'Länge der Spule l', unit: 'cm' }],
+    results: [{ label: 'Magnetische Feldkonstante μ₀ = a·l/N', unit: 'µN/A²', expr: 'a*l/N*10', lit: { label: 'Literaturwert', value: 1.25663706, source: 'µ₀ ≈ 1,2566·10⁻⁶ N/A²' } }],
+  },
+  {
     id: 'zerfall', title: 'Radioaktiver Zerfall: Halbwertszeit', topic: 'Kernphysik, Zerfallsgesetz, Halbwertszeit', mode: 'time',
     summary: 'Zählrate über der Zeit mit Nulleffekt; aus der Zerfallskonstante folgt die Halbwertszeit.',
     steps: ['Das Zählgerät anlegen (Zählungen je Messintervall) und kalibrieren; die Unsicherheit √N ist voreingestellt.', 'Aufnehmen, bis die Rate deutlich abgenommen hat.', 'Modell „Zerfall mit Offset“: der Offset C ist der Nulleffekt.'],

@@ -59,6 +59,14 @@ describe('Vorlagen: Ergebnisse stimmen mit der Physik überein', () => {
     expect(r[0].lit?.comparison.verdict).toBe('compatible');
   });
 
+  it('Spulenfeld: μ₀ aus B/I, N und l', () => {
+    // N = 500, l = 25 cm, μ₀ = 1,2566e-6: B/I = μ₀·N/l = 2,513 mT/A
+    const r = evalTemplateResults(tpl('spulenfeld'), P({ a: [2.513, 0.03] }), inp({ N: 500, l: 25 }));
+    expect(r[0].value).toBeCloseTo(1.2565, 3);
+    expect(r[0].lit?.comparison.verdict).toBe('compatible');
+    expect(evalTemplateResults(tpl('spulenfeld'), P({ a: [2.513, 0.03] }), inp({ N: 500 }))[0].problem).toMatch(/Länge/);
+  });
+
   it('Spule: L = τ·R in mH', () => {
     const r = evalTemplateResults(tpl('spule'), P({ τ: [0.002, 0.0001] }), inp({ R: 50 }));
     expect(r[1].value).toBeCloseTo(100, 8);
