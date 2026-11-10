@@ -21,6 +21,16 @@ Der dicke Bogen im Bild liegt auf der aufgedruckten Skala, die beiden Skalenende
 
 ![Das gedrehte Bild ohne Markierungen](bilder/zeiger-bild-gedreht.jpg)
 
+### So entsteht der Wert: Einzelbilder aus dem Video
+
+Die Bilder sind Standbilder aus dem Video (um 90° gedreht), aufgenommen in der App zu den angegebenen Zeiten. Der dicke rote Bogen mit den Punkten „0 A“ und „0,6 A“ ist die Kalibrierung, der Punkt unten der aus dem Video bestimmte Drehpunkt. Die **blaue Linie** habe ich nachträglich aus dem angezeigten App-Wert zurückgerechnet und eingezeichnet (Drehpunkt, Winkel aus dem Wert); sie liegt auf dem roten Zeiger, so sieht man, dass der Wert zum Zeigerwinkel im Bild gehört. Die Zahl darunter ist die Live-Ablesung der App im jeweiligen Bild.
+
+![A-Meter: Einzelbilder aus dem Video mit Ablesung](bilder/zeiger-A-aus-dem-video.jpg)
+
+V-Meter: Der Zeiger steht in allen Bildern praktisch still, entsprechend bleibt die Ablesung bei −0,3 bis −0,5 V (blaue Linie wieder aus dem Wert zurückgerechnet).
+
+![V-Meter: Einzelbilder aus dem Video mit Ablesung](bilder/zeiger-V-aus-dem-video.jpg)
+
 ### Ergebnis Strom (A-Meter)
 
 ![Strom über der Zeit, Messblick gegen Gegenprobe](bilder/zeiger-vergleich.jpg)
@@ -70,6 +80,12 @@ Wichtig für die Bewertung: Die Klassengenauigkeit (±0,015 A) ist **größer** 
 ![Rechteck um die Ziffern des Multimeters](bilder/multimeter-kalibrierung.jpg)
 
 Bild nach links drehen, „Digitalanzeige ablesen“, Rechteck eng um die vier Ziffern ziehen, „Ziffern“ = 4, „Dezimalstellen“ = 2 (das Gerät zeigt immer zwei Nachkommastellen; ohne feste Angabe sah die App in einzelnen Bildern einen Punkt, wo keiner war). Die gestrichelten Linien im Rechteck zeigen die erkannten Ziffernzellen.
+
+### So entsteht der Wert: Einzelbilder aus dem Video
+
+Standbilder aus dem Video (um 90° gedreht) mit dem orangen Rechteck, das die App auswertet, den gestrichelten Ziffernzellen und der Ablesung der App darunter. Bei 2,54 s und 3,61 s steht zusätzlich, was ich selbst am Bild lese. Bei 2,54 s stimmt die App (ein schwaches Nachbild der alten Ziffer ist zu sehen). Bei 3,61 s liest sie 14,34 V statt 10,94 V: Die Ziffern sind im Rechteck nach rechts gerutscht, die letzte Ziffer sitzt am Zellrand.
+
+![Digitalmultimeter: Einzelbilder aus dem Video mit Ablesung](bilder/multimeter-aus-dem-video.jpg)
 
 ### Ergebnis
 

@@ -50,6 +50,17 @@ await scrub(Number(process.env.SHOT_T ?? 4));
 await page.evaluate(() => window.scrollTo(0, 0)); await page.waitForTimeout(300);
 await page.screenshot({ path: `${out}/zeiger-kalibrierung.jpg`, type: 'jpeg', quality: 82, clip: { x: 0, y: 0, width: 1400, height: 1000 } });
 await page.locator('#view').screenshot({ path: `${out}/zeiger-ansicht.jpg`, type: 'jpeg', quality: 85 });
+// Einzelbilder aus dem Video mit der Ablesung der App zu diesen Zeitpunkten (zeigt, wie die Werte entstehen)
+const FRAME_TIMES = (process.env.FRAME_TIMES ?? '').split(',').filter(Boolean).map(Number);
+const frameLog = [];
+for (const t of FRAME_TIMES) {
+  await scrub(t);
+  await page.evaluate(() => window.scrollTo(0, 0));
+  const live = await page.locator('.live-value').allTextContents();
+  await page.locator('#view').screenshot({ path: `${out}/bild-${t.toFixed(2)}.png` });
+  frameLog.push({ t, live });
+}
+fs.writeFileSync(`${out}/bilder.json`, JSON.stringify(frameLog, null, 1));
 await page.click('#tab-3'); await page.selectOption('#hz', HZ);
 const t0 = Date.now();
 await page.click('#btn-analyze');
