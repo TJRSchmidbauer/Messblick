@@ -15,6 +15,8 @@ export interface Rect {
   y: number;
   w: number;
   h: number;
+  /** Nur bei Digitalanzeigen: Drehung des Rechtecks in Grad im Uhrzeigersinn um seine Mitte (Anzeige steht schief im Bild). */
+  angle?: number;
 }
 
 export interface ReadResult {

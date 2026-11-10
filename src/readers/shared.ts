@@ -87,3 +87,29 @@ export function textToValue(text: string, dpCount: number, decimals: number | nu
   if (t === '' || t === '-' || t === '.' || !Number.isFinite(value)) return null;
   return value;
 }
+
+/**
+ * Dreht eine schräg im Bild stehende Anzeige gerade: Das Rechteck `roi` ist um `roi.angle` Grad (im Uhrzeigersinn) gedreht;
+ * zurück kommt ein Bild genau so groß wie das Rechteck mit aufrechter Anzeige (bilineare Abtastung, Rand wird fortgesetzt).
+ */
+export function derotate(frame: Frame, roi: Rect & { angle?: number }): Frame {
+  const w = Math.max(1, Math.round(roi.w)), h = Math.max(1, Math.round(roi.h));
+  const a = ((roi.angle ?? 0) * Math.PI) / 180, cs = Math.cos(a), sn = Math.sin(a);
+  const cx = roi.x + roi.w / 2, cy = roi.y + roi.h / 2;
+  const data = new Uint8ClampedArray(w * h * 4);
+  const W = frame.width, H = frame.height;
+  const px = (x: number, y: number, k: number): number => frame.data[(Math.min(H - 1, Math.max(0, y)) * W + Math.min(W - 1, Math.max(0, x))) * 4 + k];
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const u = x + 0.5 - w / 2, v = y + 0.5 - h / 2;
+      const sx = cx + u * cs - v * sn - 0.5, sy = cy + u * sn + v * cs - 0.5;
+      const x0 = Math.floor(sx), y0 = Math.floor(sy), fx = sx - x0, fy = sy - y0;
+      const o = (y * w + x) * 4;
+      for (let k = 0; k < 3; k++) {
+        data[o + k] = (px(x0, y0, k) * (1 - fx) + px(x0 + 1, y0, k) * fx) * (1 - fy) + (px(x0, y0 + 1, k) * (1 - fx) + px(x0 + 1, y0 + 1, k) * fx) * fy;
+      }
+      data[o + 3] = 255;
+    }
+  }
+  return { width: w, height: h, data };
+}

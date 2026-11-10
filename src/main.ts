@@ -792,6 +792,7 @@ function renderChannels(): void {
              <label title="Für Geräte, bei denen der Drehpunkt hinter dem Gehäuse liegt: drei Skalenstriche statt Drehpunkt anklicken"><input type="checkbox" data-f="pivotHidden" ${c.pivotHidden ? 'checked' : ''}/> Drehpunkt verdeckt (drei Skalenstriche)</label>`
           : `<label class="field">Ziffern <input type="number" data-f="digits" min="1" max="8" value="${c.digits}" style="width:4.5em"/></label>
              <label class="field">Dezimalstellen <input type="number" data-f="decimals" min="0" max="6" value="${c.decimals}" placeholder="auto" style="width:5.5em"/></label>
+             <label class="field" title="Steht die Anzeige schief im Bild, das Rechteck um diesen Winkel drehen (positiv = im Uhrzeigersinn), bis die Ziffern im Rechteck gerade stehen">Anzeige drehen <input type="number" data-f="angle" min="-45" max="45" step="0.5" value="${c.roi?.angle ?? 0}" style="width:5em"/> °</label>
              <label class="field">Anzeige <select data-f="polarity">
                ${(['auto', 'dark-on-light', 'light-on-dark'] as const).map((p) => `<option value="${p}" ${p === c.polarity ? 'selected' : ''}>${{ auto: 'automatisch', 'dark-on-light': 'dunkle Ziffern', 'light-on-dark': 'helle Ziffern' }[p]}</option>`).join('')}
              </select></label>
@@ -843,6 +844,7 @@ function onFieldChange(el: HTMLInputElement | HTMLSelectElement): void {
   }
   else if (f === 'digits') c.digits = Math.max(1, parseInt(String(val), 10) || 1);
   else if (f === 'decimals') c.decimals = String(val);
+  else if (f === 'angle') { if (c.roi) c.roi = { ...c.roi, angle: Math.max(-45, Math.min(45, Number(val) || 0)) }; }
   else if (f === 'polarity') c.polarity = val as Chan['polarity'];
   else if (f === 'style') c.style = val as Chan['style'];
   else if (f === 'umode') c.unc = { mode: val as Chan['unc']['mode'], a: '', b: '', c: '' };
@@ -999,6 +1001,8 @@ function drawOverlay(): void {
         if (selected) strokeHalo(() => { vctx.beginPath(); vctx.arc(q.p.x, q.p.y, 13 * scale, 0, 7); }, '#F6B48F', 2);
       }
     } else if (c.roi) {
+      vctx.save();
+      if (c.roi.angle) { const mx = c.roi.x + c.roi.w / 2, my = c.roi.y + c.roi.h / 2; vctx.translate(mx, my); vctx.rotate((c.roi.angle * Math.PI) / 180); vctx.translate(-mx, -my); }
       strokeHalo(() => { vctx.beginPath(); vctx.rect(c.roi!.x, c.roi!.y, c.roi!.w, c.roi!.h); }, col);
       if (sel?.id === c.id && sel.key === 'roi') strokeHalo(() => { vctx.beginPath(); vctx.rect(c.roi!.x - 4 * scale, c.roi!.y - 4 * scale, c.roi!.w + 8 * scale, c.roi!.h + 8 * scale); }, '#F6B48F', 2);
       if (c.cal) {
@@ -1007,6 +1011,7 @@ function drawOverlay(): void {
         for (let i = 1; i < c.digits; i++) strokeHalo(() => { vctx.beginPath(); vctx.moveTo(c.roi!.x + i * cw, c.roi!.y); vctx.lineTo(c.roi!.x + i * cw, c.roi!.y + c.roi!.h); }, col, 1);
         vctx.setLineDash([]);
       }
+      vctx.restore();
     }
     if (anchor) {
       const label = c.name + (isCal ? ' …' : '');

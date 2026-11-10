@@ -1,7 +1,7 @@
 import type { Frame, ReadResult } from '../core/types';
 import { DIGIT_SEGMENTS, DP_BOX, SEGMENT_BOXES } from '../core/synth';
 import { foregroundMask, readGlyph } from './glyph';
-import { NO_READING, extractRoi, foregroundIsDark, otsu, textToValue, type DigitalCalibration } from './shared';
+import { NO_READING, derotate, extractRoi, foregroundIsDark, otsu, textToValue, type DigitalCalibration } from './shared';
 
 export type { DigitalCalibration, LearnedGlyph } from './shared';
 
@@ -24,6 +24,11 @@ const SEGMENT_SURE = 0.95;
  * Zeichenvergleich, weil er Schrägschrift, schwachen Kontrast und Lichtverlauf besser verträgt.
  */
 export function readDigital(frame: Frame, cal: DigitalCalibration): ReadResult {
+  // Schief gefilmte Anzeige: Rechteck ist gedreht, erst gerade stellen, dann wie gewohnt lesen
+  if (cal.roi.angle) {
+    const f = derotate(frame, cal.roi);
+    return readDigital(f, { ...cal, roi: { x: 0, y: 0, w: f.width, h: f.height } });
+  }
   const style = cal.style ?? 'segment';
   if (style === 'glyph') return readGlyph(frame, cal);
   if (style === 'segment') return readSegments(frame, cal);
