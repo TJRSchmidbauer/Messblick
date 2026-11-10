@@ -52,8 +52,11 @@ export interface AudioAnalysis {
 }
 
 export const MIN_FREQ = 20;
-/** Unter diesem Effektivwert gilt das Signal als Stille. */
-export const SILENCE_RMS = 0.002;
+/**
+ * Unter diesem Effektivwert gilt das Signal als digitale Stille. Bewusst sehr niedrig: Ob ein Ton da ist, entscheidet
+ * allein der Abstand des Maximums zum Rauschboden (unabhängig von der Lautstärke), sodass auch leise Töne erkannt werden.
+ */
+export const SILENCE_RMS = 0.00002;
 
 const hann = (n: number): Float64Array => Float64Array.from({ length: n }, (_, i) => 0.5 - 0.5 * Math.cos((2 * Math.PI * i) / (n - 1)));
 const windows = new Map<number, Float64Array>();

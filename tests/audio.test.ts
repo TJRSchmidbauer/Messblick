@@ -57,6 +57,14 @@ describe('Grundfrequenz und Pegel', () => {
     expect(silent.level).toBe(-100);
     expect(analyzeBlock(tone([], N, SR, 0.5), SR).freq).toBeNull();
   });
+  it('leise Töne werden erkannt, leises Rauschen nicht', () => {
+    for (const amp of [0.0005, 0.002, 0.01]) {
+      const r = analyzeBlock(tone([[440, amp]], N, SR, amp), SR); // Rauschen so stark wie der Ton
+      expect(Math.abs(r.freq! - 440), `Amplitude ${amp}`).toBeLessThan(0.5);
+    }
+    expect(analyzeBlock(tone([], N, SR, 0.002), SR).freq).toBeNull();
+    expect(analyzeBlock(tone([], N, SR, 0.0002), SR).freq).toBeNull();
+  });
   it('ungültige Blocklänge wird gemeldet', () => {
     expect(() => analyzeBlock(new Float64Array(1000), SR)).toThrow(/Zweierpotenz/);
   });
