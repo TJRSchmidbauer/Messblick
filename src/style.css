@@ -412,3 +412,7 @@ body.beamer .statusbar, body.beamer .why { display: none; }
 .nextbar button { white-space: nowrap; flex: none; }
 .trackbox .bar { align-items: flex-end; }
 body.beamer .moreopts, body.beamer .moretools, body.beamer .help { display: none; }
+.howto { margin: .5rem 0; padding: .4rem .8rem; border: 1px dashed var(--line-strong); border-radius: 10px; }
+.howto > summary { cursor: pointer; font-weight: 600; }
+#scandlg { max-width: min(34rem, 94vw); }
+#scan-video { width: 100%; max-height: 50vh; background: #000; border-radius: 8px; }

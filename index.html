@@ -349,16 +349,31 @@
         </div>
         <details id="classbox" class="classbox">
           <summary>Klassenansicht: Ergebnisse der Gruppen sammeln</summary>
-          <p class="note">Jede Gruppe teilt ihr Ergebnis als kurzen Code oder Link (ohne Messdaten, ohne Server). Die Lehrkraft fügt alle Codes unten ein; die App zeigt die Werte nebeneinander, rechnet Mittelwert und Streuung und nennt Ausreißer.</p>
+          <p class="note">Jede Gruppe teilt ihr Ergebnis als kurzen Code. Die Lehrkraft sammelt alle Codes in der App, sie rechnet Mittelwert und Streuung und nennt Ausreißer. Das geht auch ohne Vorlage: Geteilt wird dann das Fitergebnis oder der Mittelwert der Messgrößen.</p>
+          <details class="howto">
+            <summary>Wie funktioniert das ohne Internet und ohne Server?</summary>
+            <ol>
+              <li>Der <b>Code</b> ist das Ergebnis selbst, als kurzer Text (Versuch, Gruppenname, Werte mit Unsicherheit, etwa 150 bis 300 Zeichen). Es gibt keinen Server, auf dem etwas gespeichert wird.</li>
+              <li><b>Gruppe:</b> „QR-Code zeigen“ zeigt den Code als QR-Bild auf dem Bildschirm. Alternativ „Code kopieren“ und per Chat oder Mail schicken.</li>
+              <li><b>Lehrkraft:</b> „Codes scannen“ öffnet die Kamera. Das Handy oder der Laptop der Lehrkraft liest den QR-Code vom Bildschirm der Gruppe direkt ab. Die App rechnet alles lokal. Nach dem ersten Laden der Seite läuft das auch ohne Internet.</li>
+              <li>Die gesammelten Codes bleiben nur in diesem Browser gespeichert. Wer die Seite wechselt oder die Browserdaten löscht, verliert sie.</li>
+              <li>Die Variante „Link“ (QR enthält eine Internetadresse) lässt sich mit der normalen Handykamera öffnen, braucht aber Internet, und die Codes landen im Browser des Handys, nicht in dem der Lehrkraft am Laptop.</li>
+            </ol>
+          </details>
           <div class="bar">
             <label class="field">Gruppenname <input id="class-group" autocomplete="off" maxlength="40" placeholder="z. B. Gruppe 3" class="sm" /></label>
             <button id="class-copy-code" type="button" disabled>Code kopieren</button>
+            <button id="class-qr" type="button" disabled>QR-Code zeigen</button>
+          </div>
+          <div class="bar" role="radiogroup" aria-label="Inhalt des QR-Codes">
+            <label class="check"><input type="radio" name="qrmode" id="qrmode-code" value="code" checked /> QR enthält den Code (kürzer, für „Codes scannen“, ohne Internet)</label>
+            <label class="check"><input type="radio" name="qrmode" id="qrmode-link" value="link" /> QR enthält einen Link (normale Handykamera, braucht Internet)</label>
             <button id="class-copy-link" type="button" class="ghost" disabled>Link kopieren</button>
-            <button id="class-qr" type="button" class="ghost" disabled>QR-Code zeigen</button>
           </div>
           <div id="class-qr-out" class="qrbox" hidden></div>
-          <p id="class-share-msg" class="note" aria-live="polite">Das Ergebnis einer Vorlage steht erst nach dem Fit zum Teilen bereit.</p>
-          <label class="field">Codes der Gruppen einfügen (einer je Zeile oder durch Leerzeichen getrennt)<textarea id="class-text" rows="4" spellcheck="false" style="width:100%"></textarea></label>
+          <p id="class-share-msg" class="note" aria-live="polite"></p>
+          <div class="bar"><button id="class-scan" type="button"><span data-icon="camera"></span>Codes scannen</button></div>
+          <label class="field">Gesammelte Codes (einer je Zeile; auch von Hand einfügbar)<textarea id="class-text" rows="4" spellcheck="false" style="width:100%"></textarea></label>
           <div id="class-out" aria-live="polite"></div>
         </details>
           </div>
@@ -376,6 +391,14 @@
       <a href="https://schmidbauer.io/datenschutz" target="_blank" rel="noopener noreferrer">Datenschutz</a>
     </nav>
   </footer>
+
+  <dialog id="scandlg" aria-labelledby="scandlg-title">
+    <h3 id="scandlg-title">Codes scannen</h3>
+    <p class="note">Halte die Kamera auf den QR-Code eines Gruppen-Bildschirms. Jeder erkannte Code wird übernommen; du kannst gleich weitere scannen. Das Kamerabild verlässt den Browser nicht.</p>
+    <video id="scan-video" playsinline muted aria-label="Kamerabild zum Scannen"></video>
+    <p id="scan-status" class="note" role="status" aria-live="polite">Kamera wird gestartet …</p>
+    <div class="bar end"><button type="button" id="scan-close" class="primary">Fertig</button></div>
+  </dialog>
 
   <dialog id="valdlg" aria-labelledby="valdlg-title">
     <form method="dialog" id="valdlg-form">

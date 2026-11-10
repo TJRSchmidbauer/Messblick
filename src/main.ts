@@ -22,7 +22,8 @@ import { parseTask, serializeTask, type TaskFile } from './task';
 import { Stabilizer } from './readers/stabilize';
 import type { TrackResult } from './readers/track';
 import { encodeQr, qrSvg } from './ui/qr';
-import { encodeShare, parseShares, summarize } from './analysis/classview';
+import { startScanner, type Scanner } from './ui/scan';
+import { encodeShare, parseShares, summarize, type SharedLine } from './analysis/classview';
 import { TEMPLATES, evalTemplateResults, templateById, type Template, type TplResultLine } from './templates';
 import { describeUncertainty, type UncertaintyConfig } from './analysis/uncertainty';
 import { icon, symbol, SYMBOLS } from './ui/icons';
@@ -1151,6 +1152,7 @@ function renderResults(light = false): void {
   renderTable();
   renderVariation(light);
   renderTemplateResults();
+  renderClassShare();
   renderJumpNotes();
   renderGate();
 }
@@ -1600,29 +1602,83 @@ function renderTemplateResults(): void {
 /* ---- Klassenansicht ---- */
 
 const classUrl = (code: string): string => `${location.origin}${location.pathname}#pmw=${code}`;
-function currentShareCode(): string | null {
+const classGroup = (): string => $<HTMLInputElement>('class-group').value.trim() || 'Gruppe';
+
+/** Was geteilt wird: Vorlagen-Ergebnis, sonst Fitparameter, sonst Mittelwerte der Messgrößen; null, wenn es noch nichts gibt. */
+function shareContent(): { tpl: string; lines: SharedLine[]; what: string } | null {
+  const sigma = (x: number | null | undefined): number | null => (x !== null && x !== undefined && Number.isFinite(x) && x >= 0 ? x : null);
   const t = templateById(tplId);
-  const lines = tplLines.filter((l) => l.value !== null && !l.problem);
-  if (!t || !lines.length) return null;
-  const group = $<HTMLInputElement>('class-group').value.trim() || 'Gruppe';
-  return encodeShare({ tpl: t.id, group, lines: lines.map((l) => ({ label: l.label, unit: l.unit, value: l.value!, sigma: l.sigma !== null && Number.isFinite(l.sigma) ? l.sigma : null })) });
+  const tl = tplLines.filter((l) => l.value !== null && !l.problem);
+  if (t && tl.length) return { tpl: t.id, what: `Ergebnis der Vorlage „${t.title}“`, lines: tl.map((l) => ({ label: l.label, unit: l.unit, value: l.value!, sigma: sigma(l.sigma) })) };
+  if (lastFit) {
+    const m = lastFit.model;
+    return { tpl: `frei-${m.id}`, what: `Fitergebnis „${m.name}“`, lines: lastFit.params.map((p) => ({ label: `Fit ${m.name}: ${p.name}`, unit: '', value: p.value, sigma: sigma(p.sigma) })) };
+  }
+  const lines: SharedLine[] = [];
+  for (const ch of session.channels.filter((c) => !c.derived)) {
+    const v = session.samples.map((x) => x.values[ch.id]?.v).filter((x): x is number => typeof x === 'number' && Number.isFinite(x));
+    if (!v.length) continue;
+    const mean = v.reduce((a, b) => a + b, 0) / v.length;
+    const sd = v.length > 1 ? Math.sqrt(v.reduce((a, b) => a + (b - mean) ** 2, 0) / (v.length - 1)) : null;
+    lines.push({ label: `Mittelwert ${ch.name}`, unit: ch.unit, value: mean, sigma: sd === null ? null : sd / Math.sqrt(v.length) });
+  }
+  return lines.length ? { tpl: 'frei-mittel', what: 'Mittelwerte der Messgrößen', lines: lines.slice(0, 8) } : null;
 }
-$('class-qr').onclick = () => {
+function currentShareCode(): string | null {
+  const c = shareContent();
+  return c ? encodeShare({ tpl: c.tpl, group: classGroup(), lines: c.lines }) : null;
+}
+const qrMode = (): 'code' | 'link' => ($<HTMLInputElement>('qrmode-link').checked ? 'link' : 'code');
+function showQr(): void {
   const c = currentShareCode(), host = $('class-qr-out');
-  if (!c) return;
+  if (!c) { host.hidden = true; return; }
+  const link = qrMode() === 'link';
   try {
-    host.innerHTML = `${qrSvg(encodeQr(classUrl(c)), 'QR-Code mit dem Link zum Ergebnis dieser Gruppe')}<p class="note">Die Lehrkraft scannt den Code mit der Handykamera und öffnet den Link in dem Browser, in dem sie sammelt. Der Code ist nur dann einlösbar, wenn die App unter dieser Adresse erreichbar ist.</p>`;
+    host.innerHTML = `${qrSvg(encodeQr(link ? classUrl(c) : c), link ? 'QR-Code mit einem Link zum Ergebnis dieser Gruppe' : 'QR-Code mit dem Ergebnis dieser Gruppe')}<p class="note">${link
+      ? 'Mit der normalen Handykamera scannen: öffnet die App im Browser des Handys (braucht Internet, die Codes landen im Browser dieses Handys).'
+      : 'Die Lehrkraft scannt diesen Code mit „Codes scannen“ in der App. Das geht ohne Internet und ohne Server.'}</p>`;
     host.hidden = false;
-  } catch { host.hidden = true; $('class-share-msg').textContent = 'Der Link ist für einen QR-Code zu lang. Bitte „Code kopieren“ verwenden.'; }
-};
-function renderClassShare(): void {
-  const ok = currentShareCode() !== null;
-  $<HTMLButtonElement>('class-copy-code').disabled = !ok;
-  $<HTMLButtonElement>('class-copy-link').disabled = !ok;
-  $<HTMLButtonElement>('class-qr').disabled = !ok;
-  if (!ok) $('class-qr-out').hidden = true;
-  $('class-share-msg').textContent = ok ? 'Bereit: Code oder Link kopieren und der Lehrkraft schicken (Chat, Mail, Tafelbild).' : 'Das Ergebnis einer Vorlage steht erst nach dem Fit zum Teilen bereit.';
+  } catch { host.hidden = true; $('class-share-msg').textContent = 'Das Ergebnis ist für einen QR-Code zu lang. Bitte „Code kopieren“ verwenden.'; }
 }
+$('class-qr').onclick = showQr;
+for (const id of ['qrmode-code', 'qrmode-link']) $(id).addEventListener('change', () => { if (!$('class-qr-out').hidden) showQr(); });
+function renderClassShare(): void {
+  const c = shareContent();
+  for (const id of ['class-copy-code', 'class-copy-link', 'class-qr']) $<HTMLButtonElement>(id).disabled = !c;
+  if (!c) $('class-qr-out').hidden = true;
+  else if (!$('class-qr-out').hidden) showQr();
+  $('class-share-msg').textContent = c
+    ? `Geteilt wird: ${c.what} (${c.lines.length} Wert${c.lines.length === 1 ? '' : 'e'}). Gruppenname oben eintragen.`
+    : 'Es gibt noch nichts zu teilen. Miss etwas und lege in Schritt 4 einen Fit an (oder wähle einen Versuch mit Ergebnis); ohne Fit werden die Mittelwerte der Messgrößen geteilt.';
+}
+
+/* ---- Codes scannen ---- */
+let scanner: Scanner | null = null;
+function addScanned(text: string): void {
+  const found = parseShares(text);
+  if (!found.length) return;
+  const box = $<HTMLTextAreaElement>('class-text');
+  const known = new Set(parseShares(box.value).map((r) => `${r.tpl}|${r.group}|${r.lines[0].label}|${r.lines[0].value}`));
+  const fresh = found.filter((r) => !known.has(`${r.tpl}|${r.group}|${r.lines[0].label}|${r.lines[0].value}`));
+  const st = $('scan-status');
+  if (!fresh.length) { st.textContent = `„${found[0].group}“ ist schon erfasst. Nächsten Code scannen.`; return; }
+  // gleiche Gruppe + gleicher Versuch: der neue Code ersetzt den alten (parseShares behält den letzten)
+  box.value = `${box.value}${box.value && !box.value.endsWith('\n') ? '\n' : ''}${fresh.map((r) => encodeShare(r)).join('\n')}\n`;
+  renderClassView();
+  st.textContent = `Übernommen: ${fresh.map((r) => r.group).join(', ')}. Insgesamt ${parseShares(box.value).length} Gruppe(n). Nächsten Code scannen oder „Fertig“.`;
+}
+async function openScan(): Promise<void> {
+  const dlg = $<HTMLDialogElement>('scandlg'), st = $('scan-status');
+  st.textContent = 'Kamera wird gestartet …';
+  dlg.showModal();
+  try { scanner = await startScanner($<HTMLVideoElement>('scan-video'), addScanned, { forceJs: (window as unknown as { __forceJsQr?: boolean }).__forceJsQr }); st.textContent = 'Bereit: Kamera auf einen QR-Code halten.'; }
+  catch (e) { st.textContent = e instanceof Error ? e.message : 'Die Kamera lässt sich nicht öffnen.'; }
+}
+function closeScan(): void { scanner?.stop(); scanner = null; const d = $<HTMLDialogElement>('scandlg'); if (d.open) d.close(); }
+$('class-scan').onclick = () => void openScan();
+$('scan-close').onclick = closeScan;
+$('scandlg').addEventListener('close', () => { scanner?.stop(); scanner = null; });
+
 async function copyText(text: string, what: string): Promise<void> {
   try { await navigator.clipboard.writeText(text); $('class-share-msg').textContent = `${what} kopiert.`; }
   catch { $<HTMLTextAreaElement>('class-text').value = text; $('class-share-msg').textContent = `Kopieren nicht möglich; der ${what} steht unten im Feld und kann von Hand markiert werden.`; renderClassView(); }
